@@ -33,10 +33,6 @@ Mila erschließt diesen verborgenen Wert und macht ihn mobil nutzbar.
 
 📱 Mobile‑First App‑Generierung
 
-• Automatische Erstellung einer mobilen Web‑App (z. B. via Jotform Apps)
-• Fokus auf 1–2 Kernaufgaben
-• Read‑Only im MVP (z. B. Schichtplan einsehen, Bestand prüfen)
-
 
 ✏️ Einfache Daten‑Interaktion (MVP‑Erweiterung)
 
@@ -83,8 +79,7 @@ Temporäre Datenbank
 💰 Monetarisierung (MVP‑Phase)
 
 • Kostenlose Analyse: Upload + Potenzialbericht
-• Einmalzahlung: Generierte Read‑Only‑App
-• Abo (zukünftig): Synchronisation, mehrere Apps, erweiterte KI
+• Einmalzahlung: Synchronisation, mehrere Apps, erweiterte Automatisierungen, slles gesteuert mit einem Genehmigungs-hebel für volle kontrolle
 
 
 ---
@@ -96,20 +91,7 @@ Temporäre Datenbank
 • Kosteneffizient
 • Zukunftssicher erweiterbar
 
-
----
-
-📍 Roadmap
-
-• Zielgruppe definieren
-• Pilotkunde onboarden
-• Prototyp der Daten‑Ingestion bauen
-• Automatische App‑Generierung verfeinern
-
-
----
-
-📂 Projektstruktur (Vorschlag)
+📂 Projektstruktur
 
 /mila-legacy-bridge
 │
@@ -129,15 +111,6 @@ Temporäre Datenbank
 └── README.md
 
 
----
-
-🤝 Contribution
-
-Pull Requests sind willkommen.
-Bitte Issues für Bugs, Ideen oder Erweiterungen nutzen.
-
----
-
 📚 Quellen
 
 „Die KI-Engine analysiert die hochgeladenen Daten, erkennt Muster, identifiziert Spaltenüberschriften…“
@@ -145,11 +118,3 @@ Bitte Issues für Bugs, Ideen oder Erweiterungen nutzen.
 
 (Alle Referenzen stammen aus dem Originaldokument.)
 
----
-
-🔗 Weiterführende Themen
-
-• Legacy‑Modernisierung
-• Mila‑Architektur
-• Daten‑Pipeline
-• Mobile‑UI
