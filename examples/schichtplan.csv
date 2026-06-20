@@ -1,1 +1,4 @@
-examples/schichtplan.csv
+Mitarbeiter,Datum,Schicht
+Anna,2025-06-01,Früh
+Ben,2025-06-01,Spät
+Clara,2025-06-02,Nacht
