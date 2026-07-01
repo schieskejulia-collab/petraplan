@@ -1,0 +1,81 @@
+"""
+Webhook handlers — mounted at /api/webhook prefix by main.py.
+
+Routes produced:
+  POST /api/webhook/stripe
+  POST /api/webhook/premium
+  GET  /api/webhook/events
+"""
+
+from fastapi import APIRouter, HTTPException, Request
+from .schemas import WebhookEvent
+from .logger import log
+
+router = APIRouter(prefix="/webhook", tags=["Webhooks"])
+
+_events: list[dict] = []
+
+_STRIPE_MAP = {
+    "customer.subscription.created": "premium.activated",
+    "customer.subscription.deleted": "premium.cancelled",
+    "customer.subscription.updated": "premium.upgraded",
+}
+
+_INTERNAL_EVENTS = {"premium.activated", "premium.cancelled", "premium.upgraded"}
+
+
+@router.post(
+    "/stripe",
+    summary="Stripe-Webhook",
+    description=(
+        "Akzeptiert Stripe-Subscription-Events und interne Premium-Events.\n\n"
+        "**Stripe-Beispiel:**\n"
+        "```json\n"
+        "{\"type\": \"customer.subscription.created\","
+        " \"data\": {\"object\": {\"customer\": \"cus_abc\"}}}\n"
+        "```\n\n"
+        "**Internes Beispiel:**\n"
+        "```json\n"
+        "{\"event\": \"premium.activated\", \"business_name\": \"Acme Co\","
+        " \"payload\": {\"plan\": \"pro\"}}\n"
+        "```"
+    ),
+)
+async def stripe_webhook(request: Request):
+    body = await request.json()
+    if "type" in body:
+        raw_type = body["type"]
+        internal = _STRIPE_MAP.get(raw_type)
+        if not internal:
+            raise HTTPException(status_code=400, detail=f"Unbekannter Stripe-Event '{raw_type}'.")
+        obj = body.get("data", {}).get("object", {})
+        entry = {"event": internal, "source": "stripe", "customer": obj.get("customer"),
+                 "status": obj.get("status"), "raw_type": raw_type}
+    elif "event" in body:
+        evt = body["event"]
+        if evt not in _INTERNAL_EVENTS:
+            raise HTTPException(status_code=400, detail=f"Unbekannter Event '{evt}'.")
+        entry = {"event": evt, "source": "internal",
+                 "business_name": body.get("business_name"), "payload": body.get("payload", {})}
+    else:
+        raise HTTPException(status_code=422, detail="Payload muss 'type' oder 'event' enthalten.")
+
+    _events.append(entry)
+    log.info("Webhook: %s (source=%s)", entry["event"], entry["source"])
+    return {"received": True, "event": entry["event"], "source": entry["source"]}
+
+
+@router.post("/premium", summary="Interner Premium-Webhook")
+def premium_webhook(event: WebhookEvent):
+    if event.event not in _INTERNAL_EVENTS:
+        raise HTTPException(status_code=400, detail=f"Unbekannter Event '{event.event}'.")
+    entry = {"event": event.event, "source": "internal",
+             "business_name": event.business_name, "payload": event.payload}
+    _events.append(entry)
+    log.info("Premium webhook: %s — %s", event.event, event.business_name)
+    return {"received": True, "event": event.event, "business_name": event.business_name}
+
+
+@router.get("/events", summary="Empfangene Webhook-Events")
+def list_events():
+    return {"count": len(_events), "events": _events}
