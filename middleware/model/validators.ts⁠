@@ -1,0 +1,33 @@
+export function isNonEmpty(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+export function isPositiveInt(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+export function parseToolsList(raw: string): string[] {
+  return raw
+    .split(",")
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+}
+
+export function validateBusinessProfile(data: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  if (!isNonEmpty(data.business_name)) errors.push("Business name is required.");
+  if (!isNonEmpty(data.industry)) errors.push("Industry is required.");
+  if (data.team_size !== undefined && data.team_size !== null && !isPositiveInt(data.team_size)) {
+    errors.push("Team size must be a positive integer.");
+  }
+  return errors;
+}
+
+export function validateFiles(files: File[], maxMb = 5, allowed = ["application/json", "text/plain", "text/csv"]): string[] {
+  const errors: string[] = [];
+  for (const file of files) {
+    if (file.size > maxMb * 1024 * 1024) errors.push(`${file.name} exceeds ${maxMb}MB limit.`);
+    if (!allowed.includes(file.type)) errors.push(`${file.name} is not a supported file type.`);
+  }
+  return errors;
+}
