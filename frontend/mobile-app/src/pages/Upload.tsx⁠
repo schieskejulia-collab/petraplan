@@ -1,0 +1,118 @@
+import { useLocation } from "wouter";
+import { Layout } from "@/components/layout";
+import { FileUploader } from "@/components/FileUploader";
+import { ErrorBox } from "@/components/ErrorBox";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useUpload } from "@/hooks/useUpload";
+import { useStore } from "@/lib/store";
+import { milaApi } from "@/api/connector";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, FileSearch } from "lucide-react";
+
+export default function UploadPage() {
+  const [, setLocation] = useLocation();
+  const { setResult } = useStore();
+  const { files, parsed, errors, isProcessing, addFiles, removeFile, clearAll } = useUpload();
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
+
+  const handleAnalyze = async () => {
+    if (parsed.length === 0) return;
+    setAnalyzing(true);
+    setAnalyzeError(null);
+    try {
+      // Merge all parsed file data into a single profile
+      const merged = parsed.reduce<Record<string, unknown>>((acc, p) => ({ ...acc, ...p.data }), {});
+      const profile = {
+        business_name: String(merged.business_name ?? "Uploaded Profile"),
+        industry: String(merged.industry ?? "Unknown"),
+        tools: Array.isArray(merged.tools) ? merged.tools : [],
+        workflows: merged.workflows ? String(merged.workflows) : null,
+        repeated_tasks: merged.repeated_tasks ? String(merged.repeated_tasks) : null,
+        time_wasters: merged.time_wasters ? String(merged.time_wasters) : null,
+        top_priority: merged.top_priority ? String(merged.top_priority) : null,
+        desired_outcome: merged.desired_outcome ? String(merged.desired_outcome) : null,
+        premium_active: Boolean(merged.premium_active),
+        user_yes_for_automation: Boolean(merged.user_yes_for_automation),
+      };
+      const result = await milaApi.analyze(profile);
+      setResult(result);
+      setLocation("/results");
+    } catch (e) {
+      setAnalyzeError(e instanceof Error ? e.message : "Analysis failed.");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  return (
+    <Layout>
+      <div className="max-w-2xl mx-auto w-full space-y-6">
+        <div className="space-y-2">
+          <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setLocation("/")}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Back
+          </Button>
+          <h1 className="text-3xl font-serif text-primary flex items-center gap-2">
+            <FileSearch className="h-7 w-7" />
+            Upload Business Data
+          </h1>
+          <p className="text-muted-foreground">
+            Upload a JSON file with your business profile, or any CSV/text file describing your operations.
+          </p>
+        </div>
+
+        <Card className="border border-border/50 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Upload Files</CardTitle>
+            <CardDescription>
+              JSON files are parsed directly. CSV and text files are treated as a business description.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {errors.map((err, i) => (
+              <ErrorBox key={i} message={err} />
+            ))}
+            <FileUploader files={files} onAdd={addFiles} onRemove={removeFile} />
+          </CardContent>
+        </Card>
+
+        {isProcessing && <LoadingIndicator message="Processing files..." size="sm" />}
+        {analyzing && <LoadingIndicator message="Analyzing your data..." />}
+        {analyzeError && <ErrorBox message={analyzeError} onDismiss={() => setAnalyzeError(null)} />}
+
+        {parsed.length > 0 && (
+          <Card className="border border-border/50 bg-muted/20">
+            <CardHeader>
+              <CardTitle className="text-base">Parsed Data Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-xs text-muted-foreground overflow-auto max-h-48 bg-background rounded p-3">
+                {JSON.stringify(
+                  parsed.reduce<Record<string, unknown>>((a, p) => ({ ...a, ...p.data }), {}),
+                  null, 2
+                )}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex gap-3 justify-end pt-2">
+          {files.length > 0 && (
+            <Button variant="outline" onClick={clearAll}>Clear All</Button>
+          )}
+          <Button
+            disabled={parsed.length === 0 || analyzing || isProcessing}
+            onClick={handleAnalyze}
+            size="lg"
+            className="min-w-[160px]"
+          >
+            Analyze Files
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </Layout>
+  );
+}
