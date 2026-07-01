@@ -1,0 +1,73 @@
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+
+class BusinessProfile(BaseModel):
+    """
+    Full business profile submitted for analysis.
+
+    Example:
+        {
+          "business_name": "Acme Co",
+          "industry": "SaaS",
+          "team_size": 3,
+          "tools": ["Notion", "Slack", "Linear"],
+          "workflows": "Wir verwalten Sprints in Linear und kommunizieren in Slack.",
+          "repeated_tasks": "Wöchentliche Berichterstellung, Rechnungsversand",
+          "time_wasters": "Manuelles Kopieren von Daten zwischen Tools",
+          "top_priority": "Produkt schneller ausliefern",
+          "desired_outcome": "Admin-Zeit um 50% reduzieren",
+          "premium_active": true,
+          "user_yes_for_automation": true
+        }
+    """
+    business_name: str = Field(..., min_length=1, description="Name des Unternehmens")
+    industry: str = Field(..., min_length=1, description="Branche")
+    team_size: Optional[int] = Field(None, ge=1, description="Anzahl der Teammitglieder")
+    tools: List[str] = Field(default=[], description="Verwendete Tools (z.B. Notion, Slack)")
+    workflows: Optional[str] = Field(None, description="Beschreibung der aktuellen Workflows")
+    repeated_tasks: Optional[str] = Field(None, description="Wiederkehrende Aufgaben")
+    time_wasters: Optional[str] = Field(None, description="Bekannte Zeitfresser")
+    top_priority: Optional[str] = Field(None, description="Aktuell wichtigste Priorität")
+    desired_outcome: Optional[str] = Field(None, description="Gewünschtes Ergebnis")
+    premium_active: bool = Field(default=False, description="Premium-Plan aktiv")
+    user_yes_for_automation: bool = Field(default=False, description="Nutzer hat Automatisierung zugestimmt")
+
+
+class AnalysisResult(BaseModel):
+    summary: str
+    insights: List[str]
+    risks: List[str]
+    opportunities: List[str]
+    recommendations: List[str]
+    automation_allowed: bool
+    note: str
+
+
+class HistoryItem(BaseModel):
+    id: int
+    created_at: str
+    business_name: str
+    industry: str
+    source: str
+
+
+class HistoryDetail(HistoryItem):
+    input_json: dict
+    output_json: dict
+
+
+class WebhookEvent(BaseModel):
+    """
+    Premium webhook event payload.
+
+    Example:
+        {
+          "event": "premium.activated",
+          "business_name": "Acme Co",
+          "payload": {"plan": "pro", "user_id": "u_123"}
+        }
+    """
+    event: str = Field(..., description="Event-Typ z.B. premium.activated / premium.cancelled")
+    business_name: str
+    payload: Optional[dict] = Field(default={})
