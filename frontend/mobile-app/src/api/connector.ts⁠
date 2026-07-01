@@ -1,0 +1,87 @@
+const BASE = "/api";
+
+export interface BusinessProfile {
+  business_name: string;
+  industry: string;
+  team_size?: number | null;
+  tools?: string[];
+  workflows?: string | null;
+  repeated_tasks?: string | null;
+  time_wasters?: string | null;
+  top_priority?: string | null;
+  desired_outcome?: string | null;
+  premium_active?: boolean;
+  user_yes_for_automation?: boolean;
+}
+
+export interface AnalysisResult {
+  summary: string;
+  insights: string[];
+  risks: string[];
+  opportunities: string[];
+  recommendations: string[];
+  automation_allowed: boolean;
+  note: string;
+}
+
+export interface HistoryItem {
+  id: number;
+  created_at: string;
+  business_name: string;
+  industry: string;
+  source: string;
+}
+
+async function post<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(err.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function get<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Unknown error" }));
+    throw new Error(err.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export const milaApi = {
+  analyze: (profile: BusinessProfile) =>
+    post<AnalysisResult>("/analyze", profile),
+
+  aiAnalyze: (profile: BusinessProfile) =>
+    post<AnalysisResult>("/ai-analyze", profile),
+
+  /** Returns a ReadableStream for SSE consumption. */
+  aiAnalyzeStream: async (profile: BusinessProfile): Promise<ReadableStreamDefaultReader<Uint8Array>> => {
+    const res = await fetch(`${BASE}/ai-analyze/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(profile),
+    });
+    if (!res.ok || !res.body) throw new Error(`Stream failed: HTTP ${res.status}`);
+    return res.body.getReader();
+  },
+
+  history: (limit = 20, offset = 0) =>
+    get<{ items: HistoryItem[]; limit: number; offset: number }>(
+      `/history?limit=${limit}&offset=${offset}`
+    ),
+
+  historyItem: (id: number) => get<HistoryItem & { input_json: unknown; output_json: unknown }>(`/history/${id}`),
+
+  deleteHistory: async (id: number): Promise<void> => {
+    await fetch(`${BASE}/history/${id}`, { method: "DELETE" });
+  },
+
+  health: () => get<{ status: string; version: string }>("/health"),
+};
