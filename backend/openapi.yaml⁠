@@ -1,0 +1,143 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Mila business analysis API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: analysis
+    description: Business analysis operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /analyze:
+    post:
+      operationId: analyzeBusinessProfile
+      tags: [analysis]
+      summary: Analyze a business profile
+      description: Accepts a business profile and returns personalized insights, risks, opportunities, and recommendations
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BusinessProfile"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    BusinessProfile:
+      type: object
+      required:
+        - business_name
+        - industry
+      properties:
+        business_name:
+          type: string
+          minLength: 1
+        industry:
+          type: string
+          minLength: 1
+        team_size:
+          type: ["integer", "null"]
+          minimum: 1
+        tools:
+          type: array
+          items:
+            type: string
+          default: []
+        workflows:
+          type: ["string", "null"]
+        repeated_tasks:
+          type: ["string", "null"]
+        time_wasters:
+          type: ["string", "null"]
+        top_priority:
+          type: ["string", "null"]
+        desired_outcome:
+          type: ["string", "null"]
+        premium_active:
+          type: boolean
+          default: false
+        user_yes_for_automation:
+          type: boolean
+          default: false
+
+    AnalysisResult:
+      type: object
+      required:
+        - summary
+        - insights
+        - risks
+        - opportunities
+        - recommendations
+        - automation_allowed
+        - note
+      properties:
+        summary:
+          type: string
+        insights:
+          type: array
+          items:
+            type: string
+        risks:
+          type: array
+          items:
+            type: string
+        opportunities:
+          type: array
+          items:
+            type: string
+        recommendations:
+          type: array
+          items:
+            type: string
+        automation_allowed:
+          type: boolean
+        note:
+          type: string
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
