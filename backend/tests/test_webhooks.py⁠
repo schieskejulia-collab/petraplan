@@ -1,0 +1,107 @@
+"""
+Tests for /api/webhook/stripe and /api/webhook/premium endpoints.
+"""
+
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+
+class TestStripeWebhook:
+    def test_stripe_subscription_created(self):
+        payload = {
+            "type": "customer.subscription.created",
+            "data": {
+                "object": {
+                    "customer": "cus_test123",
+                    "plan": {"nickname": "pro"},
+                    "status": "active",
+                }
+            },
+        }
+        r = client.post("/api/webhook/stripe", json=payload)
+        assert r.status_code == 200
+        data = r.json()
+        assert data["received"] is True
+        assert data["event"] == "premium.activated"
+
+    def test_stripe_subscription_deleted(self):
+        payload = {
+            "type": "customer.subscription.deleted",
+            "data": {"object": {"customer": "cus_test456", "status": "canceled"}},
+        }
+        r = client.post("/api/webhook/stripe", json=payload)
+        assert r.status_code == 200
+        assert r.json()["event"] == "premium.cancelled"
+
+    def test_stripe_subscription_updated(self):
+        payload = {
+            "type": "customer.subscription.updated",
+            "data": {"object": {"customer": "cus_test789", "status": "active"}},
+        }
+        r = client.post("/api/webhook/stripe", json=payload)
+        assert r.status_code == 200
+        assert r.json()["event"] == "premium.upgraded"
+
+    def test_unknown_stripe_event_returns_400(self):
+        payload = {"type": "invoice.paid", "data": {"object": {}}}
+        r = client.post("/api/webhook/stripe", json=payload)
+        assert r.status_code == 400
+
+    def test_internal_premium_activated(self):
+        payload = {
+            "event": "premium.activated",
+            "business_name": "Acme Co",
+            "payload": {"plan": "pro"},
+        }
+        r = client.post("/api/webhook/stripe", json=payload)
+        assert r.status_code == 200
+        assert r.json()["event"] == "premium.activated"
+
+    def test_internal_premium_cancelled(self):
+        payload = {
+            "event": "premium.cancelled",
+            "business_name": "Acme Co",
+            "payload": {},
+        }
+        r = client.post("/api/webhook/stripe", json=payload)
+        assert r.status_code == 200
+
+    def test_internal_unknown_event_returns_400(self):
+        payload = {"event": "unknown.event", "business_name": "X", "payload": {}}
+        r = client.post("/api/webhook/stripe", json=payload)
+        assert r.status_code == 400
+
+    def test_invalid_payload_returns_422(self):
+        r = client.post("/api/webhook/stripe", json={"garbage": "data"})
+        assert r.status_code == 422
+
+    def test_events_list_grows(self):
+        before = client.get("/api/webhook/events").json()["count"]
+        payload = {
+            "event": "premium.upgraded",
+            "business_name": "Test Co",
+            "payload": {"plan": "enterprise"},
+        }
+        client.post("/api/webhook/stripe", json=payload)
+        after = client.get("/api/webhook/events").json()["count"]
+        assert after == before + 1
+
+
+class TestPremiumWebhook:
+    def test_premium_webhook_activated(self):
+        r = client.post(
+            "/api/webhook/premium",
+            json={"event": "premium.activated", "business_name": "Co X", "payload": {}},
+        )
+        assert r.status_code == 200
+        assert r.json()["received"] is True
+
+    def test_premium_webhook_invalid_event(self):
+        r = client.post(
+            "/api/webhook/premium",
+            json={"event": "customer.subscription.created", "business_name": "Co X"},
+        )
+        assert r.status_code == 400
