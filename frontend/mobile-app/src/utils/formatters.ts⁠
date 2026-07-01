@@ -1,0 +1,33 @@
+export function formatList(items: string[]): string {
+  if (items.length === 0) return "—";
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+export function formatToolsInput(raw: string): string[] {
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+export function formatDate(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("en", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+export function formatSource(source: string): string {
+  return source === "ai" ? "AI Analysis" : "Rule-based";
+}
+
+export function truncate(text: string, max = 120): string {
+  return text.length <= max ? text : text.slice(0, max).trimEnd() + "…";
+}
+
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
