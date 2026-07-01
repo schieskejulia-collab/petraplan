@@ -1,0 +1,118 @@
+Mila Backend v2.1 (FastAPI)
+
+Business analysis backend for Mila — regelbasierte und KI-gestützte Analyse mit History, Streaming und Webhook-System.
+
+Install
+
+cd python-backend
+pip install -r requirements.txt
+Run
+
+cd python-backend
+uvicorn app.main:app --reload --port 8000
+Server startet unter http://127.0.0.1:8000.
+
+Interactive Docs
+
+http://127.0.0.1:8000/docs
+Endpoints
+
+Methode	Pfad	Beschreibung
+GET	/	System-Info + alle Endpoints
+GET	/health	Health-Check
+POST	/analyze	Regelbasierte Analyse
+POST	/ai-analyze	KI-Analyse via Groq (blockend)
+POST	/ai-analyze/stream	KI-Analyse via SSE (streaming)
+GET	/history	Paginierte Analyse-History
+GET	/history/{id}	Einzelne Analyse
+DELETE	/history/{id}	Analyse löschen
+POST	/webhook/stripe	Stripe + interne Premium-Events
+POST	/webhook/premium	Interner Premium-Webhook
+GET	/webhook/events	Empfangene Events
+Example Request
+
+curl -X POST http://localhost:8000/analyze \
+  -H "Content-Type: application/json" \
+  -d '{
+    "business_name": "Acme Co",
+    "industry": "SaaS",
+    "team_size": 3,
+    "tools": ["Notion", "Slack", "Zapier"],
+    "repeated_tasks": "Wöchentliche Berichterstellung",
+    "time_wasters": "Manuelles Datenkopieren",
+    "top_priority": "Produkt schneller ausliefern",
+    "premium_active": true,
+    "user_yes_for_automation": true
+  }'
+Streaming (SSE)
+
+const res = await fetch('/ai-analyze/stream', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(profile)
+});
+const reader = res.body.getReader();
+const decoder = new TextDecoder();
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  const text = decoder.decode(value);
+  // parse: data: {"token": "..."} or data: {"done": true}
+  const lines = text.split('\n').filter(l => l.startsWith('data: '));
+  for (const line of lines) {
+    const json = JSON.parse(line.slice(6));
+    if (json.done) console.log('Stream complete');
+    else process.stdout.write(json.token);
+  }
+}
+Stripe Webhook
+
+curl -X POST http://localhost:8000/webhook/stripe \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "customer.subscription.created",
+    "data": {
+      "object": {
+        "customer": "cus_abc123",
+        "plan": {"nickname": "pro"},
+        "status": "active"
+      }
+    }
+  }'
+Tests
+
+cd python-backend
+pytest tests/ -v
+Logic Rules
+
+Bedingung	Effekt
+tools leer	Risiko + Starter-Empfehlung
+time_wasters vorhanden	Insight + Chance + Empfehlung
+repeated_tasks vorhanden	Als Automatisierungskandidat markiert
+top_priority vorhanden	Alle Empfehlungen darauf ausgerichtet
+premium_active AND user_yes_for_automation	automation_allowed = true
+Team-Größe 1	Solo-Risiko + Dokumentationsempfehlung
+> 8 Tools	Fragmentierungsrisiko
+Tool-Cluster erkannt	Cluster-Insight (Communication, Automation, CRM, ...)
+Project Structure
+
+python-backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py          ← FastAPI app + alle Endpoints
+│   ├── schemas.py       ← Pydantic-Modelle
+│   ├── services.py      ← Regelanalyse + Tool-Cluster
+│   ├── ai_services.py   ← Groq LLaMA 3.3 (blockend + streaming)
+│   ├── database.py      ← SQLite Init
+│   ├── history.py       ← History CRUD
+│   ├── webhooks.py      ← Stripe + Premium Webhooks
+│   └── logger.py        ← Strukturiertes Logging
+├── tests/
+│   ├── __init__.py
+│   ├── test_analyze.py
+│   ├── test_history.py
+│   ├── test_webhooks.py
+│   └── test_system.py
+├── mila.db
+├── requirements.txt
+└── README.md
