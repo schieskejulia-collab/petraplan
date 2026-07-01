@@ -1,0 +1,154 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { Layout } from "@/components/layout";
+import { LoadingIndicator } from "@/components/LoadingIndicator";
+import { ErrorBox } from "@/components/ErrorBox";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useAnalyze } from "@/hooks/useAnalyze";
+import { useStore } from "@/lib/store";
+import { ArrowLeft, ArrowRight, BrainCircuit, Zap, List } from "lucide-react";
+
+type Mode = "rule" | "ai" | "stream";
+
+const MODES: { value: Mode; label: string; icon: React.ReactNode; description: string }[] = [
+  {
+    value: "rule",
+    label: "Regelbasiert",
+    icon: <List className="h-4 w-4" />,
+    description: "Sofortige, deterministische Analyse — kein KI-Aufwand.",
+  },
+  {
+    value: "ai",
+    label: "KI-Analyse",
+    icon: <BrainCircuit className="h-4 w-4" />,
+    description: "Tiefe LLM-Analyse via Groq LLaMA 3.3 70B.",
+  },
+  {
+    value: "stream",
+    label: "KI-Stream",
+    icon: <Zap className="h-4 w-4" />,
+    description: "Token-für-Token Echtzeit-Antwort.",
+  },
+];
+
+export default function AnalyzePage() {
+  const [, setLocation] = useLocation();
+  const { profile, setResult } = useStore();
+  const [mode, setMode] = useState<Mode>("rule");
+  const { result, streamTokens, isLoading, error, run, reset } = useAnalyze();
+
+  const handleRun = async () => {
+    if (!profile) return setLocation("/");
+    reset();
+    const data = await run(profile, mode);
+    if (data) {
+      setResult(data);
+      if (mode !== "stream") setLocation("/results");
+    }
+  };
+
+  const handleViewResults = () => {
+    if (result) {
+      setResult(result);
+      setLocation("/results");
+    }
+  };
+
+  if (!profile) {
+    return (
+      <Layout>
+        <div className="max-w-xl mx-auto text-center py-20 space-y-4">
+          <p className="text-muted-foreground">Kein Profil geladen. Bitte zuerst das Formular ausfüllen.</p>
+          <Button onClick={() => setLocation("/")}>Zum Formular</Button>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="max-w-2xl mx-auto w-full space-y-6">
+        <div className="space-y-2">
+          <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setLocation("/")}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Zurück
+          </Button>
+          <h1 className="text-2xl md:text-3xl font-serif text-primary">Analyse-Modus wählen</h1>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Profil geladen für <span className="font-medium text-foreground">{profile.business_name}</span>.
+          </p>
+        </div>
+
+        <div className="grid gap-3">
+          {MODES.map(({ value, label, icon, description }) => (
+            <button
+              key={value}
+              onClick={() => setMode(value)}
+              className={`flex items-center gap-4 rounded-lg border p-4 text-left transition-colors w-full ${
+                mode === value
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:border-primary/30 hover:bg-muted/30"
+              }`}
+            >
+              <div className={`rounded-md p-2 shrink-0 ${mode === value ? "bg-primary/10" : "bg-muted"}`}>
+                {icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm md:text-base">{label}</p>
+                <p className="text-xs md:text-sm text-muted-foreground mt-0.5">{description}</p>
+              </div>
+              {mode === value && <Badge variant="secondary" className="shrink-0">Ausgewählt</Badge>}
+            </button>
+          ))}
+        </div>
+
+        {error && (
+          <ErrorBox
+            message={error}
+            onRetry={handleRun}
+          />
+        )}
+
+        {isLoading && (
+          <LoadingIndicator
+            message={mode === "stream" ? "Streame Antwort…" : "Analysiere…"}
+            variant="dots"
+          />
+        )}
+
+        {mode === "stream" && streamTokens && (
+          <Card className="border border-border/50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-mono flex items-center gap-2">
+                <Zap className="h-4 w-4 text-primary animate-pulse" /> Live Stream
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <pre className="text-xs text-muted-foreground whitespace-pre-wrap max-h-64 overflow-auto font-mono leading-relaxed">
+                {streamTokens}
+              </pre>
+            </CardContent>
+          </Card>
+        )}
+
+        <div className="flex gap-3 justify-end pt-2">
+          {result && mode === "stream" && (
+            <Button variant="outline" onClick={handleViewResults}>
+              Ergebnisse anzeigen <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          )}
+          <Button
+            onClick={handleRun}
+            disabled={isLoading}
+            size="lg"
+            className="min-w-[160px]"
+          >
+            {MODES.find((m) => m.value === mode)?.label} starten
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </Layout>
+  );
+}
