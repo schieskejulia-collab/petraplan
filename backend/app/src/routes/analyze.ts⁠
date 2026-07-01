@@ -1,0 +1,113 @@
+import { Router, type IRouter } from "express";
+import { AnalyzeBusinessProfileBody, AnalyzeBusinessProfileResponse } from "@workspace/api-zod";
+
+const router: IRouter = Router();
+
+router.post("/analyze", async (req, res): Promise<void> => {
+  const parsed = AnalyzeBusinessProfileBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+
+  const profile = parsed.data;
+  const insights: string[] = [];
+  const risks: string[] = [];
+  const opportunities: string[] = [];
+  const recommendations: string[] = [];
+
+  // Tool stack analysis
+  if (!profile.tools || profile.tools.length === 0) {
+    risks.push("No clear tool stack identified — risk of operational chaos and excessive manual work.");
+    opportunities.push("Define a focused, minimal tool set tailored to your workflow.");
+    recommendations.push("Start with one core tool for task management and one for team communication.");
+  } else if (profile.tools.length > 8) {
+    risks.push(`Using ${profile.tools.length} tools may create fragmentation and context-switching overhead.`);
+    opportunities.push("Audit your tool stack and consolidate where possible.");
+    recommendations.push("Identify overlapping tools and reduce to the most effective subset.");
+  } else {
+    insights.push(`Established tool stack with ${profile.tools.length} tools: ${profile.tools.join(", ")}.`);
+    opportunities.push("Review integration points between your tools to reduce manual data transfer.");
+  }
+
+  // Time wasters
+  if (profile.time_wasters) {
+    insights.push(`Reported time wasters: ${profile.time_wasters}`);
+    opportunities.push("Automate or eliminate low-value, repetitive activities consuming your team's time.");
+    recommendations.push(`Address time wasters directly: ${profile.time_wasters} — document each one and assign an owner to resolve it.`);
+  }
+
+  // Repeated tasks
+  if (profile.repeated_tasks) {
+    insights.push(`Repeated tasks identified: ${profile.repeated_tasks}`);
+    opportunities.push("These repeated tasks are strong automation candidates once Premium and YES are both active.");
+    if (profile.premium_active && profile.user_yes_for_automation) {
+      recommendations.push(`Automate the following repeated tasks: ${profile.repeated_tasks}`);
+    } else {
+      recommendations.push(`Document each repeated task with its frequency and time cost — this will be the foundation for automation.`);
+    }
+  }
+
+  // Top priority alignment
+  if (profile.top_priority) {
+    insights.push(`Top priority stated: ${profile.top_priority}`);
+    recommendations.push(`Align every operational change with your top priority: ${profile.top_priority}. Reject work that doesn't move this forward.`);
+  }
+
+  // Desired outcome
+  if (profile.desired_outcome) {
+    insights.push(`Desired outcome: ${profile.desired_outcome}`);
+    opportunities.push("Use your desired outcome as a north star when evaluating where to invest time and resources.");
+  }
+
+  // Workflows
+  if (profile.workflows) {
+    insights.push(`Current workflow description: ${profile.workflows}`);
+    opportunities.push("Map your workflow steps visually to identify bottlenecks and handoff friction.");
+  }
+
+  // Team size context
+  if (profile.team_size) {
+    if (profile.team_size === 1) {
+      risks.push("Solo operation: single point of failure for all business functions.");
+      recommendations.push("Prioritize documentation and automation to remove yourself as a bottleneck.");
+    } else if (profile.team_size <= 5) {
+      insights.push(`Small team of ${profile.team_size} — agility is your advantage.`);
+      recommendations.push("Establish clear ownership for each function to avoid duplication and gaps.");
+    } else {
+      insights.push(`Team of ${profile.team_size} — coordination overhead becomes a real cost at this size.`);
+      recommendations.push("Invest in documented processes and shared tools to reduce coordination friction.");
+    }
+  }
+
+  // Industry-specific insight
+  if (profile.industry) {
+    insights.push(`Operating in: ${profile.industry}`);
+    opportunities.push(`Study the top-performing ${profile.industry} businesses for workflow and automation benchmarks.`);
+  }
+
+  // Automation eligibility
+  const automation_allowed = (profile.premium_active ?? false) && (profile.user_yes_for_automation ?? false);
+
+  // Default recommendations if none generated
+  if (recommendations.length === 0) {
+    recommendations.push("Start by documenting your most common daily tasks and measuring time spent on each.");
+    recommendations.push("Set a 30-day review cycle to evaluate which processes can be simplified or handed off.");
+  }
+
+  const result = {
+    summary: `Analysis complete for ${profile.business_name} in the ${profile.industry} industry. ${automation_allowed ? "Automation is enabled — your profile qualifies for advanced recommendations." : "Providing strategic analysis and manual recommendations."}`,
+    insights,
+    risks,
+    opportunities,
+    recommendations,
+    automation_allowed,
+    note: automation_allowed
+      ? "Automation is active — Premium and YES are both enabled. Advanced automation workflows can be applied."
+      : "Analysis only. Automation is not active because Premium or YES confirmation is missing.",
+  };
+
+  res.json(AnalyzeBusinessProfileResponse.parse(result));
+});
+
+export default router;
