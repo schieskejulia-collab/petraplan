@@ -1,0 +1,116 @@
+"""
+Tests for /api/analyze and /api/ai-analyze endpoints.
+"""
+
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+BASE_PROFILE = {
+    "business_name": "Test GmbH",
+    "industry": "SaaS",
+    "team_size": 3,
+    "tools": ["Slack", "Notion", "Zapier"],
+    "repeated_tasks": "Wöchentliche Reports",
+    "time_wasters": "Manuelles Datenkopieren",
+    "top_priority": "Schneller liefern",
+    "desired_outcome": "Admin-Zeit halbieren",
+    "premium_active": True,
+    "user_yes_for_automation": True,
+}
+
+
+class TestAnalyze:
+    def test_returns_200(self):
+        r = client.post("/api/analyze", json=BASE_PROFILE)
+        assert r.status_code == 200
+
+    def test_response_schema(self):
+        r = client.post("/api/analyze", json=BASE_PROFILE)
+        data = r.json()
+        for key in ("summary", "insights", "risks", "opportunities", "recommendations", "automation_allowed", "note"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_automation_allowed_true(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "premium_active": True, "user_yes_for_automation": True})
+        assert r.json()["automation_allowed"] is True
+
+    def test_automation_allowed_false_no_premium(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "premium_active": False, "user_yes_for_automation": True})
+        assert r.json()["automation_allowed"] is False
+
+    def test_automation_allowed_false_no_consent(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "premium_active": True, "user_yes_for_automation": False})
+        assert r.json()["automation_allowed"] is False
+
+    def test_automation_allowed_false_neither(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "premium_active": False, "user_yes_for_automation": False})
+        assert r.json()["automation_allowed"] is False
+
+    def test_empty_tools_adds_risk(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "tools": []})
+        data = r.json()
+        assert len(data["risks"]) > 0
+        assert len(data["recommendations"]) > 0
+
+    def test_tool_cluster_detected(self):
+        r = client.post("/api/analyze", json=BASE_PROFILE)
+        combined = " ".join(r.json()["insights"])
+        assert "cluster" in combined.lower() or "slack" in combined.lower() or "zapier" in combined.lower()
+
+    def test_time_wasters_adds_insight(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "time_wasters": "Lange Meetings"})
+        data = r.json()
+        assert any("zeitfresser" in i.lower() or "lange meetings" in i.lower() for i in data["insights"])
+
+    def test_repeated_tasks_adds_opportunity(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "repeated_tasks": "Rechnungen versenden"})
+        data = r.json()
+        assert len(data["opportunities"]) > 0
+
+    def test_top_priority_in_recommendations(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "top_priority": "Umsatz verdoppeln"})
+        data = r.json()
+        recs = " ".join(data["recommendations"])
+        assert "umsatz verdoppeln" in recs.lower()
+
+    def test_missing_required_field(self):
+        r = client.post("/api/analyze", json={"industry": "SaaS"})
+        assert r.status_code == 422
+
+    def test_missing_industry(self):
+        r = client.post("/api/analyze", json={"business_name": "Test"})
+        assert r.status_code == 422
+
+    def test_summary_contains_business_name(self):
+        r = client.post("/api/analyze", json=BASE_PROFILE)
+        assert "test gmbh" in r.json()["summary"].lower()
+
+    def test_solo_team_adds_risk(self):
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "team_size": 1})
+        risks = r.json()["risks"]
+        assert any(
+            "solo" in risk.lower() or "single" in risk.lower()
+            or "flaschenhals" in risk.lower() or "point of failure" in risk.lower()
+            for risk in risks
+        )
+
+    def test_large_tool_stack_adds_risk(self):
+        many_tools = [f"Tool{i}" for i in range(10)]
+        r = client.post("/api/analyze", json={**BASE_PROFILE, "tools": many_tools})
+        risks = " ".join(r.json()["risks"]).lower()
+        assert "fragment" in risks or "10" in risks
+
+    def test_lists_are_lists(self):
+        r = client.post("/api/analyze", json=BASE_PROFILE)
+        data = r.json()
+        for key in ("insights", "risks", "opportunities", "recommendations"):
+            assert isinstance(data[key], list), f"{key} should be a list"
+
+    def test_minimal_profile(self):
+        r = client.post("/api/analyze", json={"business_name": "X", "industry": "Tech"})
+        assert r.status_code == 200
+        data = r.json()
+        assert "summary" in data
