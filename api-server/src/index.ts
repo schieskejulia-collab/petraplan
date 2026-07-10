@@ -53,3 +53,4 @@ app.post('/api/ai-analyze', async (req, res) => {
 
 
 app.listen(3000, () => console.log('API Server bereit auf Port 3000'));
+}
