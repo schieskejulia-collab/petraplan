@@ -2,4 +2,4 @@
 builder = "Nixpacks"
 
 [build.env]
-NPM_EXEC_PATH=pnpm
+NPM_CONFIG_USER_AGENT=pnpm
