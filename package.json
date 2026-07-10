@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_execpath\" in *pnpm*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'"
+    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_execpath\" in *pnpm*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "dev": "pnpm --filter @workspace/mila dev",
     "build": "pnpm --filter @workspace/mila build",
     "start": "pnpm --filter @workspace/mila start",
