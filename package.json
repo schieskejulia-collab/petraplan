@@ -2,14 +2,7 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
-  "private": true,
-  "scripts": {
-    "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_execpath\" in *pnpm*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "dev": "pnpm --filter @workspace/mila dev",
-    "build": "pnpm --filter @workspace/mila build",
-    "start": "pnpm --filter @workspace/mila start",
-    "typecheck": "pnpm --filter @workspace/mila typecheck"
-  },
+
   "devDependencies": {
     "prettier": "^3.8.3",
     "typescript": "~5.9.3"
