@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -7,8 +8,14 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Supabase-Verbindung herstellen
+// (Nimmt automatisch die Umgebungsvariablen von Vercel/Railway)
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 app.get('/', (req, res) => {
-  res.json({ status: 'Mila API läuft einwandfrei!' });
+  res.json({ status: 'Mila API läuft einwandfrei und ist bereit!' });
 });
 
 // Wörterbuch für SAP- standardisierte Felder
@@ -21,9 +28,9 @@ const FIELD_MAPPING = {
   'WKN': 'wkn'
 };
 
-// Route: Multi-Ingestion (Daten & Altsystem-Code)
-app.post('/api/ingest', (req, res) => {
-  const { sourceType, content } = req.body;
+// Route: Multi-Ingestion mit Speicherung in Supabase
+app.post('/api/ingest', async (req, res) => {
+  const { sourceType, content, processId } = req.body;
 
   if (!content) {
     return res.status(400).json({ 
@@ -31,6 +38,9 @@ app.post('/api/ingest', (req, res) => {
       message: 'Kein Inhalt (content) übergeben!' 
     });
   }
+
+  let resultPayload = {};
+  let detectedType = '';
 
   // FALL A: Klassischer Datensatz (JSON / Tabellenzeile)
   if (sourceType === 'DATA_ROW' || !sourceType) {
@@ -42,34 +52,52 @@ app.post('/api/ingest', (req, res) => {
       transformedData[cleanKey] = content[field];
     });
 
-    return res.json({
-      success: true,
-      type: 'DATA_PARSED',
+    detectedType = 'DATA_PARSED';
+    resultPayload = {
       message: 'Datensatz erfolgreich ins Mila-Schema strukturiert',
       milaModel: transformedData
-    });
+    };
   }
 
   // FALL B: Altsystem-Code / Doku (ABAP, HTMLBusiness, Tabellen-Exports)
   if (sourceType === 'LEGACY_CODE') {
-    // Einfche Muster-Erkennung für ABAP / Dynpro
     const containsTableDef = content.includes('TRANSPARENTE TABELLE') || content.includes('ZKUNDEN');
     const containsPAI = content.includes('USER_COMMAND') || content.includes('WHEN');
 
-    return res.json({
-      success: true,
-      type: 'CODE_ANALYSIS',
-      message: 'Legacy-Code erfolgreich analysiert',
-      analysis: {
-        detectedType: containsTableDef ? 'SAP Data Dictionary (Tabelle)' : containsPAI ? 'ABAP Dynpro Logik (PAI)' : 'Unbekannter Legacy-Code',
-        hasTableDefinition: containsTableDef,
-        hasBusinessLogic: containsPAI,
-        rawSnippet: content.substring(0, 100) + '...'
-      }
-    });
+    detectedType = 'CODE_ANALYSIS';
+    resultPayload = {
+      detectedType: containsTableDef ? 'SAP Data Dictionary (Tabelle)' : containsPAI ? 'ABAP Dynpro Logik (PAI)' : 'Unbekannter Legacy-Code',
+      hasTableDefinition: containsTableDef,
+      hasBusinessLogic: containsPAI,
+      rawSnippet: content.substring(0, 100) + '...'
+    };
   }
 
-  res.status(400).json({ success: false, message: 'Unbekannter sourceType' });
+  // 3. Dauerhaftes Speichern in Supabase (Ingestion Log / Akte)
+  try {
+    if (supabaseUrl && supabaseKey) {
+      await supabase
+        .from('ingestion_logs')
+        .insert([
+          { 
+            process_id: processId || 'default-process',
+            source_type: sourceType || 'DATA_ROW',
+            result_type: detectedType,
+            payload: resultPayload,
+            created_at: new Date().toISOString()
+          }
+        ]);
+    }
+  } catch (dbError) {
+    console.error('Supabase-Speicherung fehlgeschlagen (läuft ohne Abbruch weiter):', dbError);
+  }
+
+  // Rückmeldung an den Aufrufer
+  res.json({
+    success: true,
+    type: detectedType,
+    data: resultPayload
+  });
 });
 
 app.listen(PORT, () => {
