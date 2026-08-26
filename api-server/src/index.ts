@@ -7,12 +7,11 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Test-Route: Status der API
 app.get('/', (req, res) => {
   res.json({ status: 'Mila API läuft einwandfrei!' });
 });
 
-// Wörterbuch für das Umschreiben von Altsystem-Feldern auf Mila-Standards
+// Wörterbuch für SAP- standardisierte Felder
 const FIELD_MAPPING = {
   'KUNDEN_NR': 'customerId',
   'NAME': 'lastName',
@@ -22,38 +21,55 @@ const FIELD_MAPPING = {
   'WKN': 'wkn'
 };
 
-// Haupt-Route: Ingestion & Übersetzung
+// Route: Multi-Ingestion (Daten & Altsystem-Code)
 app.post('/api/ingest', (req, res) => {
-  const rawData = req.body;
+  const { sourceType, content } = req.body;
 
-  if (!rawData || Object.keys(rawData).length === 0) {
+  if (!content) {
     return res.status(400).json({ 
       success: false, 
-      message: 'Keine Daten empfangen! Bitte Sende-Paket prüfen.' 
+      message: 'Kein Inhalt (content) übergeben!' 
     });
   }
 
-  // 1. Spalten / Felder erkennen (Interpretation)
-  const rawFields = Object.keys(rawData);
-  const transformedData = {};
+  // FALL A: Klassischer Datensatz (JSON / Tabellenzeile)
+  if (sourceType === 'DATA_ROW' || !sourceType) {
+    const rawFields = Object.keys(content);
+    const transformedData = {};
 
-  // 2. Übersetzen: Alt-Felder in modernes JSON-Schema umwandeln
-  rawFields.forEach(field => {
-    const cleanKey = FIELD_MAPPING[field] || field.toLowerCase();
-    transformedData[cleanKey] = rawData[field];
-  });
+    rawFields.forEach(field => {
+      const cleanKey = FIELD_MAPPING[field] || field.toLowerCase();
+      transformedData[cleanKey] = content[field];
+    });
 
-  // 3. Ergebnis für die Mobile App & Supabase bereitstellen
-  res.json({
-    success: true,
-    message: 'Daten erfolgreich eingelesen und in Mila-Schema übersetzt!',
-    meta: {
-      originalFieldsCount: rawFields.length,
-      detectedSchema: rawFields
-    },
-    legacyData: rawData,
-    milaModel: transformedData
-  });
+    return res.json({
+      success: true,
+      type: 'DATA_PARSED',
+      message: 'Datensatz erfolgreich ins Mila-Schema strukturiert',
+      milaModel: transformedData
+    });
+  }
+
+  // FALL B: Altsystem-Code / Doku (ABAP, HTMLBusiness, Tabellen-Exports)
+  if (sourceType === 'LEGACY_CODE') {
+    // Einfche Muster-Erkennung für ABAP / Dynpro
+    const containsTableDef = content.includes('TRANSPARENTE TABELLE') || content.includes('ZKUNDEN');
+    const containsPAI = content.includes('USER_COMMAND') || content.includes('WHEN');
+
+    return res.json({
+      success: true,
+      type: 'CODE_ANALYSIS',
+      message: 'Legacy-Code erfolgreich analysiert',
+      analysis: {
+        detectedType: containsTableDef ? 'SAP Data Dictionary (Tabelle)' : containsPAI ? 'ABAP Dynpro Logik (PAI)' : 'Unbekannter Legacy-Code',
+        hasTableDefinition: containsTableDef,
+        hasBusinessLogic: containsPAI,
+        rawSnippet: content.substring(0, 100) + '...'
+      }
+    });
+  }
+
+  res.status(400).json({ success: false, message: 'Unbekannter sourceType' });
 });
 
 app.listen(PORT, () => {
