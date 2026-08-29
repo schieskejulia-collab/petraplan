@@ -117,6 +117,19 @@ const responseSchema = {
   },
 };
 
+const INTERNAL_KEYS = [
+  'fieldMapping',
+  'field_types',
+  'schema_sql',
+  'core_queries',
+  'business_rules',
+  'state_transitions',
+  'operations',
+  'communication_contracts',
+  'evidence',
+  'warnings',
+] as const;
+
 const TRANSPORT_KEYS = [
   'field_mapping_entries',
   'field_type_entries',
@@ -137,6 +150,11 @@ function getOpenAI(): OpenAI {
   if (!apiKey) throw new Error('OPENAI_API_KEY is required');
   client ??= new OpenAI({ apiKey });
   return client;
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).every((item) => typeof item === 'string');
 }
 
 function requireStringArray(record: Record<string, unknown>, key: string): string[] {
@@ -197,14 +215,51 @@ function typeEntriesToRecord(entries: FieldTypeEntry[]): Record<string, string> 
   return result;
 }
 
+export function validateLegacyAnalysis(value: unknown): LegacyAnalysis {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('AI parser response must be a JSON object');
+  }
+
+  const record = value as Record<string, unknown>;
+  const unexpectedKeys = Object.keys(record).filter(
+    (key) => !INTERNAL_KEYS.includes(key as (typeof INTERNAL_KEYS)[number]),
+  );
+  const missingKeys = INTERNAL_KEYS.filter((key) => !(key in record));
+
+  if (missingKeys.length > 0) {
+    throw new Error(`AI parser response is missing required fields: ${missingKeys.join(', ')}`);
+  }
+  if (unexpectedKeys.length > 0) {
+    throw new Error(`AI parser response contains unexpected fields: ${unexpectedKeys.join(', ')}`);
+  }
+  if (!isStringRecord(record.fieldMapping)) {
+    throw new Error('AI parser fieldMapping must be an object with string values');
+  }
+  if (!isStringRecord(record.field_types)) {
+    throw new Error('AI parser field_types must be an object with string values');
+  }
+
+  return {
+    fieldMapping: record.fieldMapping,
+    field_types: record.field_types,
+    schema_sql: requireStringArray(record, 'schema_sql'),
+    core_queries: requireStringArray(record, 'core_queries'),
+    business_rules: requireStringArray(record, 'business_rules'),
+    state_transitions: requireStringArray(record, 'state_transitions'),
+    operations: requireStringArray(record, 'operations'),
+    communication_contracts: requireStringArray(record, 'communication_contracts'),
+    evidence: requireStringArray(record, 'evidence'),
+    warnings: requireStringArray(record, 'warnings'),
+  };
+}
+
 export function validateLegacyAnalysisTransport(value: unknown): LegacyAnalysisTransport {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('AI parser response must be a JSON object');
   }
 
   const record = value as Record<string, unknown>;
-  const keys = Object.keys(record);
-  const unexpectedKeys = keys.filter(
+  const unexpectedKeys = Object.keys(record).filter(
     (key) => !TRANSPORT_KEYS.includes(key as (typeof TRANSPORT_KEYS)[number]),
   );
   const missingKeys = TRANSPORT_KEYS.filter((key) => !(key in record));
@@ -231,7 +286,7 @@ export function validateLegacyAnalysisTransport(value: unknown): LegacyAnalysisT
 }
 
 export function normalizeLegacyAnalysis(transport: LegacyAnalysisTransport): LegacyAnalysis {
-  return {
+  return validateLegacyAnalysis({
     fieldMapping: entriesToRecord(transport.field_mapping_entries, 'field_mapping_entries'),
     field_types: typeEntriesToRecord(transport.field_type_entries),
     schema_sql: transport.schema_sql,
@@ -242,7 +297,7 @@ export function normalizeLegacyAnalysis(transport: LegacyAnalysisTransport): Leg
     communication_contracts: transport.communication_contracts,
     evidence: transport.evidence,
     warnings: transport.warnings,
-  };
+  });
 }
 
 export function parseLegacyAnalysisContent(content: string): LegacyAnalysis {
