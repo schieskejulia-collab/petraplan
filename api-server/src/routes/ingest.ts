@@ -31,6 +31,36 @@ async function writeErrorLog(params: {
   if (error) console.error('Failed to write ingestion error log:', error.message);
 }
 
+router.get('/api/ingestions', async (req, res) => {
+  const rawLimit = Number(req.query.limit ?? 25);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.trunc(rawLimit), 1), 100) : 25;
+
+  const { data, error } = await supabase
+    .from('ingestion_logs')
+    .select('id, source_system, status, error_message, created_at, extracted_schema')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  return res.json({ items: data ?? [] });
+});
+
+router.get('/api/ingestions/:id', async (req, res) => {
+  const id = req.params.id;
+
+  const { data, error } = await supabase
+    .from('ingestion_logs')
+    .select('id, source_system, status, error_message, created_at, raw_payload, extracted_schema')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!data) return res.status(404).json({ error: 'Ingestion log not found' });
+
+  return res.json(data);
+});
+
 router.post('/api/ingest', async (req, res) => {
   const {
     source_system: sourceSystem,
