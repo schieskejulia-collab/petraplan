@@ -1,5 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { decideReleaseGate, type ReleaseStatus } from './releaseGate.js';
+import {
+  decideReleaseGate,
+  selectAuthoritativeValidation,
+  type ReleaseStatus,
+} from './releaseGate.js';
 
 export interface CaseListItem {
   id: string;
@@ -22,11 +26,6 @@ async function one<T>(promise: PromiseLike<{ data: T | null; error: { message: s
   const { data, error } = await promise;
   if (error && error.code !== 'PGRST116') throw new Error(error.message);
   return data ?? null;
-}
-
-function latestByCreatedAt<T extends { created_at?: string | null }>(items: T[]): T | null {
-  if (!items.length) return null;
-  return [...items].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0] ?? null;
 }
 
 export async function listCases(
@@ -52,7 +51,7 @@ export async function listCases(
       const certificate = await one<any>(
         supabase
           .from('release_certificates')
-          .select('id, release_status')
+          .select('id, release_status, validation_result_id, certified_at')
           .eq('record_id', record.id)
           .order('certified_at', { ascending: false })
           .limit(1)
@@ -74,21 +73,20 @@ export async function listCases(
         releaseStatus = latestStatus?.new_status ?? releaseStatus;
       }
 
-      const latestValidation = conflictIds.length
-        ? await one<any>(
+      const validations = conflictIds.length
+        ? await rows<any>(
             supabase
               .from('validation_results')
-              .select('status, created_at')
+              .select('id, status, created_at')
               .in('conflict_id', conflictIds)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle(),
+              .order('created_at'),
           )
-        : null;
+        : [];
 
-      const gate = latestValidation
+      const authoritativeValidation = selectAuthoritativeValidation(validations, certificate);
+      const gate = authoritativeValidation
         ? decideReleaseGate({
-            latestValidationStatus: latestValidation.status,
+            latestValidationStatus: authoritativeValidation.status,
             existingReleaseStatus: releaseStatus,
             hasReleaseCertificate: Boolean(certificate),
           })
@@ -218,16 +216,16 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       )
     : [];
 
-  const latestValidation = latestByCreatedAt(validations);
   const latestCertificate = releases.length ? releases[releases.length - 1] : null;
+  const authoritativeValidation = selectAuthoritativeValidation(validations, latestCertificate);
   const latestReleaseStatus = latestCertificate
     ? [...releaseStatusHistory]
         .filter((item) => item.release_certificate_id === latestCertificate.id)
         .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]?.new_status ?? latestCertificate.release_status
     : null;
-  const gate = latestValidation
+  const gate = authoritativeValidation
     ? decideReleaseGate({
-        latestValidationStatus: latestValidation.status,
+        latestValidationStatus: authoritativeValidation.status,
         existingReleaseStatus: latestReleaseStatus,
         hasReleaseCertificate: Boolean(latestCertificate),
       })
@@ -265,7 +263,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     },
     validation: {
       results: validations,
-      authoritative: latestValidation,
+      authoritative: authoritativeValidation,
     },
     review: {
       records: reviews,
