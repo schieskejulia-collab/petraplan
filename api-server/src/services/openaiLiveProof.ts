@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { parseLegacyText } from './aiParser.js';
+import { parseLegacyTextLive } from './aiParserLive.js';
 import { runIngestionPipeline } from './ingestionPipeline.js';
 
 const legacyText = `
@@ -27,7 +27,7 @@ const rawPayload = {
 const result = await runIngestionPipeline({
   legacyText,
   rawPayload,
-  analyze: parseLegacyText,
+  analyze: parseLegacyTextLive,
 });
 
 assert.equal(result.analysis.fieldMapping.KUNDNR, 'customer_id');
@@ -47,7 +47,7 @@ assert.ok(result.analysis.evidence.length > 0, 'expected evidence');
 
 console.log(JSON.stringify({
   proof: 'N64_OPENAI_LIVE_PROOF_OK',
-  model: process.env.OPENAI_MODEL ?? 'gpt-4.1-mini',
+  model: process.env.OPENAI_MODEL ?? 'gpt-5.6',
   mapped_payload: result.extractedSchema.mapped_payload,
   business_rules: result.analysis.business_rules,
   state_transitions: result.analysis.state_transitions,
