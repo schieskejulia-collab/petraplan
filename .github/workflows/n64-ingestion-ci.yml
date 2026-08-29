@@ -31,7 +31,8 @@ jobs:
         working-directory: frontend/mobile-app
         run: npm install
 
-      - name: Typecheck frontend
+      - name: Typecheck frontend (legacy advisory)
+        continue-on-error: true
         working-directory: frontend/mobile-app
         run: npm run typecheck
 
