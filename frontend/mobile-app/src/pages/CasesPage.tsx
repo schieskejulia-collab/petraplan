@@ -1,87 +1,77 @@
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Layout } from "@/components/layout";
-import { LoadingIndicator } from "@/components/LoadingIndicator";
-import { ErrorBox } from "@/components/ErrorBox";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
-import { milaApi } from "@/api/connector";
-import { ArrowLeft, ChevronRight, ShieldCheck, TriangleAlert } from "lucide-react";
+import { milaApi, type CaseListItem } from "@/api/connector";
 
-function releaseBadge(status: string | null) {
-  if (status === "trusted") return <Badge className="gap-1"><ShieldCheck className="h-3 w-3" /> Trusted</Badge>;
-  if (status === "revoked") return <Badge variant="destructive">Revoked</Badge>;
-  if (status === "superseded") return <Badge variant="secondary">Superseded</Badge>;
-  return <Badge variant="outline">Open</Badge>;
+function badge(status: CaseListItem["release_status"]) {
+  const label = status ? status.toUpperCase() : "OPEN";
+  return <span className="rounded-full border px-2 py-1 text-[11px] font-semibold">{label}</span>;
 }
 
 export default function CasesPage() {
   const [, setLocation] = useLocation();
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ["petraplan-cases"],
-    queryFn: () => milaApi.cases(50, 0),
-  });
+  const [items, setItems] = useState<CaseListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const items = data?.items ?? [];
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await milaApi.cases(50, 0);
+      setItems(result.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fälle konnten nicht geladen werden.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
 
   return (
-    <Layout>
-      <div className="max-w-3xl mx-auto w-full space-y-5 pb-10">
-        <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => setLocation("/")}>
-          <ArrowLeft className="h-4 w-4 mr-1" /> Start
-        </Button>
+    <main className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+        <header className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan</p>
+          <h1 className="text-3xl font-semibold">Truth Cases</h1>
+          <p className="text-sm text-muted-foreground">Nachvollziehbare Fälle von Source Truth bis Release Truth.</p>
+        </header>
 
-        <div className="space-y-1">
-          <h1 className="text-3xl font-serif text-primary">PetraPlan Cases</h1>
-          <p className="text-sm text-muted-foreground">
-            Jeder Fall zeigt die nachvollziehbare Spur von Source Truth bis Release Truth.
-          </p>
-        </div>
+        {loading && <p className="text-sm text-muted-foreground">Lade Fälle…</p>}
 
-        {isLoading && <LoadingIndicator message="Lade Fälle…" size="sm" variant="dots" />}
-        {error && <ErrorBox message="Fälle konnten nicht geladen werden." onRetry={() => refetch()} />}
-
-        {!isLoading && !error && items.length === 0 && (
-          <Card>
-            <CardContent className="py-10 text-center text-muted-foreground">
-              Noch keine normalisierten Fälle vorhanden.
-            </CardContent>
-          </Card>
+        {error && (
+          <div className="rounded-xl border p-4">
+            <p className="text-sm">{error}</p>
+            <button className="mt-3 rounded-lg border px-3 py-2 text-sm" onClick={() => void load()}>Erneut versuchen</button>
+          </div>
         )}
 
-        <div className="space-y-3">
+        {!loading && !error && items.length === 0 && (
+          <div className="rounded-xl border p-6 text-sm text-muted-foreground">Noch keine Fälle vorhanden.</div>
+        )}
+
+        <section className="space-y-3">
           {items.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setLocation(`/cases/${item.id}`)}
-              className="w-full text-left"
+              className="w-full rounded-2xl border bg-card p-4 text-left shadow-sm transition hover:shadow-md"
             >
-              <Card className="transition-colors hover:border-primary/30 hover:bg-primary/5">
-                <CardContent className="p-4 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <p className="font-medium truncate">{item.title}</p>
-                      {releaseBadge(item.release_status)}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {item.source_system ?? "Unknown source"} · {item.category}
-                    </p>
-                    {item.conflict_count > 0 && (
-                      <div className="flex items-center gap-1 text-xs text-amber-600 mt-2">
-                        <TriangleAlert className="h-3.5 w-3.5" />
-                        {item.conflict_count} Konflikt{item.conflict_count === 1 ? "" : "e"}
-                      </div>
-                    )}
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                </CardContent>
-              </Card>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="truncate font-semibold">{item.title}</h2>
+                  <p className="mt-1 text-xs text-muted-foreground">{item.source_system ?? "Unknown source"} · {item.category}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">{item.conflict_count} Konflikt{item.conflict_count === 1 ? "" : "e"}</p>
+                </div>
+                {badge(item.release_status)}
+              </div>
             </button>
           ))}
-        </div>
+        </section>
       </div>
-    </Layout>
+    </main>
   );
 }
