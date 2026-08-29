@@ -38,3 +38,6 @@ jobs:
 
       - name: Run adversarial N64 hardening proof
         run: node dist/services/openaiHardeningProof.js
+
+      - name: Run raw mixed legacy proof
+        run: node dist/services/openaiRawMixedProof.js
