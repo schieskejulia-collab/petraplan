@@ -9,7 +9,7 @@ on:
 jobs:
   live-proof:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
     env:
@@ -35,3 +35,6 @@ jobs:
 
       - name: Run live N64 OpenAI proof
         run: node dist/services/openaiLiveProof.js
+
+      - name: Run adversarial N64 hardening proof
+        run: node dist/services/openaiHardeningProof.js
