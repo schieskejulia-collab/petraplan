@@ -8,13 +8,13 @@ export default async function handler(req: any, res: any) {
   }
 
   const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
+  if (!supabaseUrl || !supabaseSecretKey) {
     return res.status(500).json({ error: 'Server configuration incomplete' });
   }
 
-  const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  const supabase = createClient(supabaseUrl, supabaseSecretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
