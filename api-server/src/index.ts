@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import ingestRouter from './routes/ingest.js';
+import ingestionLogsRouter from './routes/ingestionLogs.js';
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 3000);
@@ -13,6 +14,7 @@ app.get('/', (_req, res) => {
 });
 
 app.use(ingestRouter);
+app.use(ingestionLogsRouter);
 
 app.listen(PORT, () => {
   console.log(`Mila API is running on port ${PORT}`);
