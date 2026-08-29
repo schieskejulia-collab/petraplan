@@ -1,7 +1,7 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { parseLegacyText } from '../services/aiParser.js';
-import { transformPayload } from '../services/transform.js';
+import { runIngestionPipeline } from '../services/ingestionPipeline.js';
 
 const router = express.Router();
 
@@ -50,17 +50,16 @@ router.post('/api/ingest', async (req, res) => {
     return res.status(400).json({ error: 'legacy_text is required for AI-driven field mapping' });
   }
 
-  let analysis: Awaited<ReturnType<typeof parseLegacyText>> | null = null;
+  let extractedSchema: Record<string, unknown> = {};
 
   try {
-    analysis = await parseLegacyText(legacyText);
-    const mappedPayload = transformPayload(rawPayload, analysis.fieldMapping, analysis.field_types);
+    const pipeline = await runIngestionPipeline({
+      legacyText,
+      rawPayload,
+      analyze: parseLegacyText,
+    });
 
-    const extractedSchema = {
-      ...analysis,
-      mapped_payload: mappedPayload,
-      review_required: true,
-    };
+    extractedSchema = pipeline.extractedSchema;
 
     const { data, error } = await supabase
       .from('ingestion_logs')
@@ -82,7 +81,7 @@ router.post('/api/ingest', async (req, res) => {
     await writeErrorLog({
       sourceSystem: sourceSystem.trim(),
       rawPayload,
-      extractedSchema: analysis ? { ...analysis } : {},
+      extractedSchema,
       errorMessage,
     });
 
