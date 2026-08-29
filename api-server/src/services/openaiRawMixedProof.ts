@@ -53,6 +53,15 @@ const result = await runIngestionPipeline({
   analyze: parseLegacyText,
 });
 
+console.log(JSON.stringify({
+  diagnostic: 'N64_OPENAI_RAW_MIXED_DIAGNOSTIC',
+  fieldMapping: result.analysis.fieldMapping,
+  field_types: result.analysis.field_types,
+  schema_sql: result.analysis.schema_sql,
+  mapped_payload: result.extractedSchema.mapped_payload,
+  warnings: result.analysis.warnings,
+}, null, 2));
+
 assert.equal(result.extractedSchema.mapped_payload.customer_id ?? result.extractedSchema.mapped_payload.kundnr, '00000042');
 assert.equal(result.extractedSchema.mapped_payload.amount ?? result.extractedSchema.mapped_payload.betrag, 1250.5);
 assert.equal(result.extractedSchema.mapped_payload.status, 'C');
