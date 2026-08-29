@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { decideReleaseGate, type ReleaseStatus } from './releaseGate.js';
 
 export interface CaseListItem {
   id: string;
@@ -8,7 +9,7 @@ export interface CaseListItem {
   status: string;
   source_system: string | null;
   conflict_count: number;
-  release_status: 'trusted' | 'revoked' | 'superseded' | null;
+  release_status: ReleaseStatus;
 }
 
 async function rows<T>(promise: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
@@ -21,6 +22,11 @@ async function one<T>(promise: PromiseLike<{ data: T | null; error: { message: s
   const { data, error } = await promise;
   if (error && error.code !== 'PGRST116') throw new Error(error.message);
   return data ?? null;
+}
+
+function latestByCreatedAt<T extends { created_at?: string | null }>(items: T[]): T | null {
+  if (!items.length) return null;
+  return [...items].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0] ?? null;
 }
 
 export async function listCases(
@@ -41,6 +47,7 @@ export async function listCases(
       const conflicts = await rows<any>(
         supabase.from('conflicts').select('id').eq('record_id', record.id),
       );
+      const conflictIds = conflicts.map((item) => item.id);
 
       const certificate = await one<any>(
         supabase
@@ -52,7 +59,7 @@ export async function listCases(
           .maybeSingle(),
       );
 
-      let releaseStatus: CaseListItem['release_status'] = certificate?.release_status ?? null;
+      let releaseStatus: ReleaseStatus = certificate?.release_status ?? null;
 
       if (certificate) {
         const latestStatus = await one<any>(
@@ -67,10 +74,30 @@ export async function listCases(
         releaseStatus = latestStatus?.new_status ?? releaseStatus;
       }
 
+      const latestValidation = conflictIds.length
+        ? await one<any>(
+            supabase
+              .from('validation_results')
+              .select('status, created_at')
+              .in('conflict_id', conflictIds)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          )
+        : null;
+
+      const gate = latestValidation
+        ? decideReleaseGate({
+            latestValidationStatus: latestValidation.status,
+            existingReleaseStatus: releaseStatus,
+            hasReleaseCertificate: Boolean(certificate),
+          })
+        : null;
+
       return {
         ...record,
         conflict_count: conflicts.length,
-        release_status: releaseStatus,
+        release_status: gate?.effectiveStatus ?? releaseStatus,
       } as CaseListItem;
     }),
   );
@@ -191,6 +218,21 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       )
     : [];
 
+  const latestValidation = latestByCreatedAt(validations);
+  const latestCertificate = releases.length ? releases[releases.length - 1] : null;
+  const latestReleaseStatus = latestCertificate
+    ? [...releaseStatusHistory]
+        .filter((item) => item.release_certificate_id === latestCertificate.id)
+        .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]?.new_status ?? latestCertificate.release_status
+    : null;
+  const gate = latestValidation
+    ? decideReleaseGate({
+        latestValidationStatus: latestValidation.status,
+        existingReleaseStatus: latestReleaseStatus,
+        hasReleaseCertificate: Boolean(latestCertificate),
+      })
+    : null;
+
   return {
     id: record.id,
     title: record.title,
@@ -223,6 +265,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     },
     validation: {
       results: validations,
+      authoritative: latestValidation,
     },
     review: {
       records: reviews,
@@ -236,6 +279,8 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       certificates: releases,
       logs: releaseLogs,
       status_history: releaseStatusHistory,
+      effective_status: gate?.effectiveStatus ?? latestReleaseStatus,
+      gate,
     },
   };
 }
