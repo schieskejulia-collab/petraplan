@@ -6,6 +6,9 @@ export type LegacyAnalysis = {
   schema_sql: string[];
   core_queries: string[];
   business_rules: string[];
+  state_transitions: string[];
+  operations: string[];
+  communication_contracts: string[];
   evidence: string[];
   warnings: string[];
 };
@@ -13,13 +16,21 @@ export type LegacyAnalysis = {
 const SYSTEM_PROMPT = `
 Du bist die Kern-Analyse-Engine von Mila für Legacy-Systeme.
 
-Ziel: Extrahiere nur nachweisbare Datenbank- und Geschäftslogik aus dem übergebenen Legacy-Text.
+Ziel: Extrahiere nur nachweisbare Datenbank-, Geschäfts- und Verhaltenslogik aus dem übergebenen Legacy-Text.
 Ignoriere reine UI-/Layout-Details und Framework-Overhead, aber ignoriere niemals fachliche Regeln,
-Berechtigungslogik, Statusübergänge, Constraints oder Datenabhängigkeiten, nur weil sie im Anwendungscode stehen.
+Berechtigungslogik, Statusübergänge, Constraints, Datenabhängigkeiten, Operationen oder Kommunikationsverhalten,
+nur weil sie im Anwendungscode statt in der Datenbank stehen.
+
+Achte insbesondere auf drei Arten von Verhalten:
+- state_transitions: explizite Zustände und erlaubte Übergänge, inklusive Bedingungen, wenn sie belegt sind.
+- operations: Methoden/Funktionen/Kommandos, die fachlich relevante Daten oder Zustände lesen oder verändern.
+- communication_contracts: nachweisbare Request/Response-, Event-, Queue-, RPC-, IPC- oder Socket-Verträge sowie
+  explizite Aussagen zu Reihenfolge, Timeout, Retry, Blocking/Nonblocking oder Fehlerverhalten.
 
 Regeln:
-- Erfinde keine Felder, Datentypen, Beziehungen oder Geschäftsregeln.
+- Erfinde keine Felder, Datentypen, Beziehungen, Zustände, Übergänge, Operationen oder Geschäftsregeln.
 - Wenn etwas nicht eindeutig ableitbar ist, trage es in warnings ein.
+- Leere Kategorien werden als leere Arrays zurückgegeben; fehlende Belege dürfen nicht ergänzt werden.
 - schema_sql ist ausschließlich ein nicht-ausführbarer Vorschlag zur späteren menschlichen Prüfung.
 - evidence enthält kurze Hinweise darauf, aus welcher expliziten Information die Analyse abgeleitet wurde.
 - Gib ausschließlich valides JSON im vorgegebenen Schema zurück.
@@ -37,6 +48,9 @@ const responseSchema = {
       'schema_sql',
       'core_queries',
       'business_rules',
+      'state_transitions',
+      'operations',
+      'communication_contracts',
       'evidence',
       'warnings',
     ],
@@ -52,6 +66,9 @@ const responseSchema = {
       schema_sql: { type: 'array', items: { type: 'string' } },
       core_queries: { type: 'array', items: { type: 'string' } },
       business_rules: { type: 'array', items: { type: 'string' } },
+      state_transitions: { type: 'array', items: { type: 'string' } },
+      operations: { type: 'array', items: { type: 'string' } },
+      communication_contracts: { type: 'array', items: { type: 'string' } },
       evidence: { type: 'array', items: { type: 'string' } },
       warnings: { type: 'array', items: { type: 'string' } },
     },
@@ -64,6 +81,9 @@ const REQUIRED_KEYS = [
   'schema_sql',
   'core_queries',
   'business_rules',
+  'state_transitions',
+  'operations',
+  'communication_contracts',
   'evidence',
   'warnings',
 ] as const;
@@ -123,6 +143,9 @@ export function validateLegacyAnalysis(value: unknown): LegacyAnalysis {
   const schemaSql = requireStringArray(record, 'schema_sql');
   const coreQueries = requireStringArray(record, 'core_queries');
   const businessRules = requireStringArray(record, 'business_rules');
+  const stateTransitions = requireStringArray(record, 'state_transitions');
+  const operations = requireStringArray(record, 'operations');
+  const communicationContracts = requireStringArray(record, 'communication_contracts');
   const evidence = requireStringArray(record, 'evidence');
   const warnings = requireStringArray(record, 'warnings');
 
@@ -132,6 +155,9 @@ export function validateLegacyAnalysis(value: unknown): LegacyAnalysis {
     schema_sql: schemaSql,
     core_queries: coreQueries,
     business_rules: businessRules,
+    state_transitions: stateTransitions,
+    operations,
+    communication_contracts: communicationContracts,
     evidence,
     warnings,
   };
