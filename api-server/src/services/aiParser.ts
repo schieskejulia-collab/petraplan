@@ -82,8 +82,12 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return Object.values(value).every((item) => typeof item === 'string');
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+function requireStringArray(record: Record<string, unknown>, key: string): string[] {
+  const value = record[key];
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+    throw new Error(`AI parser ${key} must be an array of strings`);
+  }
+  return value;
 }
 
 export function validateLegacyAnalysis(value: unknown): LegacyAnalysis {
@@ -106,27 +110,30 @@ export function validateLegacyAnalysis(value: unknown): LegacyAnalysis {
     throw new Error(`AI parser response contains unexpected fields: ${unexpectedKeys.join(', ')}`);
   }
 
-  if (!isStringRecord(record.fieldMapping)) {
+  const fieldMapping = record.fieldMapping;
+  const fieldTypes = record.field_types;
+
+  if (!isStringRecord(fieldMapping)) {
     throw new Error('AI parser fieldMapping must be an object with string values');
   }
-  if (!isStringRecord(record.field_types)) {
+  if (!isStringRecord(fieldTypes)) {
     throw new Error('AI parser field_types must be an object with string values');
   }
 
-  for (const key of ['schema_sql', 'core_queries', 'business_rules', 'evidence', 'warnings'] as const) {
-    if (!isStringArray(record[key])) {
-      throw new Error(`AI parser ${key} must be an array of strings`);
-    }
-  }
+  const schemaSql = requireStringArray(record, 'schema_sql');
+  const coreQueries = requireStringArray(record, 'core_queries');
+  const businessRules = requireStringArray(record, 'business_rules');
+  const evidence = requireStringArray(record, 'evidence');
+  const warnings = requireStringArray(record, 'warnings');
 
   return {
-    fieldMapping: record.fieldMapping,
-    field_types: record.field_types,
-    schema_sql: record.schema_sql,
-    core_queries: record.core_queries,
-    business_rules: record.business_rules,
-    evidence: record.evidence,
-    warnings: record.warnings,
+    fieldMapping,
+    field_types: fieldTypes,
+    schema_sql: schemaSql,
+    core_queries: coreQueries,
+    business_rules: businessRules,
+    evidence,
+    warnings,
   };
 }
 
