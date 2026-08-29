@@ -8,6 +8,9 @@ const validAnalysis = {
   schema_sql: ['CREATE TABLE customer (...)'],
   core_queries: ['SELECT * FROM customer'],
   business_rules: ['KDNR identifies the customer in the supplied source.'],
+  state_transitions: ['DRAFT -> RELEASED only after explicit approval.'],
+  operations: ['cancel() changes an approved record to cancelled.'],
+  communication_contracts: ['Client sends request and waits for a server response.'],
   evidence: ['Source contains field KDNR.'],
   warnings: [],
 };
@@ -29,6 +32,30 @@ test('rejects missing required fields', () => {
   assert.throws(
     () => validateLegacyAnalysis(incomplete),
     /missing required fields: warnings/,
+  );
+});
+
+test('requires behavior fields even when they are empty', () => {
+  const { operations: _operations, ...incomplete } = validAnalysis;
+
+  assert.throws(
+    () => validateLegacyAnalysis(incomplete),
+    /missing required fields: operations/,
+  );
+
+  assert.deepEqual(
+    validateLegacyAnalysis({
+      ...validAnalysis,
+      state_transitions: [],
+      operations: [],
+      communication_contracts: [],
+    }),
+    {
+      ...validAnalysis,
+      state_transitions: [],
+      operations: [],
+      communication_contracts: [],
+    },
   );
 });
 
