@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { listCases } from '../../api-server/src/services/caseTrace';
+import { listCases } from '../../api-server/src/services/caseTrace.js';
 
 export default async function handler(req: any, res: any) {
   try {
