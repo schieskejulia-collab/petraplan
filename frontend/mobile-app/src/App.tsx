@@ -4,6 +4,7 @@ import Home from "./pages/Home";
 import Upload from "./pages/Upload";
 import AnalyzePage from "./pages/AnalyzePage";
 import HistoryPage from "./pages/HistoryPage";
+import IngestionPage from "./pages/IngestionPage";
 import ResultsPage from "./pages/results";
 import NotFound from "./pages/not-found";
 
@@ -14,6 +15,7 @@ export default function App() {
       <Route path="/upload" component={Upload} />
       <Route path="/analyse" component={AnalyzePage} />
       <Route path="/history" component={HistoryPage} />
+      <Route path="/ingestions" component={IngestionPage} />
       <Route path="/results" component={ResultsPage} />
       <Route component={NotFound} />
     </Switch>
