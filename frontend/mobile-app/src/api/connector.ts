@@ -32,6 +32,16 @@ export interface HistoryItem {
   source: string;
 }
 
+export type ReleaseStatus = "trusted" | "blocked" | "revoked" | "superseded" | "exception" | null;
+
+export interface ReleaseGateDecision {
+  effectiveStatus: ReleaseStatus;
+  shouldTransition: boolean;
+  reason: string;
+  validationIsPassing: boolean;
+  exceptionIsDocumented: boolean;
+}
+
 export interface CaseListItem {
   id: string;
   created_at: string;
@@ -40,7 +50,7 @@ export interface CaseListItem {
   status: string;
   source_system: string | null;
   conflict_count: number;
-  release_status: "trusted" | "revoked" | "superseded" | null;
+  release_status: ReleaseStatus;
 }
 
 export interface CaseTrace {
@@ -69,7 +79,10 @@ export interface CaseTrace {
     logs: Array<Record<string, unknown>>;
     status: Array<Record<string, unknown>>;
   };
-  validation: { results: Array<Record<string, unknown>> };
+  validation: {
+    results: Array<Record<string, unknown>>;
+    authoritative: Record<string, unknown> | null;
+  };
   review: {
     records: Array<Record<string, unknown>>;
     sessions: Array<Record<string, unknown>>;
@@ -82,6 +95,8 @@ export interface CaseTrace {
     certificates: Array<Record<string, unknown>>;
     logs: Array<Record<string, unknown>>;
     status_history: Array<Record<string, unknown>>;
+    effective_status: ReleaseStatus;
+    gate: ReleaseGateDecision | null;
   };
 }
 
