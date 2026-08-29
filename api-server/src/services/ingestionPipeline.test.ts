@@ -15,6 +15,9 @@ const analysis: LegacyAnalysis = {
   schema_sql: ['CREATE TABLE customer (...)'],
   core_queries: ['SELECT * FROM customer'],
   business_rules: ['KDNR is preserved as text.'],
+  state_transitions: ['DRAFT -> RELEASED requires approval.'],
+  operations: ['release() moves a draft into released state.'],
+  communication_contracts: ['Request/response is synchronous.'],
   evidence: ['Source contains KDNR and BETRAG.'],
   warnings: [],
 };
@@ -41,6 +44,12 @@ test('runs the full pre-OpenAI ingestion core with an injected analyzer', async 
     customer_id: '001024',
     amount: 1250.5,
   });
+  assert.deepEqual(result.extractedSchema.state_transitions, analysis.state_transitions);
+  assert.deepEqual(result.extractedSchema.operations, analysis.operations);
+  assert.deepEqual(
+    result.extractedSchema.communication_contracts,
+    analysis.communication_contracts,
+  );
 });
 
 test('does not swallow analyzer failures', async () => {
