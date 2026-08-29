@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decideReleaseGate } from './releaseGate.js';
+import { decideReleaseGate, selectAuthoritativeValidation } from './releaseGate.js';
 
 test('negative validation before release is blocked', () => {
   const result = decideReleaseGate({
@@ -30,6 +30,37 @@ test('historical failure does not matter when latest authoritative validation pa
   });
   assert.equal(result.effectiveStatus, 'trusted');
   assert.equal(result.shouldTransition, false);
+});
+
+test('certificate-referenced validation wins when timestamps are equal', () => {
+  const timestamp = '2026-08-29T10:30:13.958403+00:00';
+  const validations = [
+    { id: 'failed-old', status: 'failed', created_at: timestamp },
+    { id: 'passed-certified', status: 'passed', created_at: timestamp },
+  ];
+
+  const authoritative = selectAuthoritativeValidation(validations, {
+    validation_result_id: 'passed-certified',
+    certified_at: timestamp,
+  });
+
+  assert.equal(authoritative?.id, 'passed-certified');
+  assert.equal(authoritative?.status, 'passed');
+});
+
+test('provably later validation supersedes certificate baseline', () => {
+  const validations = [
+    { id: 'passed-certified', status: 'passed', created_at: '2026-08-29T10:30:13Z' },
+    { id: 'failed-later', status: 'failed', created_at: '2026-08-29T10:31:13Z' },
+  ];
+
+  const authoritative = selectAuthoritativeValidation(validations, {
+    validation_result_id: 'passed-certified',
+    certified_at: '2026-08-29T10:30:30Z',
+  });
+
+  assert.equal(authoritative?.id, 'failed-later');
+  assert.equal(authoritative?.status, 'failed');
 });
 
 test('negative validation may use explicit complete exception approval', () => {
