@@ -1,33 +1,56 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createIdempotencyKey } from './idempotency.js';
+import {
+  createIdempotencyKey,
+  createSourcePreconditionToken,
+  sourcePreconditionMatches,
+} from './idempotency.js';
 
-const base = {
+const intent = {
+  intent_id: 'intent-4711-update-customer',
   operation: 'write-customer',
+};
+
+const source = {
   source_system: 'sap-r3',
   source_reference: 'customer:4711',
   source_hash: 'sha256:abc',
   schema_version: 'customer-v1',
 };
 
-test('same logical operation and source state produce the same retry key', () => {
-  assert.equal(createIdempotencyKey(base), createIdempotencyKey({ ...base }));
+test('same client intent produces the same retry key', () => {
+  assert.equal(createIdempotencyKey(intent), createIdempotencyKey({ ...intent }));
 });
 
-test('changed source state produces a different key', () => {
+test('same intent keeps its idempotency identity when source state changes', () => {
+  const before = createIdempotencyKey(intent);
+  const after = createIdempotencyKey(intent);
+  assert.equal(before, after);
+});
+
+test('different intent produces a different idempotency key', () => {
   assert.notEqual(
-    createIdempotencyKey(base),
-    createIdempotencyKey({ ...base, source_hash: 'sha256:def' }),
+    createIdempotencyKey(intent),
+    createIdempotencyKey({ ...intent, intent_id: 'intent-4711-second-update' }),
   );
 });
 
-test('changed schema contract produces a different key', () => {
+test('source state is tracked independently as a precondition token', () => {
   assert.notEqual(
-    createIdempotencyKey(base),
-    createIdempotencyKey({ ...base, schema_version: 'customer-v2' }),
+    createSourcePreconditionToken(source),
+    createSourcePreconditionToken({ ...source, source_hash: 'sha256:def' }),
   );
 });
 
-test('missing identity fields are rejected', () => {
-  assert.throws(() => createIdempotencyKey({ ...base, source_reference: ' ' }), /source_reference is required/);
+test('source precondition rejects a changed source state', () => {
+  assert.equal(sourcePreconditionMatches(source, { ...source }), true);
+  assert.equal(sourcePreconditionMatches(source, { ...source, source_hash: 'sha256:def' }), false);
+});
+
+test('source precondition rejects contract drift', () => {
+  assert.equal(sourcePreconditionMatches(source, { ...source, schema_version: 'customer-v2' }), false);
+});
+
+test('missing intent identity is rejected', () => {
+  assert.throws(() => createIdempotencyKey({ ...intent, intent_id: ' ' }), /intent_id is required/);
 });
