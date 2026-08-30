@@ -1,7 +1,9 @@
 export interface ReviewRecordRef {
   id?: string | null;
+  resolution_record_id?: string | null;
   reviewer_id?: string | null;
   reviewer_type?: string | null;
+  authorization_level?: string | null;
   evidence_checked?: boolean | null;
   evidence_refs?: unknown;
   review_reason?: string | null;
@@ -14,9 +16,12 @@ export interface ReviewSessionRef {
   reviewer_id?: string | null;
   reviewer_type?: string | null;
   reviewer_authorized?: boolean | null;
+  authorization_level?: string | null;
   evidence_checked?: boolean | null;
   evidence_refs?: unknown;
   criteria_checked?: boolean | null;
+  runtime_log_id?: string | null;
+  validation_result_id?: string | null;
   created_at?: string | null;
 }
 
@@ -41,6 +46,7 @@ export interface ReviewDecisionRef {
   reviewer_id?: string | null;
   reviewer_type?: string | null;
   reviewer_authorized?: boolean | null;
+  authorization_level?: string | null;
   evidence_checked?: boolean | null;
   evidence_refs?: unknown;
   criteria_checked?: boolean | null;
@@ -49,6 +55,8 @@ export interface ReviewDecisionRef {
   reason?: string | null;
   review_reason?: string | null;
   decided_at?: string | null;
+  runtime_log_id?: string | null;
+  validation_result_id?: string | null;
   created_at?: string | null;
 }
 
@@ -57,13 +65,17 @@ export interface ReviewTruth {
   reviewer_id: string | null;
   reviewer_type: string | null;
   reviewer_authorized: boolean | null;
+  authorization_level: string | null;
   evidence_checked: boolean;
-  evidence_refs: string[];
+  evidence_reference_ids: string[];
   criteria_checked: boolean;
   criterion_result_ids: string[];
   decision: string | null;
   reason: string | null;
   decided_at: string | null;
+  runtime_log_id: string | null;
+  resolution_id: string | null;
+  validation_result_id: string | null;
   complete: boolean;
   missing: string[];
 }
@@ -86,8 +98,8 @@ function unique(values: string[]): string[] {
 /**
  * Builds the current, machine-readable Review Truth from the existing review rows.
  *
- * Important: missing evidence or reviewer authorization is never inferred. If the
- * database does not explicitly prove either fact, the review remains incomplete.
+ * Important: reviewer authorization, evidence, criteria proof and the validation
+ * reference are never inferred. Missing proof keeps the review incomplete.
  */
 export function deriveReviewTruth(input: {
   records: ReviewRecordRef[];
@@ -109,8 +121,9 @@ export function deriveReviewTruth(input: {
   const reviewerId = decision?.reviewer_id ?? session.reviewer_id ?? record?.reviewer_id ?? null;
   const reviewerType = decision?.reviewer_type ?? session.reviewer_type ?? record?.reviewer_type ?? null;
   const reviewerAuthorized = decision?.reviewer_authorized ?? session.reviewer_authorized ?? null;
+  const authorizationLevel = decision?.authorization_level ?? session.authorization_level ?? record?.authorization_level ?? null;
 
-  const evidenceRefs = unique([
+  const evidenceReferenceIds = unique([
     ...strings(record?.evidence_refs),
     ...strings(session.evidence_refs),
     ...strings(decision?.evidence_refs),
@@ -134,15 +147,20 @@ export function deriveReviewTruth(input: {
   const finalDecision = decision?.decision ?? decision?.status ?? null;
   const reason = decision?.reason ?? decision?.review_reason ?? record?.review_reason ?? null;
   const decidedAt = decision?.decided_at ?? decision?.created_at ?? null;
+  const runtimeLogId = decision?.runtime_log_id ?? session.runtime_log_id ?? null;
+  const resolutionId = record?.resolution_record_id ?? null;
+  const validationResultId = decision?.validation_result_id ?? session.validation_result_id ?? null;
 
   const missing: string[] = [];
   if (!reviewerId) missing.push('reviewer_id');
   if (!reviewerType) missing.push('reviewer_type');
   if (reviewerAuthorized !== true) missing.push('reviewer_authorized');
+  if (!authorizationLevel) missing.push('authorization_level');
   if (!evidenceChecked) missing.push('evidence_checked');
-  if (!evidenceRefs.length) missing.push('evidence_refs');
+  if (!evidenceReferenceIds.length) missing.push('evidence_reference_ids');
   if (!criteriaChecked) missing.push('criteria_checked');
   if (!criterionResultIds.length) missing.push('criterion_result_ids');
+  if (!validationResultId) missing.push('validation_result_id');
   if (!finalDecision) missing.push('decision');
   if (!reason) missing.push('reason');
   if (!decidedAt) missing.push('decided_at');
@@ -152,13 +170,17 @@ export function deriveReviewTruth(input: {
     reviewer_id: reviewerId,
     reviewer_type: reviewerType,
     reviewer_authorized: reviewerAuthorized,
+    authorization_level: authorizationLevel,
     evidence_checked: evidenceChecked,
-    evidence_refs: evidenceRefs,
+    evidence_reference_ids: evidenceReferenceIds,
     criteria_checked: criteriaChecked,
     criterion_result_ids: criterionResultIds,
     decision: finalDecision,
     reason,
     decided_at: decidedAt,
+    runtime_log_id: runtimeLogId,
+    resolution_id: resolutionId,
+    validation_result_id: validationResultId,
     complete: missing.length === 0,
     missing,
   };
