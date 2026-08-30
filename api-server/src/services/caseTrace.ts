@@ -4,6 +4,7 @@ import {
   selectAuthoritativeValidation,
   type ReleaseStatus,
 } from './releaseGate.js';
+import { deriveReviewTruth } from './reviewGate.js';
 
 export interface CaseListItem {
   id: string;
@@ -197,6 +198,13 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       )
     : [];
 
+  const currentReview = deriveReviewTruth({
+    records: reviews,
+    sessions: reviewSessions,
+    criteria: criterionResults,
+    decisions: reviewDecisions,
+  });
+
   const releases = await rows<any>(
     supabase.from('release_certificates').select('*').eq('record_id', recordId).order('certified_at'),
   );
@@ -272,6 +280,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       decisions: reviewDecisions,
       logs: reviewLogs,
       status_history: reviewStatusHistory,
+      current: currentReview,
     },
     release: {
       certificates: releases,
