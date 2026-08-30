@@ -2,16 +2,25 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deriveReviewTruth } from './reviewGate.js';
 
-test('complete review requires explicit reviewer authorization, evidence and criteria proof', () => {
+test('complete review requires authorization level, evidence, criteria and validation reference', () => {
   const truth = deriveReviewTruth({
-    records: [{ id: 'r1', reviewer_id: 'u1', reviewer_type: 'human', review_reason: 'Checked source conflict.' }],
+    records: [{
+      id: 'r1',
+      resolution_record_id: 'res1',
+      reviewer_id: 'u1',
+      reviewer_type: 'human',
+      review_reason: 'Checked source conflict.',
+    }],
     sessions: [{
       id: 's1',
       review_record_id: 'r1',
       reviewer_authorized: true,
+      authorization_level: 'release_reviewer',
       evidence_checked: true,
       evidence_refs: ['source:1'],
       criteria_checked: true,
+      runtime_log_id: 'run1',
+      validation_result_id: 'val1',
       created_at: '2026-08-30T10:00:00Z',
     }],
     criteria: [{
@@ -34,12 +43,17 @@ test('complete review requires explicit reviewer authorization, evidence and cri
   assert.equal(truth.complete, true);
   assert.deepEqual(truth.missing, []);
   assert.equal(truth.reviewer_authorized, true);
+  assert.equal(truth.authorization_level, 'release_reviewer');
   assert.equal(truth.evidence_checked, true);
+  assert.deepEqual(truth.evidence_reference_ids, ['source:1']);
   assert.equal(truth.criteria_checked, true);
   assert.deepEqual(truth.criterion_result_ids, ['c1']);
+  assert.equal(truth.validation_result_id, 'val1');
+  assert.equal(truth.resolution_id, 'res1');
+  assert.equal(truth.runtime_log_id, 'run1');
 });
 
-test('review stays incomplete when authorization and evidence are only implied', () => {
+test('review stays incomplete when authorization, evidence and validation are only implied', () => {
   const truth = deriveReviewTruth({
     records: [{ id: 'r1', reviewer_id: 'u1', reviewer_type: 'human', review_reason: 'Looks fine.' }],
     sessions: [{ id: 's1', review_record_id: 'r1', created_at: '2026-08-30T10:00:00Z' }],
@@ -61,14 +75,19 @@ test('review stays incomplete when authorization and evidence are only implied',
   assert.ok(truth);
   assert.equal(truth.complete, false);
   assert.ok(truth.missing.includes('reviewer_authorized'));
+  assert.ok(truth.missing.includes('authorization_level'));
   assert.ok(truth.missing.includes('evidence_checked'));
-  assert.ok(truth.missing.includes('evidence_refs'));
+  assert.ok(truth.missing.includes('evidence_reference_ids'));
   assert.ok(truth.missing.includes('criteria_checked'));
+  assert.ok(truth.missing.includes('validation_result_id'));
 });
 
 test('only the latest review session governs current Review Truth', () => {
   const truth = deriveReviewTruth({
-    records: [{ id: 'r1', reviewer_id: 'old', reviewer_type: 'human' }, { id: 'r2', reviewer_id: 'new', reviewer_type: 'human' }],
+    records: [
+      { id: 'r1', reviewer_id: 'old', reviewer_type: 'human' },
+      { id: 'r2', reviewer_id: 'new', reviewer_type: 'human' },
+    ],
     sessions: [
       { id: 's1', review_record_id: 'r1', created_at: '2026-08-30T09:00:00Z' },
       { id: 's2', review_record_id: 'r2', created_at: '2026-08-30T11:00:00Z' },
