@@ -1,7 +1,9 @@
 const target = process.env.TARGET_URL;
 const requests = Number(process.env.REQUESTS ?? 50);
 const intentId = process.env.INTENT_ID ?? `petraplan-runtime-${Date.now()}`;
+const operation = process.env.OPERATION ?? 'idempotency-smoke';
 const method = process.env.METHOD ?? 'POST';
+const expiresAt = process.env.EXPIRES_AT ?? new Date(Date.now() + 10 * 60 * 1000).toISOString();
 
 if (!target) {
   console.error('TARGET_URL is required');
@@ -20,6 +22,8 @@ const results = await Promise.all(
         headers: {
           'content-type': 'application/json',
           'x-intent-id': intentId,
+          'x-operation': operation,
+          'x-test-expires-at': expiresAt,
           'x-test-request-index': String(index),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -58,24 +62,45 @@ const statusCounts = results.reduce((acc, result) => {
   return acc;
 }, {});
 
-const executionIds = results
+const successful = results.filter((result) => result.ok);
+const executionIds = successful
   .map((result) => result.payload && typeof result.payload === 'object' ? result.payload.execution_id : undefined)
   .filter(Boolean);
+const claimWinners = successful.filter(
+  (result) => result.payload && typeof result.payload === 'object' && result.payload.claimed === true,
+).length;
 
 const uniqueExecutionIds = [...new Set(executionIds)];
-const duplicateSafe = uniqueExecutionIds.length <= 1;
+const allRequestsSucceeded = successful.length === requests;
+const allReturnedExecutionIdentity = executionIds.length === requests;
+const oneLogicalExecution = uniqueExecutionIds.length === 1;
+const oneClaimWinner = claimWinners === 1;
+const duplicateSafe = allRequestsSucceeded && allReturnedExecutionIdentity && oneLogicalExecution && oneClaimWinner;
 
 console.log(JSON.stringify({
   target,
   method,
   intent_id: intentId,
+  operation,
+  expires_at: expiresAt,
   requests,
+  successes: successful.length,
+  failures: requests - successful.length,
   elapsed_ms: Date.now() - started,
   status_counts: statusCounts,
   execution_ids_observed: executionIds.length,
   unique_execution_ids: uniqueExecutionIds,
+  claim_winners: claimWinners,
   duplicate_safe: duplicateSafe,
-  note: execution_id must be returned by the target endpoint for this script to prove single logical execution; otherwise it only reports transport behavior.
+  proof_conditions: {
+    all_requests_succeeded: allRequestsSucceeded,
+    all_returned_execution_identity: allReturnedExecutionIdentity,
+    exactly_one_execution_id: oneLogicalExecution,
+    exactly_one_claim_winner: oneClaimWinner,
+  },
 }, null, 2));
 
-if (!duplicateSafe) process.exitCode = 2;
+if (!duplicateSafe) {
+  console.error('Runtime idempotency proof failed. Every request must succeed, return the same execution_id, and exactly one request must claim ownership.');
+  process.exitCode = 2;
+}
