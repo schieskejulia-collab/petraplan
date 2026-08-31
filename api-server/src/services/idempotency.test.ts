@@ -54,3 +54,39 @@ test('source precondition rejects contract drift', () => {
 test('missing intent identity is rejected', () => {
   assert.throws(() => createIdempotencyKey({ ...intent, intent_id: ' ' }), /intent_id is required/);
 });
+
+test('50 concurrent attempts of the same logical intent converge on one idempotency identity', async () => {
+  const keys = await Promise.all(
+    Array.from({ length: 50 }, async () => createIdempotencyKey({ ...intent })),
+  );
+
+  assert.equal(new Set(keys).size, 1);
+  assert.equal(keys[0], createIdempotencyKey(intent));
+});
+
+test('concurrent source changes do not split the logical intent identity', async () => {
+  const keys = await Promise.all(
+    Array.from({ length: 50 }, async (_, index) => {
+      createSourcePreconditionToken({
+        ...source,
+        source_hash: `sha256:state-${index}`,
+      });
+      return createIdempotencyKey({ ...intent });
+    }),
+  );
+
+  assert.equal(new Set(keys).size, 1);
+});
+
+test('concurrent distinct intents remain distinct', async () => {
+  const keys = await Promise.all(
+    Array.from({ length: 50 }, async (_, index) =>
+      createIdempotencyKey({
+        intent_id: `intent-4711-update-customer-${index}`,
+        operation: intent.operation,
+      }),
+    ),
+  );
+
+  assert.equal(new Set(keys).size, 50);
+});
