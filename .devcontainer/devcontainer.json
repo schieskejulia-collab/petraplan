@@ -1,0 +1,15 @@
+{
+  "name": "PetraPlan Cloud Dev",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "postCreateCommand": "npm install && npm install --prefix frontend/mobile-app",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  },
+  "forwardPorts": [3000, 5173],
+  "remoteUser": "node"
+}
