@@ -4,11 +4,14 @@ import { getCaseTrace, listCases } from '../services/caseTrace.js';
 
 const router = express.Router();
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseUrl = process.env.SUPABASE_URL || 'https://localhost:54321';
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'stub-key-for-smoke-testing';
 
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-  throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+// Only require real Supabase credentials if not in smoke test mode
+if (process.env.IDEMPOTENCY_SMOKE_ENABLED !== 'true') {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
+  }
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
