@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildInvoiceProtocolTraceLink,
   createInvoiceProtocol,
   readInvoiceProtocolsAtPeriod,
   shiftPeriod,
@@ -49,6 +50,43 @@ test('reads only the selected period without mutating the source list', () => {
     previous,
   ]);
   assert.equal(JSON.stringify(protocols), before);
+});
+
+test('links only explicitly scoped protocols for a case and period', () => {
+  const linked = createInvoiceProtocol({
+    invoiceId: 'INV-LINKED',
+    sourceSystem: 'legacy-purchasing',
+    postingPeriod: '2026-08',
+    caseId: 'case-1',
+    status: 'checked',
+  });
+  const otherCase = createInvoiceProtocol({
+    invoiceId: 'INV-OTHER',
+    sourceSystem: 'legacy-purchasing',
+    postingPeriod: '2026-08',
+    caseId: 'case-2',
+  });
+  const unscoped = createInvoiceProtocol({
+    invoiceId: 'INV-UNSCOPED',
+    sourceSystem: 'legacy-purchasing',
+    postingPeriod: '2026-08',
+  });
+
+  assert.deepEqual(
+    buildInvoiceProtocolTraceLink(
+      'case-1',
+      [linked, otherCase, unscoped],
+      '2026-09',
+      -1,
+    ),
+    {
+      caseId: 'case-1',
+      postingPeriod: '2026-08',
+      protocolIds: [linked.protocolId],
+      sourceSystems: ['legacy-purchasing'],
+      statuses: ['checked'],
+    },
+  );
 });
 
 test('rejects invalid periods', () => {
