@@ -1,59 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-
-type RawRecord = {
-  KUNDEN_NR: string;
-  AUFTRAGS_NR: string;
-  STATUS: string;
-  MENGE: string;
-  DATUM: string;
-};
-
-type MappedRecord = {
-  customerId: string;
-  orderId: string;
-  status: "open" | "closed" | "in_progress" | null;
-  quantity: number;
-  orderDate: string;
-};
-
-const validRecord: RawRecord = {
-  KUNDEN_NR: "4711",
-  AUFTRAGS_NR: "A-10027",
-  STATUS: "OFFEN",
-  MENGE: "12",
-  DATUM: "2026-09-05",
-};
-
-const conflictRecord: RawRecord = {
-  ...validRecord,
-  STATUS: "UNBEKANNT",
-  MENGE: "-4",
-};
-
-const fieldMap = [
-  ["KUNDEN_NR", "customerId", "unverändert"],
-  ["AUFTRAGS_NR", "orderId", "eindeutig"],
-  ["STATUS", "status", "OFFEN → open"],
-  ["MENGE", "quantity", "Text → Zahl"],
-  ["DATUM", "orderDate", "ISO-Format"],
-] as const;
-
-function mapRecord(source: RawRecord): MappedRecord {
-  const statusMap: Record<string, MappedRecord["status"]> = {
-    OFFEN: "open",
-    GESCHLOSSEN: "closed",
-    IN_BEARBEITUNG: "in_progress",
-  };
-
-  return {
-    customerId: source.KUNDEN_NR,
-    orderId: source.AUFTRAGS_NR,
-    status: statusMap[source.STATUS] ?? null,
-    quantity: Number(source.MENGE),
-    orderDate: source.DATUM,
-  };
-}
+import {
+  demoConflictRecord,
+  demoValidRecord,
+  evaluateRecord,
+  fieldMap,
+  parseRawRecord,
+  type RawRecord,
+} from "../lib/bridge-pipeline";
 
 function JsonBlock({ value }: { value: unknown }) {
   return (
@@ -75,24 +29,24 @@ function Section({ eyebrow, title, children, wide = false }: { eyebrow: string; 
 
 export default function BridgePage() {
   const [, setLocation] = useLocation();
-  const [raw, setRaw] = useState<RawRecord>(validRecord);
-  const mapped = mapRecord(raw);
-  const checks = [
-    { label: "Kunden-ID vorhanden", ok: Boolean(raw.KUNDEN_NR), rule: "Pflichtfeld", observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}` },
-    { label: "Auftragsnummer eindeutig", ok: raw.AUFTRAGS_NR === "A-10027", rule: "Beispielprüfung", observed: `AUFTRAGS_NR: ${raw.AUFTRAGS_NR}` },
-    { label: "Status erlaubt", ok: mapped.status !== null, rule: "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG", observed: `STATUS: ${raw.STATUS} → ${mapped.status ?? "nicht zugeordnet"}` },
-    { label: "Menge größer als 0", ok: Number.isFinite(mapped.quantity) && mapped.quantity > 0, rule: "Zahl > 0", observed: `MENGE: ${Number.isFinite(mapped.quantity) ? mapped.quantity : raw.MENGE}` },
-    { label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM), rule: "YYYY-MM-DD", observed: `DATUM: ${raw.DATUM}` },
-  ];
-  const passed = checks.every(({ ok }) => ok);
-  const provenance = {
-    source: "system_a",
-    sourceRecord: raw.AUFTRAGS_NR,
-    capturedAt: "2026-09-05",
-    mode: "read_only",
-    overallStatus: passed ? "valid" : "needs_review",
-    conflicts: checks.filter(({ ok }) => !ok).map(({ label }) => label),
-  };
+  const [raw, setRaw] = useState<RawRecord>(demoValidRecord);
+  const [rawInput, setRawInput] = useState(() => JSON.stringify(demoValidRecord, null, 2));
+  const [inputError, setInputError] = useState<string | null>(null);
+  const { mapped, checks, passed, provenance } = evaluateRecord(raw, new Date().toISOString().slice(0, 10));
+
+  function loadRecord(nextRecord: RawRecord) {
+    setRaw(nextRecord);
+    setRawInput(JSON.stringify(nextRecord, null, 2));
+    setInputError(null);
+  }
+
+  function readRawRecord() {
+    try {
+      loadRecord(parseRawRecord(JSON.parse(rawInput)));
+    } catch (error) {
+      setInputError(error instanceof Error ? error.message : "Der Datensatz konnte nicht gelesen werden.");
+    }
+  }
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -100,7 +54,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.3</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.4</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Auftrag lesbar machen, ohne die Quelle anzufassen.</h1>
           <p className="max-w-2xl text-sm text-muted-foreground md:text-base">Ein read-only Ablauf vom Quellwert über die FIELD-MAP bis zur nachvollziehbaren Ausgabe.</p>
         </header>
@@ -117,6 +71,19 @@ export default function BridgePage() {
         <div className="grid gap-4 md:grid-cols-2">
           <Section eyebrow="01 · Quelle" title="Unveränderte Rohdaten">
             <p className="mt-1 text-xs text-muted-foreground">So kommt der Datensatz aus System A an.</p>
+            <details className="mt-3 rounded-xl border px-3 py-2">
+              <summary className="cursor-pointer text-sm font-semibold">Rohdatensatz einlesen</summary>
+              <p className="mt-2 text-xs text-muted-foreground">Ein JSON-Datensatz wird erst nach dem Einlesen durch dieselbe Pipeline geprüft.</p>
+              <textarea
+                aria-label="Rohdatensatz als JSON"
+                className="mt-3 min-h-40 w-full rounded-lg border bg-background p-3 font-mono text-xs"
+                value={rawInput}
+                onChange={(event) => setRawInput(event.target.value)}
+                spellCheck={false}
+              />
+              <button className="mt-2 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={readRawRecord}>Datensatz einlesen</button>
+              {inputError && <p className="mt-2 text-xs font-medium text-red-700" role="alert">{inputError}</p>}
+            </details>
             <JsonBlock value={raw} />
           </Section>
 
@@ -175,8 +142,8 @@ export default function BridgePage() {
               ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => setRaw(conflictRecord)}>Fehlerfall testen</button>
-              <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => setRaw(validRecord)}>Gültigen Fall laden</button>
+              <button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Fehlerfall-Beispiel laden</button>
+              <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadRecord(demoValidRecord)}>Gültigen Fall laden</button>
             </div>
           </Section>
 
