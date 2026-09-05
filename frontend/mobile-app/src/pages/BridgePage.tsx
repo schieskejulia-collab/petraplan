@@ -78,20 +78,20 @@ export default function BridgePage() {
   const [raw, setRaw] = useState<RawRecord>(validRecord);
   const mapped = useMemo(() => mapRecord(raw), [raw]);
   const checks = useMemo(() => [
-    ["Kunden-ID vorhanden", Boolean(raw.KUNDEN_NR), "Pflichtfeld"],
-    ["Auftragsnummer eindeutig", raw.AUFTRAGS_NR === "A-10027", "Beispielprüfung"],
-    ["Status erlaubt", mapped.status !== null, "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG"],
-    ["Menge größer als 0", Number.isFinite(mapped.quantity) && mapped.quantity > 0, "Zahl > 0"],
-    ["Datum gültig", /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM), "YYYY-MM-DD"],
-  ] as const, [mapped, raw]);
-  const passed = checks.every(([, ok]) => ok);
+    { label: "Kunden-ID vorhanden", ok: Boolean(raw.KUNDEN_NR), rule: "Pflichtfeld", observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}` },
+    { label: "Auftragsnummer eindeutig", ok: raw.AUFTRAGS_NR === "A-10027", rule: "Beispielprüfung", observed: `AUFTRAGS_NR: ${raw.AUFTRAGS_NR}` },
+    { label: "Status erlaubt", ok: mapped.status !== null, rule: "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG", observed: `STATUS: ${raw.STATUS} → ${mapped.status ?? "nicht zugeordnet"}` },
+    { label: "Menge größer als 0", ok: Number.isFinite(mapped.quantity) && mapped.quantity > 0, rule: "Zahl > 0", observed: `MENGE: ${Number.isFinite(mapped.quantity) ? mapped.quantity : raw.MENGE}` },
+    { label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM), rule: "YYYY-MM-DD", observed: `DATUM: ${raw.DATUM}` },
+  ], [mapped, raw]);
+  const passed = checks.every(({ ok }) => ok);
   const provenance = {
     source: "system_a",
     sourceRecord: raw.AUFTRAGS_NR,
     capturedAt: "2026-09-05",
     mode: "read_only",
     overallStatus: passed ? "valid" : "needs_review",
-    conflicts: checks.filter(([, ok]) => !ok).map(([label]) => label),
+    conflicts: checks.filter(({ ok }) => !ok).map(({ label }) => label),
   };
 
   return (
@@ -161,11 +161,11 @@ export default function BridgePage() {
 
           <Section eyebrow="04 · Nachweis" title={passed ? "Prüfung bestanden" : "Prüfung offen"}>
             <div className="mt-3 space-y-2">
-              {checks.map(([label, ok, detail]) => (
+              {checks.map(({ label, ok, rule, observed }) => (
                 <div key={label} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
                   <div>
                     <p className="text-sm font-medium">{label}</p>
-                    <p className="text-[11px] text-muted-foreground">{detail}</p>
+                    <p className="text-[11px] text-muted-foreground">{observed} · Regel: {rule}</p>
                   </div>
                   <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${ok ? "bg-teal-50 text-teal-700" : "bg-red-50 text-red-700"}`}>
                     {ok ? "OK" : "FEHLER"}
