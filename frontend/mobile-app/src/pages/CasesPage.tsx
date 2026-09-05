@@ -34,9 +34,16 @@ export default function CasesPage() {
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan</p>
-          <h1 className="text-3xl font-semibold">Truth Cases</h1>
-          <p className="text-sm text-muted-foreground">Nachvollziehbare Fälle von Source Truth bis Release Truth.</p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan</p>
+              <h1 className="text-3xl font-semibold">Truth Cases</h1>
+              <p className="text-sm text-muted-foreground">Nachvollziehbare Fälle von Source Truth bis Release Truth.</p>
+            </div>
+            <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" onClick={() => setLocation("/bridge")}>
+              Bridge öffnen
+            </button>
+          </div>
         </header>
 
         {loading && <p className="text-sm text-muted-foreground">Lade Fälle…</p>}
