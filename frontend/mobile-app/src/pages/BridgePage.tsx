@@ -104,7 +104,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.1</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.2</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Auftrag lesbar machen, ohne die Quelle anzufassen.</h1>
           <p className="max-w-2xl text-sm text-muted-foreground md:text-base">Ein read-only Ablauf vom Quellwert über die FIELD-MAP bis zur nachvollziehbaren Ausgabe.</p>
         </header>
@@ -164,6 +164,7 @@ export default function BridgePage() {
           </Section>
 
           <Section eyebrow="04 · Nachweis" title={passed ? "Prüfung bestanden" : "Prüfung offen"}>
+            <p className="mt-2 rounded-xl border border-teal-100 bg-teal-50 px-3 py-2 text-xs text-teal-800">Prüfung und Übersetzung beziehen sich auf denselben Auswertungssnapshot.</p>
             <div className="mt-3 space-y-2">
               {checks.map(({ label, ok, rule, observed }) => (
                 <div key={label} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
