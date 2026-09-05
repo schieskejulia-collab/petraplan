@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 
 type RawRecord = {
@@ -76,18 +76,14 @@ function Section({ eyebrow, title, children, wide = false }: { eyebrow: string; 
 export default function BridgePage() {
   const [, setLocation] = useLocation();
   const [raw, setRaw] = useState<RawRecord>(validRecord);
-  const evaluation = useMemo(() => {
-    const mapped = mapRecord(raw);
-    const checks = [
-      { label: "Kunden-ID vorhanden", ok: Boolean(raw.KUNDEN_NR), rule: "Pflichtfeld", observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}` },
-      { label: "Auftragsnummer eindeutig", ok: raw.AUFTRAGS_NR === "A-10027", rule: "Beispielprüfung", observed: `AUFTRAGS_NR: ${raw.AUFTRAGS_NR}` },
-      { label: "Status erlaubt", ok: mapped.status !== null, rule: "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG", observed: `STATUS: ${raw.STATUS} → ${mapped.status ?? "nicht zugeordnet"}` },
-      { label: "Menge größer als 0", ok: Number.isFinite(mapped.quantity) && mapped.quantity > 0, rule: "Zahl > 0", observed: `MENGE: ${Number.isFinite(mapped.quantity) ? mapped.quantity : raw.MENGE}` },
-      { label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM), rule: "YYYY-MM-DD", observed: `DATUM: ${raw.DATUM}` },
-    ];
-    return { mapped, checks };
-  }, [raw]);
-  const { mapped, checks } = evaluation;
+  const mapped = mapRecord(raw);
+  const checks = [
+    { label: "Kunden-ID vorhanden", ok: Boolean(raw.KUNDEN_NR), rule: "Pflichtfeld", observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}` },
+    { label: "Auftragsnummer eindeutig", ok: raw.AUFTRAGS_NR === "A-10027", rule: "Beispielprüfung", observed: `AUFTRAGS_NR: ${raw.AUFTRAGS_NR}` },
+    { label: "Status erlaubt", ok: mapped.status !== null, rule: "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG", observed: `STATUS: ${raw.STATUS} → ${mapped.status ?? "nicht zugeordnet"}` },
+    { label: "Menge größer als 0", ok: Number.isFinite(mapped.quantity) && mapped.quantity > 0, rule: "Zahl > 0", observed: `MENGE: ${Number.isFinite(mapped.quantity) ? mapped.quantity : raw.MENGE}` },
+    { label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM), rule: "YYYY-MM-DD", observed: `DATUM: ${raw.DATUM}` },
+  ];
   const passed = checks.every(({ ok }) => ok);
   const provenance = {
     source: "system_a",
