@@ -100,7 +100,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.2</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.3</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Auftrag lesbar machen, ohne die Quelle anzufassen.</h1>
           <p className="max-w-2xl text-sm text-muted-foreground md:text-base">Ein read-only Ablauf vom Quellwert über die FIELD-MAP bis zur nachvollziehbaren Ausgabe.</p>
         </header>
