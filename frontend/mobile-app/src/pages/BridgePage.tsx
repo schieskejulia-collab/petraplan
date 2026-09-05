@@ -121,8 +121,8 @@ export default function BridgePage() {
           </Section>
 
           <Section eyebrow="02 · Übersetzung" title="FIELD-MAP">
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[420px] text-left text-xs">
+            <div className="mt-3 hidden overflow-x-auto md:block">
+              <table className="w-full text-left text-xs">
                 <thead className="text-muted-foreground">
                   <tr className="border-b">
                     <th className="px-2 py-2 font-semibold uppercase tracking-wide">Quelle</th>
@@ -140,6 +140,18 @@ export default function BridgePage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+            <div className="mt-3 space-y-2 md:hidden">
+              {fieldMap.map(([source, target, rule]) => (
+                <div key={source} className="rounded-xl border p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs font-semibold">{source}</span>
+                    <span className="text-xs text-slate-400">→</span>
+                    <span className="font-mono text-xs font-semibold text-teal-700">{target}</span>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Regel: {rule}</p>
+                </div>
+              ))}
             </div>
           </Section>
 
