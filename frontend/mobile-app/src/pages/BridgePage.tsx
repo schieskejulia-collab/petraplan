@@ -27,12 +27,18 @@ function Section({ eyebrow, title, children, wide = false }: { eyebrow: string; 
   );
 }
 
+function claimStatusLabel(status: string) {
+  if (status === "confirmed") return "BESTÄTIGT";
+  if (status === "unresolved") return "UNGEKLÄRT";
+  return "REGELVERLETZUNG";
+}
+
 export default function BridgePage() {
   const [, setLocation] = useLocation();
   const [raw, setRaw] = useState<RawRecord>(demoValidRecord);
   const [rawInput, setRawInput] = useState(() => JSON.stringify(demoValidRecord, null, 2));
   const [inputError, setInputError] = useState<string | null>(null);
-  const { mapped, checks, passed, provenance } = evaluateRecord(raw, new Date().toISOString().slice(0, 10));
+  const { mapped, checks, passed, provenance, semanticClaims, report } = evaluateRecord(raw, new Date().toISOString().slice(0, 10));
 
   function loadRecord(nextRecord: RawRecord) {
     setRaw(nextRecord);
@@ -54,16 +60,16 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.4</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Referenzfall A-10027</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Auftrag lesbar machen, ohne die Quelle anzufassen.</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground md:text-base">Ein read-only Ablauf vom Quellwert über die FIELD-MAP bis zur nachvollziehbaren Ausgabe.</p>
+          <p className="max-w-2xl text-sm text-muted-foreground md:text-base">Ein read-only Ablauf vom Quellwert über die FIELD-MAP bis zur belegbaren Bedeutung und Freigabeentscheidung.</p>
         </header>
 
         <nav aria-label="Datenfluss" className="flex flex-wrap items-center gap-2 text-sm font-semibold text-teal-800">
-          {["Rohdaten", "FIELD-MAP", "Prüfung", "Ausgabe"].map((label, index) => (
+          {["Rohdaten", "FIELD-MAP", "Bedeutung", "Prüfung", "Freigabe"].map((label, index, values) => (
             <span key={label} className="flex items-center gap-2">
               <span className="rounded-full border border-teal-200 bg-teal-50 px-3 py-2">{label}</span>
-              {index < 3 && <span className="text-slate-400">→</span>}
+              {index < values.length - 1 && <span className="text-slate-400">→</span>}
             </span>
           ))}
         </nav>
@@ -147,7 +153,58 @@ export default function BridgePage() {
             </div>
           </Section>
 
-          <Section eyebrow="05 · Herkunft" title="Jeder Wert bleibt nachvollziehbar" wide>
+          <Section eyebrow="05 · Bedeutung" title="Zuordnung, Beleg und Unsicherheit" wide>
+            <p className="mt-1 text-xs text-muted-foreground">FIELD-MAP und Bedeutung werden getrennt. Unbekannte Werte bleiben ausdrücklich ungeklärt statt geraten zu werden.</p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {semanticClaims.map((claim) => (
+                <div key={claim.sourceField} className="rounded-xl border p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-mono text-xs font-semibold">{claim.sourceField} = {JSON.stringify(claim.sourceValue)}</p>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${claim.status === "confirmed" ? "bg-teal-50 text-teal-700" : claim.status === "unresolved" ? "bg-amber-50 text-amber-800" : "bg-red-50 text-red-700"}`}>
+                      {claimStatusLabel(claim.status)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm">{claim.meaning}</p>
+                  <p className="mt-2 text-[11px] text-muted-foreground">Grundlage: {claim.basis}</p>
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          <Section eyebrow="06 · Entknotungs-Bericht" title={`Freigabe: ${report.releaseStatus === "verified" ? "VERIFIZIERT" : "BLOCKIERT"}`} wide>
+            <p className="mt-2 text-sm">{report.summary}</p>
+            <div className="mt-3 overflow-x-auto">
+              <table className="w-full min-w-[620px] text-left text-xs">
+                <thead className="text-muted-foreground">
+                  <tr className="border-b">
+                    <th className="px-2 py-2 font-semibold uppercase tracking-wide">Quelle</th>
+                    <th className="px-2 py-2 font-semibold uppercase tracking-wide">Interpretation</th>
+                    <th className="px-2 py-2 font-semibold uppercase tracking-wide">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {report.rows.map((row) => (
+                    <tr key={row.source} className="border-b last:border-0">
+                      <td className="px-2 py-2 font-mono">{row.source}</td>
+                      <td className="px-2 py-2 font-mono text-teal-700">{row.interpretation}</td>
+                      <td className="px-2 py-2 font-semibold">{claimStatusLabel(row.status)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {report.openPoints.length > 0 && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                <p className="text-xs font-bold uppercase tracking-wide">Offene Punkte</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                  {report.openPoints.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-muted-foreground">Quelle verändert: NEIN · Der Bericht beschreibt nur den im Prototyp gezeigten Demo-Fall.</p>
+          </Section>
+
+          <Section eyebrow="07 · Herkunft" title="Jeder Wert bleibt nachvollziehbar" wide>
             <JsonBlock value={provenance} />
             <p className="mt-3 text-xs text-muted-foreground">Die Bridge schreibt nichts in System A. Sie liest, übersetzt, prüft und zeigt den Status transparent an.</p>
           </Section>
