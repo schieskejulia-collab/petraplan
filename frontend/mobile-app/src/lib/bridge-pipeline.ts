@@ -22,6 +22,7 @@ export type ValidationCheck = {
 };
 
 export type Provenance = {
+  snapshotId: string;
   source: string;
   sourceRecord: string;
   capturedAt: string;
@@ -51,6 +52,7 @@ export type EntanglementReportRow = {
 };
 
 export type EntanglementReport = {
+  snapshotId: string;
   caseId: string;
   releaseStatus: "verified" | "blocked";
   rows: EntanglementReportRow[];
@@ -60,6 +62,7 @@ export type EntanglementReport = {
 };
 
 export type BridgeEvaluation = {
+  snapshotId: string;
   raw: RawRecord;
   mapped: MappedRecord;
   checks: ValidationCheck[];
@@ -96,6 +99,25 @@ const statusMap: Record<string, MappedRecord["status"]> = {
   GESCHLOSSEN: "closed",
   IN_BEARBEITUNG: "in_progress",
 };
+
+function createSnapshotId(raw: RawRecord, capturedAt: string): string {
+  const value = [
+    raw.KUNDEN_NR,
+    raw.AUFTRAGS_NR,
+    raw.STATUS,
+    raw.MENGE,
+    raw.DATUM,
+    capturedAt,
+  ].join("|");
+
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `SNP-${(hash >>> 0).toString(16).padStart(8, "0").toUpperCase()}`;
+}
 
 export function parseRawRecord(value: unknown): RawRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -159,8 +181,12 @@ function buildSemanticClaims(raw: RawRecord, mapped: MappedRecord): SemanticClai
       sourceValue: raw.STATUS,
       targetField: "status",
       targetValue: mapped.status,
-      meaning: mapped.status ? `Der Quellstatus wird als ${mapped.status} interpretiert.` : "Für den Quellstatus liegt keine bestätigte Bedeutungszuordnung vor.",
-      basis: mapped.status ? `Bestätigte Demo-Regel für STATUS=${raw.STATUS}.` : "Keine bestätigte Regel für diesen Quellwert; PetraPlan darf keine Bedeutung erraten.",
+      meaning: mapped.status
+        ? `Der Quellstatus wird als ${mapped.status} interpretiert.`
+        : "Für den Quellstatus liegt keine bestätigte Bedeutungszuordnung vor.",
+      basis: mapped.status
+        ? `Bestätigte Demo-Regel für STATUS=${raw.STATUS}.`
+        : "Keine bestätigte Regel für diesen Quellwert; PetraPlan darf keine Bedeutung erraten.",
       status: mapped.status ? "confirmed" : "unresolved",
       sourceModified: false,
     },
@@ -169,7 +195,9 @@ function buildSemanticClaims(raw: RawRecord, mapped: MappedRecord): SemanticClai
       sourceValue: raw.MENGE,
       targetField: "quantity",
       targetValue: mapped.quantity,
-      meaning: "Textwert wird als numerische Menge gelesen.",
+      meaning: quantityIsValid
+        ? "Textwert wird als numerische Menge gelesen."
+        : "Die gelesene Menge verletzt die Regel Zahl > 0 und wird nicht automatisch korrigiert.",
       basis: "FIELD-MAP konvertiert Text → Zahl; Validierungsregel verlangt Zahl > 0.",
       status: quantityIsValid ? "confirmed" : "rule_violation",
       sourceModified: false,
@@ -187,11 +215,16 @@ function buildSemanticClaims(raw: RawRecord, mapped: MappedRecord): SemanticClai
   ];
 }
 
-function buildEntanglementReport(raw: RawRecord, claims: SemanticClaim[]): EntanglementReport {
+function buildEntanglementReport(
+  snapshotId: string,
+  raw: RawRecord,
+  claims: SemanticClaim[],
+): EntanglementReport {
   const openClaims = claims.filter(({ status }) => status !== "confirmed");
   const releaseStatus = openClaims.length === 0 ? "verified" : "blocked";
 
   return {
+    snapshotId,
     caseId: raw.AUFTRAGS_NR,
     releaseStatus,
     rows: claims.map((claim) => ({
@@ -209,7 +242,10 @@ function buildEntanglementReport(raw: RawRecord, claims: SemanticClaim[]): Entan
   };
 }
 
-export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvaluation {
+export function evaluateRecord(input: RawRecord, capturedAt: string): BridgeEvaluation {
+  // Copy the source once. Every derived value below belongs to this exact snapshot.
+  const raw: RawRecord = { ...input };
+  const snapshotId = createSnapshotId(raw, capturedAt);
   const mapped = mapRecord(raw);
   const checks: ValidationCheck[] = [
     { label: "Kunden-ID vorhanden", ok: Boolean(raw.KUNDEN_NR), rule: "Pflichtfeld", observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}` },
@@ -220,15 +256,18 @@ export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvalua
   ];
   const passed = checks.every(({ ok }) => ok);
   const semanticClaims = buildSemanticClaims(raw, mapped);
+  const report = buildEntanglementReport(snapshotId, raw, semanticClaims);
 
   return {
+    snapshotId,
     raw,
     mapped,
     checks,
     passed,
     semanticClaims,
-    report: buildEntanglementReport(raw, semanticClaims),
+    report,
     provenance: {
+      snapshotId,
       source: "system_a",
       sourceRecord: raw.AUFTRAGS_NR,
       capturedAt,
