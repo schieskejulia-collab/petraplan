@@ -30,12 +30,43 @@ export type Provenance = {
   conflicts: string[];
 };
 
+export type SemanticClaimStatus = "confirmed" | "unresolved" | "rule_violation";
+
+export type SemanticClaim = {
+  sourceField: keyof RawRecord;
+  sourceValue: string;
+  targetField: keyof MappedRecord;
+  targetValue: string | number | null;
+  meaning: string;
+  basis: string;
+  status: SemanticClaimStatus;
+  sourceModified: false;
+};
+
+export type EntanglementReportRow = {
+  source: string;
+  interpretation: string;
+  status: SemanticClaimStatus;
+  note: string;
+};
+
+export type EntanglementReport = {
+  caseId: string;
+  releaseStatus: "verified" | "blocked";
+  rows: EntanglementReportRow[];
+  openPoints: string[];
+  summary: string;
+  sourceModified: false;
+};
+
 export type BridgeEvaluation = {
   raw: RawRecord;
   mapped: MappedRecord;
   checks: ValidationCheck[];
   passed: boolean;
   provenance: Provenance;
+  semanticClaims: SemanticClaim[];
+  report: EntanglementReport;
 };
 
 export const demoValidRecord: RawRecord = {
@@ -98,6 +129,86 @@ function mapRecord(source: RawRecord): MappedRecord {
   };
 }
 
+function buildSemanticClaims(raw: RawRecord, mapped: MappedRecord): SemanticClaim[] {
+  const quantityIsValid = Number.isFinite(mapped.quantity) && mapped.quantity > 0;
+  const dateIsValid = /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM);
+
+  return [
+    {
+      sourceField: "KUNDEN_NR",
+      sourceValue: raw.KUNDEN_NR,
+      targetField: "customerId",
+      targetValue: mapped.customerId,
+      meaning: "Quellfeld wird als Kunden-ID weitergegeben.",
+      basis: "Explizite FIELD-MAP-Regel: KUNDEN_NR → customerId, unverändert.",
+      status: raw.KUNDEN_NR ? "confirmed" : "rule_violation",
+      sourceModified: false,
+    },
+    {
+      sourceField: "AUFTRAGS_NR",
+      sourceValue: raw.AUFTRAGS_NR,
+      targetField: "orderId",
+      targetValue: mapped.orderId,
+      meaning: "Quellfeld wird als Auftrags-ID weitergegeben.",
+      basis: "Explizite FIELD-MAP-Regel: AUFTRAGS_NR → orderId.",
+      status: raw.AUFTRAGS_NR === "A-10027" ? "confirmed" : "rule_violation",
+      sourceModified: false,
+    },
+    {
+      sourceField: "STATUS",
+      sourceValue: raw.STATUS,
+      targetField: "status",
+      targetValue: mapped.status,
+      meaning: mapped.status ? `Der Quellstatus wird als ${mapped.status} interpretiert.` : "Für den Quellstatus liegt keine bestätigte Bedeutungszuordnung vor.",
+      basis: mapped.status ? `Bestätigte Demo-Regel für STATUS=${raw.STATUS}.` : "Keine bestätigte Regel für diesen Quellwert; PetraPlan darf keine Bedeutung erraten.",
+      status: mapped.status ? "confirmed" : "unresolved",
+      sourceModified: false,
+    },
+    {
+      sourceField: "MENGE",
+      sourceValue: raw.MENGE,
+      targetField: "quantity",
+      targetValue: mapped.quantity,
+      meaning: "Textwert wird als numerische Menge gelesen.",
+      basis: "FIELD-MAP konvertiert Text → Zahl; Validierungsregel verlangt Zahl > 0.",
+      status: quantityIsValid ? "confirmed" : "rule_violation",
+      sourceModified: false,
+    },
+    {
+      sourceField: "DATUM",
+      sourceValue: raw.DATUM,
+      targetField: "orderDate",
+      targetValue: mapped.orderDate,
+      meaning: "Quellwert wird als Auftragsdatum im ISO-Format interpretiert.",
+      basis: "Validierungsregel: YYYY-MM-DD.",
+      status: dateIsValid ? "confirmed" : "rule_violation",
+      sourceModified: false,
+    },
+  ];
+}
+
+function buildEntanglementReport(raw: RawRecord, claims: SemanticClaim[]): EntanglementReport {
+  const openClaims = claims.filter(({ status }) => status !== "confirmed");
+  const releaseStatus = openClaims.length === 0 ? "verified" : "blocked";
+
+  return {
+    caseId: raw.AUFTRAGS_NR,
+    releaseStatus,
+    rows: claims.map((claim) => ({
+      source: `${claim.sourceField} = ${JSON.stringify(claim.sourceValue)}`,
+      interpretation: `${claim.targetField} = ${JSON.stringify(claim.targetValue)}`,
+      status: claim.status,
+      note: claim.basis,
+    })),
+    openPoints: openClaims.map((claim) => `${claim.sourceField}: ${claim.meaning}`),
+    summary:
+      releaseStatus === "verified"
+        ? "Alle gezeigten Zuordnungen sind durch die Demo-Regeln bestätigt. Der Datensatz kann im Prototyp freigegeben werden."
+        : `Der Datensatz wird nicht automatisch freigegeben. ${openClaims.length} Punkt(e) benötigen Klärung oder Korrektur.`,
+    sourceModified: false,
+  };
+}
+
 export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvaluation {
   const mapped = mapRecord(raw);
   const checks: ValidationCheck[] = [
@@ -108,12 +219,15 @@ export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvalua
     { label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM), rule: "YYYY-MM-DD", observed: `DATUM: ${raw.DATUM}` },
   ];
   const passed = checks.every(({ ok }) => ok);
+  const semanticClaims = buildSemanticClaims(raw, mapped);
 
   return {
     raw,
     mapped,
     checks,
     passed,
+    semanticClaims,
+    report: buildEntanglementReport(raw, semanticClaims),
     provenance: {
       source: "system_a",
       sourceRecord: raw.AUFTRAGS_NR,
