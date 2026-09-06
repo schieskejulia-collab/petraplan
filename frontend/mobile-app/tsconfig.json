@@ -21,6 +21,8 @@
     "src/main.tsx",
     "src/App.tsx",
     "src/api/connector.ts",
+    "src/lib/bridge-pipeline.ts",
+    "src/pages/BridgePage.tsx",
     "src/pages/CasesPage.tsx",
     "src/pages/CaseDetailPage.tsx",
     "vite.config.ts"
