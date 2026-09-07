@@ -17,6 +17,7 @@ export type MappedRecord = {
 export type IngressTransport = "demo" | "api" | "queue" | "file" | "manual" | "webservice";
 export type InteractionMode = "request_reply" | "one_way" | "async";
 export type TransportStatus = "received" | "failed" | "timeout";
+export type ResponseStatus = "pending" | "received" | "failed" | "not_expected";
 
 export type IngressContext = {
   source: string;
@@ -30,6 +31,26 @@ export type IngressContext = {
   correlationId: string;
   contract: string;
   transportStatus: TransportStatus;
+};
+
+export type ResponseContext = {
+  status: ResponseStatus;
+  messageId: string | null;
+  respondedAt: string | null;
+  result: string | null;
+};
+
+export type InteractionTrace = {
+  request: {
+    recordId: string;
+    messageId: string;
+    sentAt: string;
+    service: string;
+    operation: string;
+  };
+  correlationId: string;
+  interactionMode: InteractionMode;
+  response: ResponseContext;
 };
 
 export type InterfaceContract = {
@@ -121,6 +142,8 @@ export type Provenance = {
   correlationId: string;
   contract: string;
   transportStatus: TransportStatus;
+  responseStatus: ResponseStatus;
+  responseMessageId: string | null;
   mode: "read_only";
   overallStatus: "valid" | "needs_review";
   conflicts: string[];
@@ -128,6 +151,7 @@ export type Provenance = {
 
 export type BridgeEvaluation = {
   ingress: IngressContext;
+  interactionTrace: InteractionTrace;
   contract: InterfaceContract;
   gatewayIssues: GatewayIssue[];
   raw: RawRecord;
@@ -136,6 +160,7 @@ export type BridgeEvaluation = {
     source: string;
     sourceRecord: string;
     ingress: IngressContext;
+    interactionTrace: InteractionTrace;
     values: RawRecord;
   };
   schema: SchemaCheck[];
@@ -240,19 +265,40 @@ export function createIngressContext(
   };
 }
 
+export function createInteractionTrace(
+  raw: RawRecord,
+  ingress: IngressContext,
+  overrides: Partial<ResponseContext> = {},
+): InteractionTrace {
+  const defaultStatus: ResponseStatus = ingress.interactionMode === "one_way" ? "not_expected" : "pending";
+  const status = overrides.status ?? defaultStatus;
+  return {
+    request: {
+      recordId: raw.AUFTRAGS_NR,
+      messageId: ingress.messageId,
+      sentAt: ingress.receivedAt,
+      service: ingress.service,
+      operation: ingress.operation,
+    },
+    correlationId: ingress.correlationId,
+    interactionMode: ingress.interactionMode,
+    response: {
+      status,
+      messageId: overrides.messageId ?? null,
+      respondedAt: overrides.respondedAt ?? null,
+      result: overrides.result ?? null,
+    },
+  };
+}
+
 export function parseRawRecord(value: unknown): RawRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Der Datensatz muss ein JSON-Objekt sein.");
   }
-
   const source = value as Record<string, unknown>;
   const fields: Array<keyof RawRecord> = ["KUNDEN_NR", "AUFTRAGS_NR", "STATUS", "MENGE", "DATUM"];
   const missing = fields.filter((field) => typeof source[field] !== "string");
-
-  if (missing.length > 0) {
-    throw new Error(`Fehlende oder ungültige Felder: ${missing.join(", ")}`);
-  }
-
+  if (missing.length > 0) throw new Error(`Fehlende oder ungültige Felder: ${missing.join(", ")}`);
   return {
     KUNDEN_NR: source.KUNDEN_NR as string,
     AUFTRAGS_NR: source.AUFTRAGS_NR as string,
@@ -264,17 +310,16 @@ export function parseRawRecord(value: unknown): RawRecord {
 
 function buildSchemaChecks(raw: RawRecord): SchemaCheck[] {
   return [
-    { field: "KUNDEN_NR", present: "KUNDEN_NR" in raw, typeOk: typeof raw.KUNDEN_NR === "string", formatOk: typeof raw.KUNDEN_NR === "string" && raw.KUNDEN_NR.length > 0, expected: "nichtleerer Text", contract: orderContract.name },
-    { field: "AUFTRAGS_NR", present: "AUFTRAGS_NR" in raw, typeOk: typeof raw.AUFTRAGS_NR === "string", formatOk: typeof raw.AUFTRAGS_NR === "string" && /^A-\d+$/.test(raw.AUFTRAGS_NR), expected: "A-<Ziffern>", contract: orderContract.name },
-    { field: "STATUS", present: "STATUS" in raw, typeOk: typeof raw.STATUS === "string", formatOk: typeof raw.STATUS === "string" && /^[A-Z_]+$/.test(raw.STATUS), expected: "Großbuchstaben / Unterstrich", contract: orderContract.name },
-    { field: "MENGE", present: "MENGE" in raw, typeOk: typeof raw.MENGE === "string", formatOk: typeof raw.MENGE === "string" && /^-?\d+(\.\d+)?$/.test(raw.MENGE), expected: "numerischer Text", contract: orderContract.name },
-    { field: "DATUM", present: "DATUM" in raw, typeOk: typeof raw.DATUM === "string", formatOk: typeof raw.DATUM === "string" && (/^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM) || /^\d{2}\.\d{2}\.\d{4}$/.test(raw.DATUM)), expected: "YYYY-MM-DD oder DD.MM.YYYY", contract: orderContract.name },
+    { field: "KUNDEN_NR", present: "KUNDEN_NR" in raw, typeOk: typeof raw.KUNDEN_NR === "string", formatOk: raw.KUNDEN_NR.length > 0, expected: "nichtleerer Text", contract: orderContract.name },
+    { field: "AUFTRAGS_NR", present: "AUFTRAGS_NR" in raw, typeOk: typeof raw.AUFTRAGS_NR === "string", formatOk: /^A-\d+$/.test(raw.AUFTRAGS_NR), expected: "A-<Ziffern>", contract: orderContract.name },
+    { field: "STATUS", present: "STATUS" in raw, typeOk: typeof raw.STATUS === "string", formatOk: /^[A-Z_]+$/.test(raw.STATUS), expected: "Großbuchstaben / Unterstrich", contract: orderContract.name },
+    { field: "MENGE", present: "MENGE" in raw, typeOk: typeof raw.MENGE === "string", formatOk: /^-?\d+(\.\d+)?$/.test(raw.MENGE), expected: "numerischer Text", contract: orderContract.name },
+    { field: "DATUM", present: "DATUM" in raw, typeOk: typeof raw.DATUM === "string", formatOk: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM) || /^\d{2}\.\d{2}\.\d{4}$/.test(raw.DATUM), expected: "YYYY-MM-DD oder DD.MM.YYYY", contract: orderContract.name },
   ];
 }
 
 function buildGatewayIssues(ingress: IngressContext, schema: SchemaCheck[]): GatewayIssue[] {
   const issues: GatewayIssue[] = [];
-
   if (ingress.transportStatus !== "received") {
     issues.push({
       scope: "transport",
@@ -285,7 +330,6 @@ function buildGatewayIssues(ingress: IngressContext, schema: SchemaCheck[]): Gat
         : "Transport ist fehlgeschlagen. Datensatz darf nicht freigegeben werden.",
     });
   }
-
   if (ingress.contract !== orderContract.name) {
     issues.push({
       scope: "contract",
@@ -294,7 +338,6 @@ function buildGatewayIssues(ingress: IngressContext, schema: SchemaCheck[]): Gat
       message: `Schnittstellenvertrag '${ingress.contract}' ist nicht bestätigt. Erwartet: ${orderContract.name}.`,
     });
   }
-
   const failedSchema = schema.filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk);
   if (failedSchema.length > 0) {
     issues.push({
@@ -304,17 +347,11 @@ function buildGatewayIssues(ingress: IngressContext, schema: SchemaCheck[]): Gat
       message: `${failedSchema.length} Feld${failedSchema.length === 1 ? "" : "er"} entsprechen nicht dem bestätigten Vertrag ${orderContract.name}.`,
     });
   }
-
   return issues;
 }
 
 function buildMissingChecks(raw: RawRecord): MissingCheck[] {
-  return (Object.keys(raw) as Array<keyof RawRecord>).map((field) => ({
-    field,
-    sourceValue: raw[field],
-    missing: isMissing(raw[field]),
-    rule: "Nur bestätigte Marker gelten als fehlend: leer, NULL, N/A",
-  }));
+  return (Object.keys(raw) as Array<keyof RawRecord>).map((field) => ({ field, sourceValue: raw[field], missing: isMissing(raw[field]), rule: "Nur bestätigte Marker gelten als fehlend: leer, NULL, N/A" }));
 }
 
 function buildSemantics(raw: RawRecord): SemanticEntry[] {
@@ -339,25 +376,17 @@ function mapRecord(source: RawRecord): MappedRecord {
 
 function issueMessage(check: ValidationCheck, raw: RawRecord): string {
   switch (check.issueCode) {
-    case "MISSING_REQUIRED_VALUE":
-      return "Pflichtwert fehlt. Prüfung blockiert.";
-    case "UNKNOWN_STATUS":
-      return `Status '${raw.STATUS}' ist nicht bestätigt. Prüfung blockiert.`;
-    case "NEGATIVE_VALUE":
-      return "Menge ist negativ oder null. Prüfung blockiert.";
-    case "INVALID_DATE_FORMAT":
-      return "Datum konnte nicht in das bestätigte ISO-Format YYYY-MM-DD überführt werden.";
-    case "UNEXPECTED_ORDER_ID":
-      return "Auftragsnummer weicht vom Demo-Prüffall ab.";
-    default:
-      return `${check.label} ist fehlgeschlagen.`;
+    case "MISSING_REQUIRED_VALUE": return "Pflichtwert fehlt. Prüfung blockiert.";
+    case "UNKNOWN_STATUS": return `Status '${raw.STATUS}' ist nicht bestätigt. Prüfung blockiert.`;
+    case "NEGATIVE_VALUE": return "Menge ist negativ oder null. Prüfung blockiert.";
+    case "INVALID_DATE_FORMAT": return "Datum konnte nicht in das bestätigte ISO-Format YYYY-MM-DD überführt werden.";
+    case "UNEXPECTED_ORDER_ID": return "Auftragsnummer weicht vom Demo-Prüffall ab.";
+    default: return `${check.label} ist fehlgeschlagen.`;
   }
 }
 
 function buildTrace(raw: RawRecord, mapped: MappedRecord, checks: ValidationCheck[]): TraceStep[] {
-  const validationFor = (field: keyof RawRecord) =>
-    checks.some((check) => check.field === field && !check.ok) ? "failed" as const : "passed" as const;
-
+  const validationFor = (field: keyof RawRecord) => checks.some((check) => check.field === field && !check.ok) ? "failed" as const : "passed" as const;
   return [
     { sourceField: "KUNDEN_NR", sourceValue: raw.KUNDEN_NR, meaning: "Kundenkennung aus der Quelle", targetField: "customerId", mapping: "KUNDEN_NR → customerId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.customerId, validation: validationFor("KUNDEN_NR") },
     { sourceField: "AUFTRAGS_NR", sourceValue: raw.AUFTRAGS_NR, meaning: "Auftragskennung aus der Quelle", targetField: "orderId", mapping: "AUFTRAGS_NR → orderId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.orderId, validation: validationFor("AUFTRAGS_NR") },
@@ -371,8 +400,10 @@ export function evaluateRecord(
   raw: RawRecord,
   capturedAt: string,
   ingressOverrides: Partial<IngressContext> = {},
+  responseOverrides: Partial<ResponseContext> = {},
 ): BridgeEvaluation {
   const ingress = createIngressContext(raw, capturedAt, ingressOverrides);
+  const interactionTrace = createInteractionTrace(raw, ingress, responseOverrides);
   const schema = buildSchemaChecks(raw);
   const gatewayIssues = buildGatewayIssues(ingress, schema);
   const missing = buildMissingChecks(raw);
@@ -391,17 +422,7 @@ export function evaluateRecord(
     { field: "DATUM", label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(mapped.orderDate), rule: "YYYY-MM-DD nach bestätigter Transformation", issueCode: "INVALID_DATE_FORMAT", severity: "blocking", observed: `DATUM: ${raw.DATUM} → ${mapped.orderDate}` },
   ];
 
-  const issues: ValidationIssue[] = checks
-    .filter(({ ok }) => !ok)
-    .map((check) => ({
-      field: check.field,
-      issue: check.issueCode,
-      sourceValue: raw[check.field],
-      rule: check.rule,
-      severity: check.severity,
-      message: issueMessage(check, raw),
-    }));
-
+  const issues: ValidationIssue[] = checks.filter(({ ok }) => !ok).map((check) => ({ field: check.field, issue: check.issueCode, sourceValue: raw[check.field], rule: check.rule, severity: check.severity, message: issueMessage(check, raw) }));
   const dataBlockingIssues = issues.filter(({ severity }) => severity === "blocking").length;
   const blockingIssues = dataBlockingIssues + gatewayIssues.length;
   const releaseAllowed = blockingIssues === 0;
@@ -410,17 +431,13 @@ export function evaluateRecord(
   const report = {
     confirmedMappings: fieldMap.map(([from, to]) => `${from} → ${to}`),
     openPoints: issues.filter(({ severity }) => severity === "warning").map(({ message }) => message),
-    errors: [
-      ...gatewayIssues.map(({ message }) => message),
-      ...issues.filter(({ severity }) => severity === "blocking").map(({ message }) => message),
-    ],
-    nextStep: releaseAllowed
-      ? "Freigabe dokumentieren und Ausgabe übergeben."
-      : "BLOCKING-Issues klären; Transport-, Vertrags- und Datenfehler bleiben getrennt nachvollziehbar.",
+    errors: [...gatewayIssues.map(({ message }) => message), ...issues.filter(({ severity }) => severity === "blocking").map(({ message }) => message)],
+    nextStep: releaseAllowed ? "Freigabe dokumentieren und Ausgabe übergeben." : "BLOCKING-Issues klären; Transport-, Vertrags- und Datenfehler bleiben getrennt nachvollziehbar.",
   };
 
   return {
     ingress,
+    interactionTrace,
     contract: orderContract,
     gatewayIssues,
     raw,
@@ -429,6 +446,11 @@ export function evaluateRecord(
       source: ingress.source,
       sourceRecord,
       ingress: { ...ingress },
+      interactionTrace: {
+        ...interactionTrace,
+        request: { ...interactionTrace.request },
+        response: { ...interactionTrace.response },
+      },
       values: { ...raw },
     },
     schema,
@@ -445,9 +467,7 @@ export function evaluateRecord(
     release: {
       releaseAllowed,
       blockingIssues,
-      reason: releaseAllowed
-        ? "Keine fehlgeschlagene BLOCKING-Regel vorhanden."
-        : `${blockingIssues} BLOCKING-Issue${blockingIssues === 1 ? "" : "s"} aus Transport, Vertrag oder Datenprüfung vorhanden. Freigabe blockiert.`,
+      reason: releaseAllowed ? "Keine fehlgeschlagene BLOCKING-Regel vorhanden." : `${blockingIssues} BLOCKING-Issue${blockingIssues === 1 ? "" : "s"} aus Transport, Vertrag oder Datenprüfung vorhanden. Freigabe blockiert.`,
     },
     provenance: {
       source: ingress.source,
@@ -462,12 +482,11 @@ export function evaluateRecord(
       correlationId: ingress.correlationId,
       contract: ingress.contract,
       transportStatus: ingress.transportStatus,
+      responseStatus: interactionTrace.response.status,
+      responseMessageId: interactionTrace.response.messageId,
       mode: "read_only",
       overallStatus: passed ? "valid" : "needs_review",
-      conflicts: [
-        ...gatewayIssues.map(({ message }) => message),
-        ...issues.map(({ message }) => message),
-      ],
+      conflicts: [...gatewayIssues.map(({ message }) => message), ...issues.map(({ message }) => message)],
     },
     report,
   };
