@@ -78,60 +78,82 @@ export default function BridgePage() {
   const quantityProblem = issues.some(({ issue }) => issue === "NEGATIVE_VALUE");
   const responsePending = interactionTrace.response.status === "pending";
 
-  const humanReasons = [
+  const resolutionFindings = [
     ...gatewayIssues.map(({ scope, issue, message }) => ({
       key: `${scope}-${issue}`,
-      title: scope === "transport" ? "Die Übertragung ist nicht sicher abgeschlossen" : "Die Systeme erwarten nicht denselben bestätigten Vertrag",
-      explanation: scope === "transport"
+      type: scope === "transport" ? "Transportproblem" : "Schnittstellenvertrag",
+      title: scope === "transport" ? "Die Übertragung ist nicht sicher abgeschlossen" : "Die Vertragsversion ist nicht bestätigt",
+      evidence: scope === "transport"
         ? message
-        : `Die Nachricht nennt ${ingress.contract}, bestätigt ist aber ${contract.name}. Solange das nicht geklärt ist, kann die Bridge nicht sicher annehmen, dass beide Seiten dieselbe Struktur meinen.`,
-      next: scope === "transport"
-        ? "Transportweg prüfen und die Nachricht erst nach bestätigtem Eingang erneut bewerten."
-        : "Vertragsversion bestätigen oder die Feldzuordnung zwischen beiden Versionen klären.",
+        : `Empfangen wurde ${ingress.contract}; bestätigt ist ${contract.name}.`,
+      diagnosis: scope === "transport"
+        ? "Der Inhalt kann fachlich korrekt sein, aber der Transportzustand ist nicht zuverlässig bestätigt."
+        : "Das ist kein Datenwert-Fehler. Die beiden Seiten können unterschiedliche Strukturen oder Bedeutungen erwarten.",
+      safeAction: scope === "transport"
+        ? "Datensatz unverändert halten und nicht weitergeben, bis der Eingang bestätigt ist."
+        : "Keine Feld- oder Wertübersetzung aus der unbestätigten Version automatisch übernehmen.",
+      proposal: scope === "transport"
+        ? "Transport erneut bestätigen. Erst bei eindeutigem Empfang denselben Snapshot erneut durch den Prüfpfad schicken."
+        : `Entweder ${ingress.contract} als neue Vertragsversion fachlich bestätigen oder eine explizite Zuordnung zu ${contract.name} hinterlegen. Erst danach darf die Bridge die Version automatisch akzeptieren.`,
     })),
     ...issues.filter(({ severity }) => severity === "blocking").map(({ issue, field, sourceValue, message }) => {
       if (issue === "UNKNOWN_STATUS") {
         return {
           key: `${field}-${issue}`,
-          title: `Der Statuswert „${sourceValue}“ hat keine bestätigte Bedeutung`,
-          explanation: "Ohne bestätigte Value-Map gibt es keine sichere Bedeutung für diesen Status. Die Bridge erfindet keine Bedeutung und ersetzt den Wert nicht stillschweigend.",
-          next: `Klären, was STATUS=${sourceValue} fachlich bedeutet und die Zuordnung erst danach bestätigen.`,
+          type: "Semantik-/Mapping-Konflikt",
+          title: `STATUS=${sourceValue} ist technisch lesbar, aber fachlich nicht zugeordnet`,
+          evidence: `Für STATUS=${sourceValue} existiert in der bestätigten Value-Map kein Zielwert.`,
+          diagnosis: "Der Transport funktioniert und das Feld ist vorhanden. Der Knoten sitzt ausschließlich in der Bedeutung des konkreten Statuswerts.",
+          safeAction: `Originalwert ${sourceValue} erhalten, keine Bedeutung erfinden und die Weitergabe dieses Werts blockieren.`,
+          proposal: `Eine neue bestätigte Value-Map für STATUS=${sourceValue} anlegen. Im aktuellen Zielmodell kommen open, closed oder in_progress infrage – die Bridge wählt davon nichts ohne bestätigte fachliche Bedeutung.`,
         };
       }
       if (issue === "NEGATIVE_VALUE") {
         return {
           key: `${field}-${issue}`,
-          title: `Die Menge „${sourceValue}“ verletzt die bestätigte Regel`,
-          explanation: "Für diesen Prüffall muss die Menge größer als 0 sein. Ein negativer oder leerer Wert darf deshalb nicht weitergegeben werden.",
-          next: "Mengenwert an der Quelle prüfen und nur einen bestätigten gültigen Wert übernehmen.",
+          type: "Fachlicher Datenkonflikt",
+          title: `MENGE=${sourceValue} ist lesbar, verletzt aber die bestätigte Regel > 0`,
+          evidence: `Der Wert wurde korrekt als Zahl erkannt. Die Regel verlangt MENGE > 0; empfangen wurde ${sourceValue}.`,
+          diagnosis: "Das ist kein Übersetzungs- oder Formatproblem. Der Konflikt liegt zwischen dem gelieferten Wert und der bestätigten fachlichen Regel.",
+          safeAction: "Den negativen Wert nicht korrigieren oder umdeuten; Weitergabe blockieren.",
+          proposal: "Wenn die Quelle falsch ist, dort einen bestätigten positiven Mengenwert liefern. Falls negative Mengen fachlich erlaubt sein sollen, muss stattdessen die Regel > 0 bewusst geändert und versioniert bestätigt werden.",
         };
       }
       if (issue === "MISSING_REQUIRED_VALUE") {
         return {
           key: `${field}-${issue}`,
-          title: `Ein Pflichtwert fehlt: ${field}`,
-          explanation: "Ohne diesen Wert kann der Datensatz nicht eindeutig verarbeitet werden.",
-          next: `Pflichtwert ${field} an der Quelle ergänzen oder die Regel fachlich neu bestätigen.`,
+          type: "Fehlender Pflichtwert",
+          title: `${field} fehlt, obwohl das Feld für diesen Vertrag erforderlich ist`,
+          evidence: `Die bestätigte Regel erwartet ${field}; im eingegangenen Datensatz ist kein verwendbarer Wert vorhanden.`,
+          diagnosis: "Der Knoten liegt bereits im Eingang: Für die weitere Verarbeitung fehlt eine bestätigte Information.",
+          safeAction: "Keinen Ersatzwert erzeugen und die Weitergabe blockieren.",
+          proposal: `Den Wert ${field} an der Quelle ergänzen. Falls das Feld fachlich nicht mehr erforderlich ist, muss stattdessen der Vertrag geändert und neu bestätigt werden.`,
         };
       }
       if (issue === "INVALID_DATE_FORMAT") {
         return {
           key: `${field}-${issue}`,
-          title: `Das Datum „${sourceValue}“ konnte nicht sicher normalisiert werden`,
-          explanation: "Die Bridge übernimmt kein unbekanntes Datumsformat stillschweigend.",
-          next: "Datumsformat bestätigen oder eine eindeutige Transformationsregel hinterlegen.",
+          type: "Transformationskonflikt",
+          title: `DATUM=${sourceValue} kann mit der bestätigten Regel nicht eindeutig normalisiert werden`,
+          evidence: `Der Quellwert ${sourceValue} passt nicht zu einer eindeutig bestätigten Datumsumwandlung.`,
+          diagnosis: "Das Feld ist vorhanden, aber die Bridge kann daraus ohne zusätzliche Regel keinen sicheren kanonischen Datumswert erzeugen.",
+          safeAction: "Originaldatum erhalten und keine stillschweigende Datumsumwandlung durchführen.",
+          proposal: "Ein eindeutiges Quellformat bestätigen und dafür eine versionierte Transformationsregel hinterlegen. Danach kann die Bridge denselben Wert automatisch normalisieren.",
         };
       }
       return {
         key: `${field}-${issue}`,
+        type: "Regelkonflikt",
         title: `${field} blockiert die Freigabe`,
-        explanation: message,
-        next: `Wert ${field} fachlich prüfen und erst danach erneut bewerten.`,
+        evidence: message,
+        diagnosis: "Der eingegangene Wert widerspricht einer bestätigten Regel.",
+        safeAction: "Wert unverändert halten und Weitergabe blockieren.",
+        proposal: `Entweder ${field} an der Quelle korrigieren oder die zugrunde liegende Regel fachlich neu bestätigen.`,
       };
     }),
   ];
 
-  const humanNextSteps = [...new Set(humanReasons.map(({ next }) => next))];
+  const resolutionProposals = [...new Set(resolutionFindings.map(({ proposal }) => proposal))];
 
   const story = [
     {
@@ -176,7 +198,7 @@ export default function BridgePage() {
       title: "Bridge entscheidet",
       detail: effectiveReleaseAllowed
         ? "Keine Blocker vorhanden. Interne Freigabe ist möglich."
-        : `${effectiveBlockingCount} Blocker bleiben getrennt nachvollziehbar.`,
+        : `${effectiveBlockingCount} Blocker sind lokalisiert und mit Auflösungsvorschlägen versehen.`,
       state: effectiveReleaseAllowed ? "ok" : "error",
       badge: effectiveReleaseAllowed ? "intern frei" : "blockiert",
     },
@@ -272,9 +294,9 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.17 · Klarer Bericht</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.18 · Auflösungsvorschläge</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Vier Phasen außen. Vierzehn Schritte darunter.</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check zeigt nicht nur, ob etwas blockiert ist, sondern warum, was das bedeutet und welcher sichere nächste Schritt folgt.</p>
+          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check lokalisiert den Knoten, bestimmt seine Art und zeigt, was sicher getan werden kann – ohne unbestätigte Werte selbst zu erfinden.</p>
         </header>
 
         <section className="rounded-2xl border bg-card p-4 shadow-sm">
@@ -335,7 +357,7 @@ export default function BridgePage() {
             <button className="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" onClick={loadEntanglementDemo}>Vollständigen Demo-Fall laden</button>
             <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-amber-900" onClick={() => loadRecord(demoValidRecord)}>Zurück zum gültigen Fall</button>
           </div>
-          {demoCaseActive && <p className="mt-3 rounded-xl border border-amber-300 bg-white p-3 text-xs font-semibold text-amber-950">Demo aktiv: Die Erklärung unten zeigt jetzt nicht nur die Blocker, sondern Ursache, Bedeutung und nächsten Schritt.</p>}
+          {demoCaseActive && <p className="mt-3 rounded-xl border border-amber-300 bg-white p-3 text-xs font-semibold text-amber-950">Demo aktiv: Die Bridge trennt jetzt Vertrags-, Semantik- und Datenkonflikte und zeigt für jeden Knoten einen konkreten Auflösungsvorschlag.</p>}
         </section>
 
         <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
@@ -417,7 +439,7 @@ export default function BridgePage() {
           </Section>
 
           <Section eyebrow="11 · Issue erzeugen" title={(issues.length + gatewayIssues.length) ? `${issues.length + gatewayIssues.length} Abweichung${issues.length + gatewayIssues.length === 1 ? "" : "en"} dokumentiert` : "Keine Issues"}>
-            {issues.length + gatewayIssues.length === 0 ? <p className="mt-3 rounded-xl bg-teal-50 p-3 text-sm text-teal-800">Keine Regelverletzung gefunden.</p> : <p className="mt-3 text-sm text-muted-foreground">Die einzelnen Ursachen werden in Schritt 13 verständlich erklärt.</p>}
+            {issues.length + gatewayIssues.length === 0 ? <p className="mt-3 rounded-xl bg-teal-50 p-3 text-sm text-teal-800">Keine Regelverletzung gefunden.</p> : <p className="mt-3 text-sm text-muted-foreground">Die Ursachen werden in Schritt 13 nach Problemart getrennt und mit Auflösungsvorschlägen erklärt.</p>}
             <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technische Issues anzeigen</summary><JsonBlock value={{ gatewayIssues, issues }} /></details>
           </Section>
 
@@ -426,32 +448,36 @@ export default function BridgePage() {
             <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technischen Trace anzeigen</summary><JsonBlock value={{ interactionTrace, valueTrace: trace }} /></details>
           </Section>
 
-          <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert"} wide>
+          <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert – Knoten lokalisiert"} wide>
             <div className={`mt-3 rounded-2xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
               <p className="text-xs font-bold uppercase tracking-[0.14em]">Was ist die Entscheidung?</p>
               <p className={`mt-1 text-2xl font-bold ${effectiveReleaseAllowed ? "text-teal-900" : "text-red-900"}`}>{effectiveReleaseAllowed ? "Dieser Datensatz kann intern freigegeben werden." : "Dieser Datensatz darf noch nicht weitergegeben werden."}</p>
-              <p className="mt-2 text-sm leading-relaxed opacity-80">{effectiveReleaseAllowed ? "Transport, Schnittstellenvertrag und fachliche Regeln sind bestätigt. Es gibt aktuell keinen bekannten Blocker." : `${effectiveBlockingCount} bestätigte Blocker verhindern eine sichere Weitergabe. Die Bridge verändert keinen Wert, um diese Probleme zu verstecken.`}</p>
+              <p className="mt-2 text-sm leading-relaxed opacity-80">{effectiveReleaseAllowed ? "Transport, Schnittstellenvertrag und fachliche Regeln sind bestätigt. Es gibt aktuell keinen bekannten Blocker." : `${effectiveBlockingCount} Blocker wurden lokalisiert. Die Bridge zeigt jetzt für jeden Knoten Problemart, Beleg, sichere Sofortmaßnahme und Auflösungsvorschlag.`}</p>
             </div>
 
             {!effectiveReleaseAllowed && (
-              <div className="mt-4 space-y-3">
-                <p className="text-sm font-bold">Warum ist die Freigabe blockiert?</p>
-                {humanReasons.map(({ key, title, explanation }, index) => (
-                  <div key={key} className="rounded-xl border border-red-200 bg-white p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-red-700">Ursache {index + 1}</p>
-                    <p className="mt-1 font-semibold text-slate-950">{title}</p>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{explanation}</p>
+              <div className="mt-4 space-y-4">
+                <p className="text-sm font-bold">Was genau ist der Knoten – und wie lässt er sich auflösen?</p>
+                {resolutionFindings.map(({ key, type, title, evidence, diagnosis, safeAction, proposal }, index) => (
+                  <div key={key} className="overflow-hidden rounded-xl border border-red-200 bg-white">
+                    <div className="border-b border-red-100 bg-red-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-bold uppercase tracking-wide text-red-700">Knoten {index + 1}</p>
+                        <span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-red-800">{type}</span>
+                      </div>
+                      <p className="mt-2 font-semibold text-slate-950">{title}</p>
+                    </div>
+                    <div className="space-y-3 p-4 text-sm">
+                      <div><p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Beleg</p><p className="mt-1 text-slate-700">{evidence}</p></div>
+                      <div><p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Diagnose</p><p className="mt-1 text-slate-700">{diagnosis}</p></div>
+                      <div className="rounded-lg border border-teal-200 bg-teal-50 p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-teal-800">Was kann die Bridge jetzt sicher tun?</p><p className="mt-1 text-teal-950">{safeAction}</p></div>
+                      <div className="rounded-lg border border-sky-200 bg-sky-50 p-3"><p className="text-[11px] font-bold uppercase tracking-wide text-sky-800">Auflösungsvorschlag</p><p className="mt-1 text-sky-950">{proposal}</p></div>
+                    </div>
                   </div>
                 ))}
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Was bedeutet das?</p>
-                  <p className="mt-1 text-sm leading-relaxed text-amber-950">Mindestens ein Teil der Nachricht ist nicht sicher bestätigt. Eine automatische Weitergabe könnte deshalb einen falschen oder falsch verstandenen Wert in das nächste System tragen.</p>
-                </div>
-                <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-                  <p className="text-xs font-bold uppercase tracking-wide text-sky-800">Nächster sicherer Schritt</p>
-                  <ol className="mt-2 space-y-2 text-sm text-sky-950">
-                    {humanNextSteps.map((step, index) => <li key={step}><strong>{index + 1}.</strong> {step}</li>)}
-                  </ol>
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Warum löst die Bridge nicht einfach selbst auf?</p>
+                  <p className="mt-1 text-sm leading-relaxed text-amber-950">Sie löst alles auf, was aus bestätigten Regeln eindeutig ableitbar ist. Wo mehrere fachliche Bedeutungen möglich sind oder eine bestätigte Regel selbst geändert werden müsste, markiert sie exakt diese Entscheidung statt eine Wahrheit zu erfinden.</p>
                 </div>
               </div>
             )}
@@ -463,7 +489,7 @@ export default function BridgePage() {
             </details>
           </Section>
 
-          <Section eyebrow="14 · Report erzeugen" title="Was ist bestätigt, was bleibt offen und was passiert als Nächstes?" wide>
+          <Section eyebrow="14 · Report erzeugen" title="Was ist bekannt, wo sitzt der Knoten und wie kann er aufgelöst werden?" wide>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Bekannt</p>
@@ -471,17 +497,17 @@ export default function BridgePage() {
                 <p className="mt-1 text-xs text-teal-900/70">Diese Feldnamen-Zuordnungen sind bekannt. Die Bedeutung einzelner Werte kann trotzdem noch ungeklärt sein.</p>
               </div>
               <div className={`rounded-xl border p-4 ${report.errors.length ? "border-red-200 bg-red-50" : "border-teal-200 bg-teal-50"}`}>
-                <p className="text-xs font-bold uppercase tracking-wide">Offene Blocker</p>
-                <p className="mt-1 text-xl font-semibold">{report.errors.length}</p>
-                <p className="mt-1 text-xs opacity-70">{report.errors.length ? "Diese Punkte verhindern aktuell die Freigabe." : "Keine blockierenden Punkte offen."}</p>
+                <p className="text-xs font-bold uppercase tracking-wide">Lokalisierte Knoten</p>
+                <p className="mt-1 text-xl font-semibold">{resolutionFindings.length}</p>
+                <p className="mt-1 text-xs opacity-70">{resolutionFindings.length ? "Jeder Knoten ist nach Art, Beleg und Ursache getrennt beschrieben." : "Kein blockierender Knoten offen."}</p>
               </div>
               <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-wide text-sky-700">Nächste sichere Schritte</p>
+                <p className="text-xs font-bold uppercase tracking-wide text-sky-700">Auflösung</p>
                 {effectiveReleaseAllowed ? (
-                  <p className="mt-1 text-sm font-semibold text-sky-950">Freigabe dokumentieren und Ausgabe übergeben.</p>
+                  <p className="mt-1 text-sm font-semibold text-sky-950">Kein Auflösungsschritt nötig. Freigabe dokumentieren und Ausgabe übergeben.</p>
                 ) : (
                   <ol className="mt-2 space-y-2 text-sm font-semibold text-sky-950">
-                    {humanNextSteps.map((step, index) => <li key={step}><strong>{index + 1}.</strong> {step}</li>)}
+                    {resolutionProposals.map((proposal, index) => <li key={proposal}><strong>{index + 1}.</strong> {proposal}</li>)}
                   </ol>
                 )}
               </div>
@@ -492,7 +518,7 @@ export default function BridgePage() {
 
         <section className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
           <p className="font-semibold">Grundprinzip</p>
-          <p className="mt-1">Die Bridge erklärt zuerst verständlich, was schiefgelaufen ist. Der technische Nachweis bleibt vollständig erhalten und kann bei Bedarf aufgeklappt werden.</p>
+          <p className="mt-1">Die Bridge soll nicht nur Fehler melden. Sie trennt den Knoten nach Problemart, zeigt den Beleg, sagt was bereits sicher getan werden kann und schlägt die konkrete Auflösung vor. Nur eine fachliche Entscheidung, die aus vorhandenen Regeln nicht eindeutig ableitbar ist, bleibt bewusst zur Bestätigung offen.</p>
         </section>
       </div>
     </main>
