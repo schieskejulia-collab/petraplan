@@ -64,6 +64,60 @@ export default function BridgePage() {
   const effectiveReleaseAllowed = effectiveBlockingCount === 0;
   const releaseConsistent = release.blockingIssues === effectiveBlockingCount && release.releaseAllowed === effectiveReleaseAllowed;
 
+  const contractProblem = gatewayIssues.some(({ scope }) => scope === "contract");
+  const statusProblem = issues.some(({ issue }) => issue === "UNKNOWN_STATUS");
+  const quantityProblem = issues.some(({ issue }) => issue === "NEGATIVE_VALUE");
+  const responsePending = interactionTrace.response.status === "pending";
+
+  const story = [
+    {
+      step: "1",
+      title: "Nachricht kommt an",
+      detail: `${ingress.transport} · ${ingress.service} · ${raw.AUFTRAGS_NR}`,
+      state: ingress.transportStatus === "received" ? "ok" : "error",
+      badge: ingress.transportStatus === "received" ? "angekommen" : ingress.transportStatus,
+    },
+    {
+      step: "2",
+      title: "Vertrag wird geprüft",
+      detail: contractProblem ? `${ingress.contract} ist nicht bestätigt` : `${ingress.contract} passt zum bestätigten Vertrag`,
+      state: contractProblem ? "error" : "ok",
+      badge: contractProblem ? "Abweichung" : "passt",
+    },
+    {
+      step: "3",
+      title: "Daten werden verstanden",
+      detail: statusProblem ? `STATUS ${raw.STATUS} bleibt ungeklärt` : `STATUS ${raw.STATUS} → ${mapped.status ?? "—"}`,
+      state: statusProblem ? "error" : "ok",
+      badge: statusProblem ? "ungeklärt" : "übersetzt",
+    },
+    {
+      step: "4",
+      title: "Regeln prüfen den Inhalt",
+      detail: quantityProblem ? `MENGE ${raw.MENGE} verletzt die Regel > 0` : `MENGE ${raw.MENGE} erfüllt die Regel > 0`,
+      state: quantityProblem ? "error" : "ok",
+      badge: quantityProblem ? "Blocker" : "OK",
+    },
+    {
+      step: "5",
+      title: "Antwortlage bleibt sichtbar",
+      detail: responsePending
+        ? `Correlation ${interactionTrace.correlationId} · noch keine Antwort`
+        : `${interactionTrace.response.messageId ?? "keine Message-ID"} · ${interactionTrace.response.status}`,
+      state: responsePending ? "pending" : "ok",
+      badge: interactionTrace.response.status,
+    },
+    {
+      step: "6",
+      title: "Bridge entscheidet",
+      detail: effectiveReleaseAllowed
+        ? "Keine Blocker vorhanden. Freigabe ist möglich."
+        : `${effectiveBlockingCount} Blocker bleiben getrennt nachvollziehbar.`,
+      state: effectiveReleaseAllowed ? "ok" : "error",
+      badge: effectiveReleaseAllowed ? "freigegeben" : "blockiert",
+    },
+  ] as const;
+
   function resetResponse() {
     setResponseOverrides({});
   }
@@ -154,7 +208,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.13 · Vier Phasen + Demo-Fall</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.14 · Live-Story</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Vier Phasen außen. Vierzehn Schritte darunter.</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check bleibt nach außen einfach: Eingang → Übersetzung → Prüfung → Entscheidung. Der technische 14-Schritte-Pfad liefert darunter den Nachweis.</p>
         </header>
@@ -172,22 +226,57 @@ export default function BridgePage() {
           </div>
         </section>
 
+        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b bg-slate-950 p-4 text-white">
+            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-300">Live-Story · in 10 Sekunden verständlich</p>
+            <h2 className="mt-1 text-xl font-semibold">Was passiert mit diesem Datensatz?</h2>
+            <p className="mt-1 text-sm text-slate-300">Von der eingehenden Nachricht bis zur Entscheidung – ohne zuerst JSON lesen zu müssen.</p>
+          </div>
+          <div className="p-4">
+            <div className="grid gap-3 md:grid-cols-6">
+              {story.map(({ step, title, detail, state, badge }, index) => {
+                const stateClass = state === "ok"
+                  ? "border-teal-200 bg-teal-50 text-teal-950"
+                  : state === "pending"
+                    ? "border-amber-200 bg-amber-50 text-amber-950"
+                    : "border-red-200 bg-red-50 text-red-950";
+                const badgeClass = state === "ok"
+                  ? "bg-teal-100 text-teal-800"
+                  : state === "pending"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-red-100 text-red-800";
+                return (
+                  <div key={title} className="relative">
+                    <div className={`h-full rounded-xl border p-3 ${stateClass}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold shadow-sm">{step}</span>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${badgeClass}`}>{badge}</span>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold">{title}</p>
+                      <p className="mt-1 text-[11px] leading-relaxed opacity-80">{detail}</p>
+                    </div>
+                    {index < story.length - 1 && <span className="absolute -right-2 top-1/2 hidden -translate-y-1/2 text-slate-400 md:block">→</span>}
+                  </div>
+                );
+              })}
+            </div>
+            <div className={`mt-4 rounded-xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
+              <p className="text-xs font-bold uppercase tracking-[0.14em]">Ergebnis</p>
+              <p className="mt-1 text-lg font-semibold">{effectiveReleaseAllowed ? "Freigabe möglich" : "Freigabe blockiert"}</p>
+              <p className="mt-1 text-sm opacity-80">{effectiveReleaseAllowed ? "Transport, Vertrag und Datenprüfung sind ohne Blocker." : `${effectiveBlockingCount} Blocker sind sichtbar – Ursache und nächster Schritt bleiben getrennt nachvollziehbar.`}</p>
+            </div>
+          </div>
+        </section>
+
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-800">Demo-Entknotungsfall</p>
           <h2 className="mt-1 font-semibold text-amber-950">Eine Nachricht kommt an – aber Vertrag, Wert und Antwortlage passen nicht sauber zusammen.</h2>
-          <p className="mt-2 text-sm text-amber-950/80">Der Demo-Fall simuliert eine Legacy-Schnittstelle mit einer unbestätigten Vertragsversion <strong>order-v2-field-drift</strong>, einem unbekannten Statuswert, einer negativen Menge und einer noch ausstehenden Antwort. So wird sichtbar, dass Vertragsproblem, Datenproblem und Request/Response-Status getrennt bleiben.</p>
+          <p className="mt-2 text-sm text-amber-950/80">Der Demo-Fall simuliert eine Legacy-Schnittstelle mit einer unbestätigten Vertragsversion <strong>order-v2-field-drift</strong>, einem unbekannten Statuswert, einer negativen Menge und einer noch ausstehenden Antwort.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" onClick={loadEntanglementDemo}>Vollständigen Demo-Fall laden</button>
             <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-amber-900" onClick={() => loadRecord(demoValidRecord)}>Zurück zum gültigen Fall</button>
           </div>
-          {demoCaseActive && (
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Eingang</strong><br />Webservice empfangen, Contract unbestätigt.</div>
-              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Übersetzung</strong><br />STATUS bleibt ungeklärt statt geraten.</div>
-              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Prüfung</strong><br />Contract + Status + Menge erzeugen getrennte Blocker.</div>
-              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Entscheidung</strong><br />Freigabe blockiert, Antwort weiterhin pending.</div>
-            </div>
-          )}
+          {demoCaseActive && <p className="mt-3 rounded-xl border border-amber-300 bg-white p-3 text-xs font-semibold text-amber-950">Demo aktiv: Jetzt zeigt die Live-Story oben den kompletten Fehlerweg – Contract-Abweichung, ungeklärten Status, negative Menge, pending Response und blockierte Freigabe.</p>}
         </section>
 
         <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
