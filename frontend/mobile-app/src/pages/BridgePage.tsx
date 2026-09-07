@@ -36,6 +36,7 @@ export default function BridgePage() {
   const [responseOverrides, setResponseOverrides] = useState<Partial<ResponseContext>>({});
   const [rawInput, setRawInput] = useState(() => JSON.stringify(demoValidRecord, null, 2));
   const [inputError, setInputError] = useState<string | null>(null);
+  const [demoCaseActive, setDemoCaseActive] = useState(false);
 
   const evaluation = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
   const {
@@ -74,6 +75,29 @@ export default function BridgePage() {
     resetResponse();
     setRawInput(JSON.stringify(nextRecord, null, 2));
     setInputError(null);
+    setDemoCaseActive(false);
+  }
+
+  function loadEntanglementDemo() {
+    const now = new Date().toISOString();
+    setRaw(demoConflictRecord);
+    setCapturedAt(now);
+    setIngressOverrides({
+      source: "legacy_orders",
+      transport: "webservice",
+      service: "legacy-order-service",
+      operation: "pushOrder",
+      interactionMode: "request_reply",
+      contract: "order-v2-field-drift",
+      transportStatus: "received",
+      messageId: `request:A-10027:${now}`,
+      correlationId: "corr:A-10027:demo",
+      destination: "petraplan-bridge",
+    });
+    setResponseOverrides({ status: "pending", messageId: null, respondedAt: null, result: null });
+    setRawInput(JSON.stringify(demoConflictRecord, null, 2));
+    setInputError(null);
+    setDemoCaseActive(true);
   }
 
   function simulateTransportTimeout() {
@@ -90,6 +114,7 @@ export default function BridgePage() {
     resetResponse();
     setRawInput(JSON.stringify(demoValidRecord, null, 2));
     setInputError(null);
+    setDemoCaseActive(false);
   }
 
   function simulateResponse() {
@@ -114,6 +139,13 @@ export default function BridgePage() {
     }
   }
 
+  const phases = [
+    ["1", "Eingang", "Quelle, Transport, Vertrag"],
+    ["2", "Übersetzung", "Semantik, Field Map, Value Map"],
+    ["3", "Prüfung", "Schema, Regeln, Issues, Trace"],
+    ["4", "Entscheidung", "Freigabe und Report"],
+  ] as const;
+
   const flow = ["Source", "Snapshot", "Schema", "Missing", "Semantik", "Field Map", "Value Map", "Transformation", "Canonical", "Validierung", "Issue", "Trace", "Freigabe", "Report"];
 
   return (
@@ -122,10 +154,41 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.12 · Request/Response-Trace</p>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Der 14-Schritte-Entknotungs-Check läuft als sichtbarer Prüfpfad.</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Transport, Vertrag, Datenprüfung und die Zuordnung von Request zu Antwort bleiben getrennt und nachvollziehbar.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.13 · Vier Phasen + Demo-Fall</p>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Vier Phasen außen. Vierzehn Schritte darunter.</h1>
+          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check bleibt nach außen einfach: Eingang → Übersetzung → Prüfung → Entscheidung. Der technische 14-Schritte-Pfad liefert darunter den Nachweis.</p>
         </header>
+
+        <section className="rounded-2xl border bg-card p-4 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">Entknotungs-Check · offizielle 4 Phasen</p>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            {phases.map(([number, title, detail]) => (
+              <div key={title} className="rounded-xl border border-teal-200 bg-teal-50 p-3">
+                <p className="text-xs font-bold text-teal-700">{number}</p>
+                <p className="mt-1 font-semibold text-teal-950">{title}</p>
+                <p className="mt-1 text-xs text-teal-900/70">{detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-amber-800">Demo-Entknotungsfall</p>
+          <h2 className="mt-1 font-semibold text-amber-950">Eine Nachricht kommt an – aber Vertrag, Wert und Antwortlage passen nicht sauber zusammen.</h2>
+          <p className="mt-2 text-sm text-amber-950/80">Der Demo-Fall simuliert eine Legacy-Schnittstelle mit einer unbestätigten Vertragsversion <strong>order-v2-field-drift</strong>, einem unbekannten Statuswert, einer negativen Menge und einer noch ausstehenden Antwort. So wird sichtbar, dass Vertragsproblem, Datenproblem und Request/Response-Status getrennt bleiben.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" onClick={loadEntanglementDemo}>Vollständigen Demo-Fall laden</button>
+            <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-amber-900" onClick={() => loadRecord(demoValidRecord)}>Zurück zum gültigen Fall</button>
+          </div>
+          {demoCaseActive && (
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Eingang</strong><br />Webservice empfangen, Contract unbestätigt.</div>
+              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Übersetzung</strong><br />STATUS bleibt ungeklärt statt geraten.</div>
+              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Prüfung</strong><br />Contract + Status + Menge erzeugen getrennte Blocker.</div>
+              <div className="rounded-xl border bg-white p-3 text-xs"><strong>Entscheidung</strong><br />Freigabe blockiert, Antwort weiterhin pending.</div>
+            </div>
+          )}
+        </section>
 
         <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-800">Eingangskontext · vor Schritt 1</p>
@@ -155,7 +218,7 @@ export default function BridgePage() {
           </div>
         </section>
 
-        <nav aria-label="Datenfluss" className="flex flex-wrap items-center gap-2 text-xs font-semibold text-teal-800">
+        <nav aria-label="Technischer 14-Schritte-Prüfpfad" className="flex flex-wrap items-center gap-2 text-xs font-semibold text-teal-800">
           {flow.map((label, index) => (
             <span key={label} className="flex items-center gap-2">
               <span className="rounded-full border border-teal-200 bg-teal-50 px-3 py-2">{index + 1}. {label}</span>
@@ -242,7 +305,7 @@ export default function BridgePage() {
 
         <section className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
           <p className="font-semibold">Grundprinzip</p>
-          <p className="mt-1">Die Bridge schreibt nichts zurück in System A. Sie dokumentiert Transport, Vertrag, Request/Response-Beziehung und Datenprüfung getrennt und nachvollziehbar.</p>
+          <p className="mt-1">Die Bridge schreibt nichts zurück in System A. Nach außen bleiben vier Phasen verständlich; darunter dokumentiert der 14-Schritte-Pfad Transport, Vertrag, Request/Response-Beziehung und Datenprüfung getrennt und nachvollziehbar.</p>
         </section>
       </div>
     </main>
