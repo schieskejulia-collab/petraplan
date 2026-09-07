@@ -5,6 +5,10 @@ import {
   demoValidRecord,
   evaluateRecord,
 } from "../.bridge-test-build/bridge-pipeline.js";
+import {
+  blockingConstraintFailures,
+  evaluateBridgeConstraints,
+} from "../.bridge-test-build/bridge-constraints.js";
 
 const capturedAt = "2026-09-07T14:00:00.000Z";
 
@@ -191,4 +195,37 @@ test("release gate always matches transport, contract and data blockers", () => 
     assert.equal(evaluation.report.errors.length, blocking);
     assert.equal(evaluation.report.errors.length > 0 && evaluation.release.releaseAllowed, false);
   }
+});
+
+test("constraint model gives every rule evidence, safe action and resolution proposal", () => {
+  const results = evaluateBridgeConstraints(evaluateRecord(demoConflictRecord, capturedAt));
+  const failures = blockingConstraintFailures(results);
+
+  assert.equal(results.length, 6);
+  assert.equal(failures.length, 2);
+  assert.deepEqual(failures.map(({ id }) => id), ["status.value_map", "quantity.positive"]);
+
+  for (const result of results) {
+    assert.ok(result.rule.length > 0);
+    assert.ok(result.evidence.length > 0);
+    assert.ok(result.safeAction.length > 0);
+    assert.ok(result.resolutionProposal.length > 0);
+  }
+});
+
+test("constraint model separates contract, semantics and data conflicts", () => {
+  const evaluation = evaluateRecord(demoConflictRecord, capturedAt, {
+    contract: "order-v2-field-drift",
+  });
+  const failures = blockingConstraintFailures(evaluateBridgeConstraints(evaluation));
+
+  assert.deepEqual(
+    failures.map(({ id, category }) => [id, category]),
+    [
+      ["contract.confirmed", "contract"],
+      ["status.value_map", "semantics"],
+      ["quantity.positive", "data"],
+    ],
+  );
+  assert.equal(failures.length, evaluation.release.blockingIssues);
 });
