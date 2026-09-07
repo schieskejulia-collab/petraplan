@@ -29,3 +29,7 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
+      - name: Compile Bridge pipeline for node tests
+        run: npx tsc src/lib/bridge-pipeline.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+      - name: Test Bridge release consistency
+        run: node --test tests/bridge-pipeline.test.mjs
