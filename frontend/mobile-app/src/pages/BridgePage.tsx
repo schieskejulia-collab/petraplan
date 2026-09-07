@@ -35,6 +35,7 @@ export default function BridgePage() {
 
   const evaluation = evaluateRecord(raw, capturedAt);
   const {
+    ingress,
     snapshot,
     schema,
     missing,
@@ -98,10 +99,17 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.9 · Fail-safe Gate</p>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Der 14-Schritte-Entknotungs-Check läuft jetzt als sichtbarer Prüfpfad.</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Kein Wert wird stillschweigend umgedeutet. Quelle, Bedeutung, Zuordnung, Transformation, Prüfung und Freigabe bleiben getrennt und nachvollziehbar.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.10 · Eingangskontext</p>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Der 14-Schritte-Entknotungs-Check läuft als sichtbarer Prüfpfad.</h1>
+          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Kein Wert wird stillschweigend umgedeutet. Quelle, Transport, Bedeutung, Zuordnung, Transformation, Prüfung und Freigabe bleiben getrennt und nachvollziehbar.</p>
         </header>
+
+        <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-800">Eingangskontext · vor Schritt 1</p>
+          <h2 className="mt-1 font-semibold text-sky-950">Wie ist dieser Datensatz zur Bridge gekommen?</h2>
+          <p className="mt-1 text-xs text-sky-900/70">Transport und Nachrichtenkontext werden dokumentiert, ohne daraus einen zusätzlichen Prüfschritt zu machen.</p>
+          <JsonBlock value={ingress} />
+        </section>
 
         <nav aria-label="Datenfluss" className="flex flex-wrap items-center gap-2 text-xs font-semibold text-teal-800">
           {flow.map((label, index) => (
@@ -125,7 +133,7 @@ export default function BridgePage() {
           </Section>
 
           <Section eyebrow="02 · Snapshot erzeugen" title="Originalzustand unverändert sichern">
-            <p className="mt-1 text-xs text-muted-foreground">Quelle, Datensatz-ID, Zeitpunkt und Originalwerte bilden gemeinsam den Nachweis.</p>
+            <p className="mt-1 text-xs text-muted-foreground">Quelle, Transport, Message-ID, Datensatz-ID, Zeitpunkt und Originalwerte bilden gemeinsam den Nachweis.</p>
             <JsonBlock value={snapshot} />
           </Section>
 
@@ -214,7 +222,7 @@ export default function BridgePage() {
 
         <section className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
           <p className="font-semibold">Grundprinzip</p>
-          <p className="mt-1">Die Bridge schreibt nichts zurück in System A. Sie macht nur sichtbar, was angekommen ist, wie es verstanden wurde, welche bestätigte Regel angewendet wurde und warum eine Freigabe erlaubt oder blockiert ist.</p>
+          <p className="mt-1">Die Bridge schreibt nichts zurück in System A. Sie dokumentiert Eingang und Transport, macht sichtbar, was angekommen ist, wie es verstanden wurde, welche bestätigte Regel angewendet wurde und warum eine Freigabe erlaubt oder blockiert ist.</p>
         </section>
       </div>
     </main>
