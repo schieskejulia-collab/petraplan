@@ -14,6 +14,27 @@ export type MappedRecord = {
   orderDate: string;
 };
 
+export type SchemaCheck = {
+  field: keyof RawRecord;
+  present: boolean;
+  typeOk: boolean;
+  formatOk: boolean;
+  expected: string;
+};
+
+export type MissingCheck = {
+  field: keyof RawRecord;
+  sourceValue: string;
+  missing: boolean;
+  rule: string;
+};
+
+export type SemanticEntry = {
+  field: keyof RawRecord;
+  fieldMeaning: string;
+  valueMeaning: string;
+};
+
 export type ValidationCheck = {
   field: keyof RawRecord;
   label: string;
@@ -39,6 +60,7 @@ export type TraceStep = {
   meaning: string;
   targetField: keyof MappedRecord;
   mapping: string;
+  valueMap: string;
   transformation: string;
   canonicalValue: string | number | null;
   validation: "passed" | "failed";
@@ -67,6 +89,12 @@ export type BridgeEvaluation = {
     sourceRecord: string;
     values: RawRecord;
   };
+  schema: SchemaCheck[];
+  missing: MissingCheck[];
+  semantics: SemanticEntry[];
+  fieldMap: typeof fieldMap;
+  valueMap: typeof valueMap;
+  transformations: Array<{ field: keyof RawRecord; before: string; after: string; rule: string }>;
   mapped: MappedRecord;
   checks: ValidationCheck[];
   issues: ValidationIssue[];
@@ -74,6 +102,12 @@ export type BridgeEvaluation = {
   passed: boolean;
   release: ReleaseDecision;
   provenance: Provenance;
+  report: {
+    confirmedMappings: string[];
+    openPoints: string[];
+    errors: string[];
+    nextStep: string;
+  };
 };
 
 export const demoValidRecord: RawRecord = {
@@ -81,7 +115,7 @@ export const demoValidRecord: RawRecord = {
   AUFTRAGS_NR: "A-10027",
   STATUS: "OFFEN",
   MENGE: "12",
-  DATUM: "2026-09-05",
+  DATUM: "07.09.2026",
 };
 
 export const demoConflictRecord: RawRecord = {
@@ -91,11 +125,17 @@ export const demoConflictRecord: RawRecord = {
 };
 
 export const fieldMap = [
-  ["KUNDEN_NR", "customerId", "unverändert"],
-  ["AUFTRAGS_NR", "orderId", "eindeutig"],
-  ["STATUS", "status", "OFFEN → open"],
-  ["MENGE", "quantity", "Text → Zahl"],
-  ["DATUM", "orderDate", "ISO-Format"],
+  ["KUNDEN_NR", "customerId", "Quellfeld wird der neutralen Kundenkennung zugeordnet"],
+  ["AUFTRAGS_NR", "orderId", "Quellfeld wird der neutralen Auftragskennung zugeordnet"],
+  ["STATUS", "status", "Quellstatus wird dem neutralen Statusfeld zugeordnet"],
+  ["MENGE", "quantity", "Quellmenge wird dem neutralen Mengenfeld zugeordnet"],
+  ["DATUM", "orderDate", "Quelldatum wird dem neutralen Datumsfeld zugeordnet"],
+] as const;
+
+export const valueMap = [
+  ["STATUS", "OFFEN", "open"],
+  ["STATUS", "GESCHLOSSEN", "closed"],
+  ["STATUS", "IN_BEARBEITUNG", "in_progress"],
 ] as const;
 
 const statusMap: Record<string, MappedRecord["status"]> = {
@@ -103,6 +143,20 @@ const statusMap: Record<string, MappedRecord["status"]> = {
   GESCHLOSSEN: "closed",
   IN_BEARBEITUNG: "in_progress",
 };
+
+const missingMarkers = new Set(["", "NULL", "N/A"]);
+
+function isMissing(value: string): boolean {
+  return missingMarkers.has(value.trim().toUpperCase());
+}
+
+function normalizeDate(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return value;
+  const [, day, month, year] = match;
+  return `${year}-${month}-${day}`;
+}
 
 export function parseRawRecord(value: unknown): RawRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -126,13 +180,42 @@ export function parseRawRecord(value: unknown): RawRecord {
   };
 }
 
+function buildSchemaChecks(raw: RawRecord): SchemaCheck[] {
+  return [
+    { field: "KUNDEN_NR", present: "KUNDEN_NR" in raw, typeOk: typeof raw.KUNDEN_NR === "string", formatOk: raw.KUNDEN_NR.length > 0, expected: "nichtleerer Text" },
+    { field: "AUFTRAGS_NR", present: "AUFTRAGS_NR" in raw, typeOk: typeof raw.AUFTRAGS_NR === "string", formatOk: /^A-\d+$/.test(raw.AUFTRAGS_NR), expected: "A-<Ziffern>" },
+    { field: "STATUS", present: "STATUS" in raw, typeOk: typeof raw.STATUS === "string", formatOk: /^[A-Z_]+$/.test(raw.STATUS), expected: "Großbuchstaben / Unterstrich" },
+    { field: "MENGE", present: "MENGE" in raw, typeOk: typeof raw.MENGE === "string", formatOk: /^-?\d+(\.\d+)?$/.test(raw.MENGE), expected: "numerischer Text" },
+    { field: "DATUM", present: "DATUM" in raw, typeOk: typeof raw.DATUM === "string", formatOk: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM) || /^\d{2}\.\d{2}\.\d{4}$/.test(raw.DATUM), expected: "YYYY-MM-DD oder DD.MM.YYYY" },
+  ];
+}
+
+function buildMissingChecks(raw: RawRecord): MissingCheck[] {
+  return (Object.keys(raw) as Array<keyof RawRecord>).map((field) => ({
+    field,
+    sourceValue: raw[field],
+    missing: isMissing(raw[field]),
+    rule: "Nur bestätigte Marker gelten als fehlend: leer, NULL, N/A",
+  }));
+}
+
+function buildSemantics(raw: RawRecord): SemanticEntry[] {
+  return [
+    { field: "KUNDEN_NR", fieldMeaning: "Kennung des Kunden in der Quelle", valueMeaning: raw.KUNDEN_NR ? `Kunde ${raw.KUNDEN_NR}` : "nicht bestimmt" },
+    { field: "AUFTRAGS_NR", fieldMeaning: "Kennung des Auftrags in der Quelle", valueMeaning: raw.AUFTRAGS_NR ? `Auftrag ${raw.AUFTRAGS_NR}` : "nicht bestimmt" },
+    { field: "STATUS", fieldMeaning: "Zustand des Auftrags", valueMeaning: statusMap[raw.STATUS] ? `${raw.STATUS} bedeutet ${statusMap[raw.STATUS]}` : "Bedeutung nicht bestätigt" },
+    { field: "MENGE", fieldMeaning: "Mengenwert des Auftrags", valueMeaning: isMissing(raw.MENGE) ? "fehlender Wert" : `Quellwert ${raw.MENGE}` },
+    { field: "DATUM", fieldMeaning: "Auftragsdatum", valueMeaning: `Quellformat ${raw.DATUM}` },
+  ];
+}
+
 function mapRecord(source: RawRecord): MappedRecord {
   return {
     customerId: source.KUNDEN_NR,
     orderId: source.AUFTRAGS_NR,
     status: statusMap[source.STATUS] ?? null,
     quantity: Number(source.MENGE),
-    orderDate: source.DATUM,
+    orderDate: normalizeDate(source.DATUM),
   };
 }
 
@@ -145,7 +228,7 @@ function issueMessage(check: ValidationCheck, raw: RawRecord): string {
     case "NEGATIVE_VALUE":
       return "Menge ist negativ oder null. Prüfung blockiert.";
     case "INVALID_DATE_FORMAT":
-      return "Datum entspricht nicht dem bestätigten ISO-Format YYYY-MM-DD.";
+      return "Datum konnte nicht in das bestätigte ISO-Format YYYY-MM-DD überführt werden.";
     case "UNEXPECTED_ORDER_ID":
       return "Auftragsnummer weicht vom Demo-Prüffall ab.";
     default:
@@ -158,134 +241,54 @@ function buildTrace(raw: RawRecord, mapped: MappedRecord, checks: ValidationChec
     checks.some((check) => check.field === field && !check.ok) ? "failed" as const : "passed" as const;
 
   return [
-    {
-      sourceField: "KUNDEN_NR",
-      sourceValue: raw.KUNDEN_NR,
-      meaning: "Kundenkennung aus der Quelle",
-      targetField: "customerId",
-      mapping: "KUNDEN_NR → customerId",
-      transformation: "keine",
-      canonicalValue: mapped.customerId,
-      validation: validationFor("KUNDEN_NR"),
-    },
-    {
-      sourceField: "AUFTRAGS_NR",
-      sourceValue: raw.AUFTRAGS_NR,
-      meaning: "Auftragskennung aus der Quelle",
-      targetField: "orderId",
-      mapping: "AUFTRAGS_NR → orderId",
-      transformation: "keine",
-      canonicalValue: mapped.orderId,
-      validation: validationFor("AUFTRAGS_NR"),
-    },
-    {
-      sourceField: "STATUS",
-      sourceValue: raw.STATUS,
-      meaning: "Quellstatus des Auftrags",
-      targetField: "status",
-      mapping: "STATUS → status",
-      transformation: mapped.status ? `${raw.STATUS} → ${mapped.status}` : "keine bestätigte Value-Map",
-      canonicalValue: mapped.status,
-      validation: validationFor("STATUS"),
-    },
-    {
-      sourceField: "MENGE",
-      sourceValue: raw.MENGE,
-      meaning: "Menge des Auftrags",
-      targetField: "quantity",
-      mapping: "MENGE → quantity",
-      transformation: "Text → Zahl",
-      canonicalValue: Number.isFinite(mapped.quantity) ? mapped.quantity : null,
-      validation: validationFor("MENGE"),
-    },
-    {
-      sourceField: "DATUM",
-      sourceValue: raw.DATUM,
-      meaning: "Auftragsdatum",
-      targetField: "orderDate",
-      mapping: "DATUM → orderDate",
-      transformation: "bestätigtes ISO-Format beibehalten",
-      canonicalValue: mapped.orderDate,
-      validation: validationFor("DATUM"),
-    },
+    { sourceField: "KUNDEN_NR", sourceValue: raw.KUNDEN_NR, meaning: "Kundenkennung aus der Quelle", targetField: "customerId", mapping: "KUNDEN_NR → customerId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.customerId, validation: validationFor("KUNDEN_NR") },
+    { sourceField: "AUFTRAGS_NR", sourceValue: raw.AUFTRAGS_NR, meaning: "Auftragskennung aus der Quelle", targetField: "orderId", mapping: "AUFTRAGS_NR → orderId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.orderId, validation: validationFor("AUFTRAGS_NR") },
+    { sourceField: "STATUS", sourceValue: raw.STATUS, meaning: "Quellstatus des Auftrags", targetField: "status", mapping: "STATUS → status", valueMap: mapped.status ? `${raw.STATUS} → ${mapped.status}` : "keine bestätigte Value-Map", transformation: "keine", canonicalValue: mapped.status, validation: validationFor("STATUS") },
+    { sourceField: "MENGE", sourceValue: raw.MENGE, meaning: "Menge des Auftrags", targetField: "quantity", mapping: "MENGE → quantity", valueMap: "nicht erforderlich", transformation: "Text → Zahl", canonicalValue: Number.isFinite(mapped.quantity) ? mapped.quantity : null, validation: validationFor("MENGE") },
+    { sourceField: "DATUM", sourceValue: raw.DATUM, meaning: "Auftragsdatum", targetField: "orderDate", mapping: "DATUM → orderDate", valueMap: "nicht erforderlich", transformation: raw.DATUM === mapped.orderDate ? "keine" : `${raw.DATUM} → ${mapped.orderDate}`, canonicalValue: mapped.orderDate, validation: validationFor("DATUM") },
   ];
 }
 
 export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvaluation {
+  const schema = buildSchemaChecks(raw);
+  const missing = buildMissingChecks(raw);
+  const semantics = buildSemantics(raw);
   const mapped = mapRecord(raw);
-  const checks: ValidationCheck[] = [
-    {
-      field: "KUNDEN_NR",
-      label: "Kunden-ID vorhanden",
-      ok: Boolean(raw.KUNDEN_NR),
-      rule: "Pflichtfeld",
-      issueCode: "MISSING_REQUIRED_VALUE",
-      severity: "blocking",
-      observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}`,
-    },
-    {
-      field: "AUFTRAGS_NR",
-      label: "Auftragsnummer entspricht dem Demo-Prüffall",
-      ok: raw.AUFTRAGS_NR === "A-10027",
-      rule: "Demo-Referenz A-10027",
-      issueCode: "UNEXPECTED_ORDER_ID",
-      severity: "warning",
-      observed: `AUFTRAGS_NR: ${raw.AUFTRAGS_NR}`,
-    },
-    {
-      field: "STATUS",
-      label: "Status erlaubt",
-      ok: mapped.status !== null,
-      rule: "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG",
-      issueCode: "UNKNOWN_STATUS",
-      severity: "blocking",
-      observed: `STATUS: ${raw.STATUS} → ${mapped.status ?? "nicht zugeordnet"}`,
-    },
-    {
-      field: "MENGE",
-      label: "Menge größer als 0",
-      ok: Number.isFinite(mapped.quantity) && mapped.quantity > 0,
-      rule: "Zahl > 0",
-      issueCode: "NEGATIVE_VALUE",
-      severity: "blocking",
-      observed: `MENGE: ${Number.isFinite(mapped.quantity) ? mapped.quantity : raw.MENGE}`,
-    },
-    {
-      field: "DATUM",
-      label: "Datum gültig",
-      ok: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM),
-      rule: "YYYY-MM-DD",
-      issueCode: "INVALID_DATE_FORMAT",
-      severity: "blocking",
-      observed: `DATUM: ${raw.DATUM}`,
-    },
+  const transformations = [
+    { field: "MENGE" as const, before: raw.MENGE, after: Number.isFinite(mapped.quantity) ? String(mapped.quantity) : raw.MENGE, rule: "numerischen Text in Zahl überführen" },
+    { field: "DATUM" as const, before: raw.DATUM, after: mapped.orderDate, rule: "bestätigtes Datumsformat nach YYYY-MM-DD normalisieren" },
   ];
 
-  const issues: ValidationIssue[] = checks
-    .filter(({ ok }) => !ok)
-    .map((check) => ({
-      field: check.field,
-      issue: check.issueCode,
-      sourceValue: raw[check.field],
-      rule: check.rule,
-      severity: check.severity,
-      message: issueMessage(check, raw),
-    }));
+  const checks: ValidationCheck[] = [
+    { field: "KUNDEN_NR", label: "Kunden-ID vorhanden", ok: !isMissing(raw.KUNDEN_NR), rule: "Pflichtfeld", issueCode: "MISSING_REQUIRED_VALUE", severity: "blocking", observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}` },
+    { field: "AUFTRAGS_NR", label: "Auftragsnummer entspricht dem Demo-Prüffall", ok: raw.AUFTRAGS_NR === "A-10027", rule: "Demo-Referenz A-10027", issueCode: "UNEXPECTED_ORDER_ID", severity: "warning", observed: `AUFTRAGS_NR: ${raw.AUFTRAGS_NR}` },
+    { field: "STATUS", label: "Status erlaubt", ok: mapped.status !== null, rule: "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG", issueCode: "UNKNOWN_STATUS", severity: "blocking", observed: `STATUS: ${raw.STATUS} → ${mapped.status ?? "nicht zugeordnet"}` },
+    { field: "MENGE", label: "Menge größer als 0", ok: !isMissing(raw.MENGE) && Number.isFinite(mapped.quantity) && mapped.quantity > 0, rule: "Zahl > 0", issueCode: "NEGATIVE_VALUE", severity: "blocking", observed: `MENGE: ${Number.isFinite(mapped.quantity) ? mapped.quantity : raw.MENGE}` },
+    { field: "DATUM", label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(mapped.orderDate), rule: "YYYY-MM-DD nach bestätigter Transformation", issueCode: "INVALID_DATE_FORMAT", severity: "blocking", observed: `DATUM: ${raw.DATUM} → ${mapped.orderDate}` },
+  ];
 
+  const issues: ValidationIssue[] = checks.filter(({ ok }) => !ok).map((check) => ({ field: check.field, issue: check.issueCode, sourceValue: raw[check.field], rule: check.rule, severity: check.severity, message: issueMessage(check, raw) }));
   const blockingIssues = issues.filter(({ severity }) => severity === "blocking").length;
   const releaseAllowed = blockingIssues === 0;
   const passed = issues.length === 0;
   const source = "system_a";
   const sourceRecord = raw.AUFTRAGS_NR;
+  const report = {
+    confirmedMappings: fieldMap.map(([from, to]) => `${from} → ${to}`),
+    openPoints: issues.filter(({ severity }) => severity === "warning").map(({ message }) => message),
+    errors: issues.filter(({ severity }) => severity === "blocking").map(({ message }) => message),
+    nextStep: releaseAllowed ? "Freigabe dokumentieren und Ausgabe übergeben." : "BLOCKING-Issues fachlich klären; Quelle bleibt unverändert.",
+  };
 
   return {
     raw,
-    snapshot: {
-      capturedAt,
-      source,
-      sourceRecord,
-      values: { ...raw },
-    },
+    snapshot: { capturedAt, source, sourceRecord, values: { ...raw } },
+    schema,
+    missing,
+    semantics,
+    fieldMap,
+    valueMap,
+    transformations,
     mapped,
     checks,
     issues,
@@ -294,19 +297,9 @@ export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvalua
     release: {
       releaseAllowed,
       blockingIssues,
-      reason: releaseAllowed
-        ? issues.length > 0
-          ? "Keine BLOCKING-Issues vorhanden; Hinweise bleiben dokumentiert."
-          : "Alle bestätigten Regeln bestanden."
-        : `${blockingIssues} BLOCKING-Issue${blockingIssues === 1 ? "" : "s"} vorhanden. Freigabe blockiert.`,
+      reason: releaseAllowed ? (issues.length > 0 ? "Keine BLOCKING-Issues vorhanden; Hinweise bleiben dokumentiert." : "Alle bestätigten Regeln bestanden.") : `${blockingIssues} BLOCKING-Issue${blockingIssues === 1 ? "" : "s"} vorhanden. Freigabe blockiert.`,
     },
-    provenance: {
-      source,
-      sourceRecord,
-      capturedAt,
-      mode: "read_only",
-      overallStatus: passed ? "valid" : "needs_review",
-      conflicts: issues.map(({ message }) => message),
-    },
+    provenance: { source, sourceRecord, capturedAt, mode: "read_only", overallStatus: passed ? "valid" : "needs_review", conflicts: issues.map(({ message }) => message) },
+    report,
   };
 }
