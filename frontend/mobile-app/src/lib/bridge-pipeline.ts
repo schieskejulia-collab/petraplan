@@ -15,6 +15,8 @@ export type MappedRecord = {
 };
 
 export type IngressTransport = "demo" | "api" | "queue" | "file" | "manual" | "webservice";
+export type InteractionMode = "request_reply" | "one_way" | "async";
+export type TransportStatus = "received" | "failed" | "timeout";
 
 export type IngressContext = {
   source: string;
@@ -22,6 +24,22 @@ export type IngressContext = {
   messageId: string;
   receivedAt: string;
   destination: string;
+  service: string;
+  operation: string;
+  interactionMode: InteractionMode;
+  correlationId: string;
+  contract: string;
+  transportStatus: TransportStatus;
+};
+
+export type InterfaceContract = {
+  name: string;
+  fields: Array<{
+    field: keyof RawRecord;
+    type: "string";
+    required: true;
+    format: string;
+  }>;
 };
 
 export type SchemaCheck = {
@@ -30,6 +48,14 @@ export type SchemaCheck = {
   typeOk: boolean;
   formatOk: boolean;
   expected: string;
+  contract: string;
+};
+
+export type GatewayIssue = {
+  scope: "transport" | "contract";
+  issue: string;
+  severity: "blocking";
+  message: string;
 };
 
 export type MissingCheck = {
@@ -89,6 +115,12 @@ export type Provenance = {
   transport: IngressTransport;
   messageId: string;
   destination: string;
+  service: string;
+  operation: string;
+  interactionMode: InteractionMode;
+  correlationId: string;
+  contract: string;
+  transportStatus: TransportStatus;
   mode: "read_only";
   overallStatus: "valid" | "needs_review";
   conflicts: string[];
@@ -96,6 +128,8 @@ export type Provenance = {
 
 export type BridgeEvaluation = {
   ingress: IngressContext;
+  contract: InterfaceContract;
+  gatewayIssues: GatewayIssue[];
   raw: RawRecord;
   snapshot: {
     capturedAt: string;
@@ -139,6 +173,17 @@ export const demoConflictRecord: RawRecord = {
   MENGE: "-4",
 };
 
+export const orderContract: InterfaceContract = {
+  name: "order-v1",
+  fields: [
+    { field: "KUNDEN_NR", type: "string", required: true, format: "nichtleerer Text" },
+    { field: "AUFTRAGS_NR", type: "string", required: true, format: "A-<Ziffern>" },
+    { field: "STATUS", type: "string", required: true, format: "Großbuchstaben / Unterstrich" },
+    { field: "MENGE", type: "string", required: true, format: "numerischer Text" },
+    { field: "DATUM", type: "string", required: true, format: "YYYY-MM-DD oder DD.MM.YYYY" },
+  ],
+};
+
 export const fieldMap = [
   ["KUNDEN_NR", "customerId", "Quellfeld wird der neutralen Kundenkennung zugeordnet"],
   ["AUFTRAGS_NR", "orderId", "Quellfeld wird der neutralen Auftragskennung zugeordnet"],
@@ -179,12 +224,19 @@ export function createIngressContext(
   overrides: Partial<IngressContext> = {},
 ): IngressContext {
   const source = overrides.source ?? "system_a";
+  const messageId = overrides.messageId ?? `msg:${source}:${raw.AUFTRAGS_NR}:${capturedAt}`;
   return {
     source,
     transport: overrides.transport ?? "demo",
-    messageId: overrides.messageId ?? `msg:${source}:${raw.AUFTRAGS_NR}:${capturedAt}`,
+    messageId,
     receivedAt: overrides.receivedAt ?? capturedAt,
     destination: overrides.destination ?? "bridge",
+    service: overrides.service ?? "orders-service",
+    operation: overrides.operation ?? "receiveOrder",
+    interactionMode: overrides.interactionMode ?? "request_reply",
+    correlationId: overrides.correlationId ?? `corr:${messageId}`,
+    contract: overrides.contract ?? orderContract.name,
+    transportStatus: overrides.transportStatus ?? "received",
   };
 }
 
@@ -212,12 +264,48 @@ export function parseRawRecord(value: unknown): RawRecord {
 
 function buildSchemaChecks(raw: RawRecord): SchemaCheck[] {
   return [
-    { field: "KUNDEN_NR", present: "KUNDEN_NR" in raw, typeOk: typeof raw.KUNDEN_NR === "string", formatOk: raw.KUNDEN_NR.length > 0, expected: "nichtleerer Text" },
-    { field: "AUFTRAGS_NR", present: "AUFTRAGS_NR" in raw, typeOk: typeof raw.AUFTRAGS_NR === "string", formatOk: /^A-\d+$/.test(raw.AUFTRAGS_NR), expected: "A-<Ziffern>" },
-    { field: "STATUS", present: "STATUS" in raw, typeOk: typeof raw.STATUS === "string", formatOk: /^[A-Z_]+$/.test(raw.STATUS), expected: "Großbuchstaben / Unterstrich" },
-    { field: "MENGE", present: "MENGE" in raw, typeOk: typeof raw.MENGE === "string", formatOk: /^-?\d+(\.\d+)?$/.test(raw.MENGE), expected: "numerischer Text" },
-    { field: "DATUM", present: "DATUM" in raw, typeOk: typeof raw.DATUM === "string", formatOk: /^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM) || /^\d{2}\.\d{2}\.\d{4}$/.test(raw.DATUM), expected: "YYYY-MM-DD oder DD.MM.YYYY" },
+    { field: "KUNDEN_NR", present: "KUNDEN_NR" in raw, typeOk: typeof raw.KUNDEN_NR === "string", formatOk: typeof raw.KUNDEN_NR === "string" && raw.KUNDEN_NR.length > 0, expected: "nichtleerer Text", contract: orderContract.name },
+    { field: "AUFTRAGS_NR", present: "AUFTRAGS_NR" in raw, typeOk: typeof raw.AUFTRAGS_NR === "string", formatOk: typeof raw.AUFTRAGS_NR === "string" && /^A-\d+$/.test(raw.AUFTRAGS_NR), expected: "A-<Ziffern>", contract: orderContract.name },
+    { field: "STATUS", present: "STATUS" in raw, typeOk: typeof raw.STATUS === "string", formatOk: typeof raw.STATUS === "string" && /^[A-Z_]+$/.test(raw.STATUS), expected: "Großbuchstaben / Unterstrich", contract: orderContract.name },
+    { field: "MENGE", present: "MENGE" in raw, typeOk: typeof raw.MENGE === "string", formatOk: typeof raw.MENGE === "string" && /^-?\d+(\.\d+)?$/.test(raw.MENGE), expected: "numerischer Text", contract: orderContract.name },
+    { field: "DATUM", present: "DATUM" in raw, typeOk: typeof raw.DATUM === "string", formatOk: typeof raw.DATUM === "string" && (/^\d{4}-\d{2}-\d{2}$/.test(raw.DATUM) || /^\d{2}\.\d{2}\.\d{4}$/.test(raw.DATUM)), expected: "YYYY-MM-DD oder DD.MM.YYYY", contract: orderContract.name },
   ];
+}
+
+function buildGatewayIssues(ingress: IngressContext, schema: SchemaCheck[]): GatewayIssue[] {
+  const issues: GatewayIssue[] = [];
+
+  if (ingress.transportStatus !== "received") {
+    issues.push({
+      scope: "transport",
+      issue: ingress.transportStatus === "timeout" ? "TRANSPORT_TIMEOUT" : "TRANSPORT_FAILED",
+      severity: "blocking",
+      message: ingress.transportStatus === "timeout"
+        ? "Transport hat das Zeitlimit überschritten. Datensatz darf nicht freigegeben werden."
+        : "Transport ist fehlgeschlagen. Datensatz darf nicht freigegeben werden.",
+    });
+  }
+
+  if (ingress.contract !== orderContract.name) {
+    issues.push({
+      scope: "contract",
+      issue: "UNKNOWN_CONTRACT",
+      severity: "blocking",
+      message: `Schnittstellenvertrag '${ingress.contract}' ist nicht bestätigt. Erwartet: ${orderContract.name}.`,
+    });
+  }
+
+  const failedSchema = schema.filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk);
+  if (failedSchema.length > 0) {
+    issues.push({
+      scope: "contract",
+      issue: "CONTRACT_MISMATCH",
+      severity: "blocking",
+      message: `${failedSchema.length} Feld${failedSchema.length === 1 ? "" : "er"} entsprechen nicht dem bestätigten Vertrag ${orderContract.name}.`,
+    });
+  }
+
+  return issues;
 }
 
 function buildMissingChecks(raw: RawRecord): MissingCheck[] {
@@ -286,6 +374,7 @@ export function evaluateRecord(
 ): BridgeEvaluation {
   const ingress = createIngressContext(raw, capturedAt, ingressOverrides);
   const schema = buildSchemaChecks(raw);
+  const gatewayIssues = buildGatewayIssues(ingress, schema);
   const missing = buildMissingChecks(raw);
   const semantics = buildSemantics(raw);
   const mapped = mapRecord(raw);
@@ -313,21 +402,27 @@ export function evaluateRecord(
       message: issueMessage(check, raw),
     }));
 
-  const blockingIssues = issues.filter(({ severity }) => severity === "blocking").length;
+  const dataBlockingIssues = issues.filter(({ severity }) => severity === "blocking").length;
+  const blockingIssues = dataBlockingIssues + gatewayIssues.length;
   const releaseAllowed = blockingIssues === 0;
-  const passed = issues.length === 0;
+  const passed = issues.length === 0 && gatewayIssues.length === 0;
   const sourceRecord = raw.AUFTRAGS_NR;
   const report = {
     confirmedMappings: fieldMap.map(([from, to]) => `${from} → ${to}`),
     openPoints: issues.filter(({ severity }) => severity === "warning").map(({ message }) => message),
-    errors: issues.filter(({ severity }) => severity === "blocking").map(({ message }) => message),
+    errors: [
+      ...gatewayIssues.map(({ message }) => message),
+      ...issues.filter(({ severity }) => severity === "blocking").map(({ message }) => message),
+    ],
     nextStep: releaseAllowed
       ? "Freigabe dokumentieren und Ausgabe übergeben."
-      : "BLOCKING-Issues fachlich klären; Quelle bleibt unverändert.",
+      : "BLOCKING-Issues klären; Transport-, Vertrags- und Datenfehler bleiben getrennt nachvollziehbar.",
   };
 
   return {
     ingress,
+    contract: orderContract,
+    gatewayIssues,
     raw,
     snapshot: {
       capturedAt,
@@ -352,7 +447,7 @@ export function evaluateRecord(
       blockingIssues,
       reason: releaseAllowed
         ? "Keine fehlgeschlagene BLOCKING-Regel vorhanden."
-        : `${blockingIssues} fehlgeschlagene BLOCKING-Regel${blockingIssues === 1 ? "" : "n"} vorhanden. Freigabe blockiert.`,
+        : `${blockingIssues} BLOCKING-Issue${blockingIssues === 1 ? "" : "s"} aus Transport, Vertrag oder Datenprüfung vorhanden. Freigabe blockiert.`,
     },
     provenance: {
       source: ingress.source,
@@ -361,9 +456,18 @@ export function evaluateRecord(
       transport: ingress.transport,
       messageId: ingress.messageId,
       destination: ingress.destination,
+      service: ingress.service,
+      operation: ingress.operation,
+      interactionMode: ingress.interactionMode,
+      correlationId: ingress.correlationId,
+      contract: ingress.contract,
+      transportStatus: ingress.transportStatus,
       mode: "read_only",
       overallStatus: passed ? "valid" : "needs_review",
-      conflicts: issues.map(({ message }) => message),
+      conflicts: [
+        ...gatewayIssues.map(({ message }) => message),
+        ...issues.map(({ message }) => message),
+      ],
     },
     report,
   };
