@@ -14,6 +14,16 @@ export type MappedRecord = {
   orderDate: string;
 };
 
+export type IngressTransport = "demo" | "api" | "queue" | "file" | "manual" | "webservice";
+
+export type IngressContext = {
+  source: string;
+  transport: IngressTransport;
+  messageId: string;
+  receivedAt: string;
+  destination: string;
+};
+
 export type SchemaCheck = {
   field: keyof RawRecord;
   present: boolean;
@@ -76,17 +86,22 @@ export type Provenance = {
   source: string;
   sourceRecord: string;
   capturedAt: string;
+  transport: IngressTransport;
+  messageId: string;
+  destination: string;
   mode: "read_only";
   overallStatus: "valid" | "needs_review";
   conflicts: string[];
 };
 
 export type BridgeEvaluation = {
+  ingress: IngressContext;
   raw: RawRecord;
   snapshot: {
     capturedAt: string;
     source: string;
     sourceRecord: string;
+    ingress: IngressContext;
     values: RawRecord;
   };
   schema: SchemaCheck[];
@@ -156,6 +171,21 @@ function normalizeDate(value: string): string {
   if (!match) return value;
   const [, day, month, year] = match;
   return `${year}-${month}-${day}`;
+}
+
+export function createIngressContext(
+  raw: RawRecord,
+  capturedAt: string,
+  overrides: Partial<IngressContext> = {},
+): IngressContext {
+  const source = overrides.source ?? "system_a";
+  return {
+    source,
+    transport: overrides.transport ?? "demo",
+    messageId: overrides.messageId ?? `msg:${source}:${raw.AUFTRAGS_NR}:${capturedAt}`,
+    receivedAt: overrides.receivedAt ?? capturedAt,
+    destination: overrides.destination ?? "bridge",
+  };
 }
 
 export function parseRawRecord(value: unknown): RawRecord {
@@ -249,7 +279,12 @@ function buildTrace(raw: RawRecord, mapped: MappedRecord, checks: ValidationChec
   ];
 }
 
-export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvaluation {
+export function evaluateRecord(
+  raw: RawRecord,
+  capturedAt: string,
+  ingressOverrides: Partial<IngressContext> = {},
+): BridgeEvaluation {
+  const ingress = createIngressContext(raw, capturedAt, ingressOverrides);
   const schema = buildSchemaChecks(raw);
   const missing = buildMissingChecks(raw);
   const semantics = buildSemantics(raw);
@@ -267,22 +302,40 @@ export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvalua
     { field: "DATUM", label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(mapped.orderDate), rule: "YYYY-MM-DD nach bestätigter Transformation", issueCode: "INVALID_DATE_FORMAT", severity: "blocking", observed: `DATUM: ${raw.DATUM} → ${mapped.orderDate}` },
   ];
 
-  const issues: ValidationIssue[] = checks.filter(({ ok }) => !ok).map((check) => ({ field: check.field, issue: check.issueCode, sourceValue: raw[check.field], rule: check.rule, severity: check.severity, message: issueMessage(check, raw) }));
+  const issues: ValidationIssue[] = checks
+    .filter(({ ok }) => !ok)
+    .map((check) => ({
+      field: check.field,
+      issue: check.issueCode,
+      sourceValue: raw[check.field],
+      rule: check.rule,
+      severity: check.severity,
+      message: issueMessage(check, raw),
+    }));
+
   const blockingIssues = issues.filter(({ severity }) => severity === "blocking").length;
   const releaseAllowed = blockingIssues === 0;
   const passed = issues.length === 0;
-  const source = "system_a";
   const sourceRecord = raw.AUFTRAGS_NR;
   const report = {
     confirmedMappings: fieldMap.map(([from, to]) => `${from} → ${to}`),
     openPoints: issues.filter(({ severity }) => severity === "warning").map(({ message }) => message),
     errors: issues.filter(({ severity }) => severity === "blocking").map(({ message }) => message),
-    nextStep: releaseAllowed ? "Freigabe dokumentieren und Ausgabe übergeben." : "BLOCKING-Issues fachlich klären; Quelle bleibt unverändert.",
+    nextStep: releaseAllowed
+      ? "Freigabe dokumentieren und Ausgabe übergeben."
+      : "BLOCKING-Issues fachlich klären; Quelle bleibt unverändert.",
   };
 
   return {
+    ingress,
     raw,
-    snapshot: { capturedAt, source, sourceRecord, values: { ...raw } },
+    snapshot: {
+      capturedAt,
+      source: ingress.source,
+      sourceRecord,
+      ingress: { ...ingress },
+      values: { ...raw },
+    },
     schema,
     missing,
     semantics,
@@ -297,9 +350,21 @@ export function evaluateRecord(raw: RawRecord, capturedAt: string): BridgeEvalua
     release: {
       releaseAllowed,
       blockingIssues,
-      reason: releaseAllowed ? (issues.length > 0 ? "Keine BLOCKING-Issues vorhanden; Hinweise bleiben dokumentiert." : "Alle bestätigten Regeln bestanden.") : `${blockingIssues} BLOCKING-Issue${blockingIssues === 1 ? "" : "s"} vorhanden. Freigabe blockiert.`,
+      reason: releaseAllowed
+        ? "Keine fehlgeschlagene BLOCKING-Regel vorhanden."
+        : `${blockingIssues} fehlgeschlagene BLOCKING-Regel${blockingIssues === 1 ? "" : "n"} vorhanden. Freigabe blockiert.`,
     },
-    provenance: { source, sourceRecord, capturedAt, mode: "read_only", overallStatus: passed ? "valid" : "needs_review", conflicts: issues.map(({ message }) => message) },
+    provenance: {
+      source: ingress.source,
+      sourceRecord,
+      capturedAt,
+      transport: ingress.transport,
+      messageId: ingress.messageId,
+      destination: ingress.destination,
+      mode: "read_only",
+      overallStatus: passed ? "valid" : "needs_review",
+      conflicts: issues.map(({ message }) => message),
+    },
     report,
   };
 }
