@@ -59,10 +59,22 @@ export default function BridgePage() {
     report,
   } = evaluation;
 
+  // Fail-safe gate: a release is allowed only when every view of the same
+  // evaluation agrees that there are zero blockers. A report containing an
+  // error can therefore never coexist with a visible releaseAllowed=true.
   const blockingChecks = checks.filter(({ ok, severity }) => !ok && severity === "blocking");
-  const effectiveBlockingCount = blockingChecks.length + gatewayIssues.length;
-  const effectiveReleaseAllowed = effectiveBlockingCount === 0;
-  const releaseConsistent = release.blockingIssues === effectiveBlockingCount && release.releaseAllowed === effectiveReleaseAllowed;
+  const visibleBlockingCount = blockingChecks.length + gatewayIssues.length;
+  const reportBlockingCount = report.errors.length;
+  const effectiveBlockingCount = Math.max(visibleBlockingCount, reportBlockingCount, release.blockingIssues);
+  const effectiveReleaseAllowed =
+    release.releaseAllowed === true &&
+    visibleBlockingCount === 0 &&
+    reportBlockingCount === 0 &&
+    release.blockingIssues === 0;
+  const releaseConsistent =
+    release.blockingIssues === visibleBlockingCount &&
+    release.blockingIssues === reportBlockingCount &&
+    release.releaseAllowed === (visibleBlockingCount === 0);
 
   const contractProblem = gatewayIssues.some(({ scope }) => scope === "contract");
   const statusProblem = issues.some(({ issue }) => issue === "UNKNOWN_STATUS");
@@ -111,10 +123,10 @@ export default function BridgePage() {
       step: "6",
       title: "Bridge entscheidet",
       detail: effectiveReleaseAllowed
-        ? "Keine Blocker vorhanden. Freigabe ist möglich."
+        ? "Keine Blocker vorhanden. Interne Freigabe ist möglich."
         : `${effectiveBlockingCount} Blocker bleiben getrennt nachvollziehbar.`,
       state: effectiveReleaseAllowed ? "ok" : "error",
-      badge: effectiveReleaseAllowed ? "freigegeben" : "blockiert",
+      badge: effectiveReleaseAllowed ? "intern frei" : "blockiert",
     },
   ] as const;
 
@@ -208,7 +220,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.14 · Live-Story</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.15 · Fail-Safe Konsistenz</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Vier Phasen außen. Vierzehn Schritte darunter.</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check bleibt nach außen einfach: Eingang → Übersetzung → Prüfung → Entscheidung. Der technische 14-Schritte-Pfad liefert darunter den Nachweis.</p>
         </header>
@@ -262,7 +274,7 @@ export default function BridgePage() {
             </div>
             <div className={`mt-4 rounded-xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
               <p className="text-xs font-bold uppercase tracking-[0.14em]">Ergebnis</p>
-              <p className="mt-1 text-lg font-semibold">{effectiveReleaseAllowed ? "Freigabe möglich" : "Freigabe blockiert"}</p>
+              <p className="mt-1 text-lg font-semibold">{effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert"}</p>
               <p className="mt-1 text-sm opacity-80">{effectiveReleaseAllowed ? "Transport, Vertrag und Datenprüfung sind ohne Blocker." : `${effectiveBlockingCount} Blocker sind sichtbar – Ursache und nächster Schritt bleiben getrennt nachvollziehbar.`}</p>
             </div>
           </div>
@@ -380,12 +392,12 @@ export default function BridgePage() {
             <JsonBlock value={{ interactionTrace, valueTrace: trace }} />
           </Section>
 
-          <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Freigabe erlaubt" : "Freigabe blockiert"}>
+          <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert"}>
             <div className={`mt-3 rounded-xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
               <p className={`text-lg font-bold ${effectiveReleaseAllowed ? "text-teal-800" : "text-red-800"}`}>releaseAllowed = {String(effectiveReleaseAllowed)}</p>
-              <p className="mt-2 text-sm text-muted-foreground">{effectiveReleaseAllowed ? "Transport, Vertrag und Datenprüfung enthalten kein BLOCKING-Issue." : `${effectiveBlockingCount} BLOCKING-Issue${effectiveBlockingCount === 1 ? "" : "s"} vorhanden. Freigabe blockiert.`}</p>
+              <p className="mt-2 text-sm text-muted-foreground">{effectiveReleaseAllowed ? "Transport, Vertrag, Datenprüfung und Report enthalten kein BLOCKING-Issue." : `${effectiveBlockingCount} BLOCKING-Issue${effectiveBlockingCount === 1 ? "" : "s"} vorhanden. Freigabe blockiert.`}</p>
               <p className="mt-2 text-xs font-semibold">BLOCKING-Issues gesamt: {effectiveBlockingCount}</p>
-              {!releaseConsistent && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-900">Interne Abweichung erkannt. Die Anzeige bleibt fail-safe blockiert.</p>}
+              {!releaseConsistent && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-900">Interne Abweichung erkannt: Engine, sichtbare Prüfungen und Report stimmen nicht überein. Die Anzeige bleibt fail-safe blockiert.</p>}
             </div>
           </Section>
 
@@ -394,7 +406,7 @@ export default function BridgePage() {
 
         <section className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
           <p className="font-semibold">Grundprinzip</p>
-          <p className="mt-1">Die Bridge schreibt nichts zurück in System A. Nach außen bleiben vier Phasen verständlich; darunter dokumentiert der 14-Schritte-Pfad Transport, Vertrag, Request/Response-Beziehung und Datenprüfung getrennt und nachvollziehbar.</p>
+          <p className="mt-1">Die Bridge schreibt nichts zurück in System A. Sobald Report, Engine oder sichtbare BLOCKING-Prüfungen eine Abweichung zeigen, bleibt die Freigabe fail-safe blockiert.</p>
         </section>
       </div>
     </main>
