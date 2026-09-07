@@ -59,9 +59,6 @@ export default function BridgePage() {
     report,
   } = evaluation;
 
-  // Fail-safe gate: a release is allowed only when every view of the same
-  // evaluation agrees that there are zero blockers. A report containing an
-  // error can therefore never coexist with a visible releaseAllowed=true.
   const blockingChecks = checks.filter(({ ok, severity }) => !ok && severity === "blocking");
   const visibleBlockingCount = blockingChecks.length + gatewayIssues.length;
   const reportBlockingCount = report.errors.length;
@@ -80,6 +77,61 @@ export default function BridgePage() {
   const statusProblem = issues.some(({ issue }) => issue === "UNKNOWN_STATUS");
   const quantityProblem = issues.some(({ issue }) => issue === "NEGATIVE_VALUE");
   const responsePending = interactionTrace.response.status === "pending";
+
+  const humanReasons = [
+    ...gatewayIssues.map(({ scope, issue, message }) => ({
+      key: `${scope}-${issue}`,
+      title: scope === "transport" ? "Die Übertragung ist nicht sicher abgeschlossen" : "Die Systeme erwarten nicht denselben bestätigten Vertrag",
+      explanation: scope === "transport"
+        ? message
+        : `Die Nachricht nennt ${ingress.contract}, bestätigt ist aber ${contract.name}. Solange das nicht geklärt ist, kann die Bridge nicht sicher annehmen, dass beide Seiten dieselbe Struktur meinen.`,
+      next: scope === "transport"
+        ? "Transportweg prüfen und die Nachricht erst nach bestätigtem Eingang erneut bewerten."
+        : "Vertragsversion bestätigen oder die Feldzuordnung zwischen beiden Versionen klären.",
+    })),
+    ...issues.filter(({ severity }) => severity === "blocking").map(({ issue, field, sourceValue, message }) => {
+      if (issue === "UNKNOWN_STATUS") {
+        return {
+          key: `${field}-${issue}`,
+          title: `Der Statuswert „${sourceValue}“ hat keine bestätigte Bedeutung`,
+          explanation: "Die Bridge könnte den Wert raten oder stillschweigend ersetzen. Genau das tut sie nicht. Ohne bestätigte Value-Map bleibt der Status ungeklärt.",
+          next: `Klären, was STATUS=${sourceValue} fachlich bedeutet und die Zuordnung erst danach bestätigen.`,
+        };
+      }
+      if (issue === "NEGATIVE_VALUE") {
+        return {
+          key: `${field}-${issue}`,
+          title: `Die Menge „${sourceValue}“ verletzt die bestätigte Regel`,
+          explanation: "Für diesen Prüffall muss die Menge größer als 0 sein. Ein negativer oder leerer Wert darf deshalb nicht weitergegeben werden.",
+          next: "Mengenwert an der Quelle prüfen und nur einen bestätigten gültigen Wert übernehmen.",
+        };
+      }
+      if (issue === "MISSING_REQUIRED_VALUE") {
+        return {
+          key: `${field}-${issue}`,
+          title: `Ein Pflichtwert fehlt: ${field}`,
+          explanation: "Ohne diesen Wert kann der Datensatz nicht eindeutig verarbeitet werden.",
+          next: `Pflichtwert ${field} an der Quelle ergänzen oder die Regel fachlich neu bestätigen.`,
+        };
+      }
+      if (issue === "INVALID_DATE_FORMAT") {
+        return {
+          key: `${field}-${issue}`,
+          title: `Das Datum „${sourceValue}“ konnte nicht sicher normalisiert werden`,
+          explanation: "Die Bridge übernimmt kein unbekanntes Datumsformat stillschweigend.",
+          next: "Datumsformat bestätigen oder eine eindeutige Transformationsregel hinterlegen.",
+        };
+      }
+      return {
+        key: `${field}-${issue}`,
+        title: `${field} blockiert die Freigabe`,
+        explanation: message,
+        next: `Wert ${field} fachlich prüfen und erst danach erneut bewerten.`,
+      };
+    }),
+  ];
+
+  const humanNextSteps = [...new Set(humanReasons.map(({ next }) => next))];
 
   const story = [
     {
@@ -220,9 +272,9 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.15 · Fail-Safe Konsistenz</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.16 · Ursachen-Erklärung</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Vier Phasen außen. Vierzehn Schritte darunter.</h1>
-          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check bleibt nach außen einfach: Eingang → Übersetzung → Prüfung → Entscheidung. Der technische 14-Schritte-Pfad liefert darunter den Nachweis.</p>
+          <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check zeigt nicht nur, ob etwas blockiert ist, sondern warum, was das bedeutet und welcher sichere nächste Schritt folgt.</p>
         </header>
 
         <section className="rounded-2xl border bg-card p-4 shadow-sm">
@@ -272,11 +324,6 @@ export default function BridgePage() {
                 );
               })}
             </div>
-            <div className={`mt-4 rounded-xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
-              <p className="text-xs font-bold uppercase tracking-[0.14em]">Ergebnis</p>
-              <p className="mt-1 text-lg font-semibold">{effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert"}</p>
-              <p className="mt-1 text-sm opacity-80">{effectiveReleaseAllowed ? "Transport, Vertrag und Datenprüfung sind ohne Blocker." : `${effectiveBlockingCount} Blocker sind sichtbar – Ursache und nächster Schritt bleiben getrennt nachvollziehbar.`}</p>
-            </div>
           </div>
         </section>
 
@@ -288,14 +335,17 @@ export default function BridgePage() {
             <button className="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" onClick={loadEntanglementDemo}>Vollständigen Demo-Fall laden</button>
             <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-amber-900" onClick={() => loadRecord(demoValidRecord)}>Zurück zum gültigen Fall</button>
           </div>
-          {demoCaseActive && <p className="mt-3 rounded-xl border border-amber-300 bg-white p-3 text-xs font-semibold text-amber-950">Demo aktiv: Jetzt zeigt die Live-Story oben den kompletten Fehlerweg – Contract-Abweichung, ungeklärten Status, negative Menge, pending Response und blockierte Freigabe.</p>}
+          {demoCaseActive && <p className="mt-3 rounded-xl border border-amber-300 bg-white p-3 text-xs font-semibold text-amber-950">Demo aktiv: Die Erklärung unten zeigt jetzt nicht nur die Blocker, sondern Ursache, Bedeutung und nächsten Schritt.</p>}
         </section>
 
         <section className="rounded-2xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
           <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky-800">Eingangskontext · vor Schritt 1</p>
           <h2 className="mt-1 font-semibold text-sky-950">Wie ist dieser Datensatz zur Bridge gekommen?</h2>
           <p className="mt-1 text-xs text-sky-900/70">Quelle, Transport, Service, Operation, Message-ID, Correlation-ID und Vertragsversion bleiben als eigener Kontext erhalten.</p>
-          <JsonBlock value={ingress} />
+          <details className="mt-3 rounded-xl border border-sky-200 bg-white px-3 py-2">
+            <summary className="cursor-pointer text-sm font-semibold text-sky-950">Technische Eingangsdaten anzeigen</summary>
+            <JsonBlock value={ingress} />
+          </details>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="rounded-lg bg-sky-800 px-3 py-2 text-sm font-semibold text-white" onClick={simulateTransportTimeout}>Transport-Timeout simulieren</button>
             <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-sky-900" onClick={() => loadRecord(demoValidRecord)}>Transport OK</button>
@@ -306,16 +356,19 @@ export default function BridgePage() {
         </section>
 
         <section className="rounded-2xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-800">Request/Response-Trace · vor dem Prüfpfad sichtbar</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-800">Request/Response-Trace</p>
           <h2 className="mt-1 font-semibold text-violet-950">Welche Antwort gehört zu welchem Request?</h2>
           <p className="mt-1 text-xs text-violet-900/70">Die Correlation-ID verbindet Anfrage und Antwort. Eine noch ausstehende Antwort wird ausdrücklich als pending markiert statt erfunden.</p>
-          <JsonBlock value={interactionTrace} />
+          <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3 text-xs text-violet-950">
+            <span className="font-semibold">Beweiskette:</span> {raw.AUFTRAGS_NR} → {interactionTrace.request.messageId} → {interactionTrace.correlationId} → {interactionTrace.response.messageId ?? interactionTrace.response.status}
+          </div>
+          <details className="mt-3 rounded-xl border border-violet-200 bg-white px-3 py-2">
+            <summary className="cursor-pointer text-sm font-semibold text-violet-950">Technische Trace-Daten anzeigen</summary>
+            <JsonBlock value={interactionTrace} />
+          </details>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="rounded-lg bg-violet-800 px-3 py-2 text-sm font-semibold text-white" onClick={simulateResponse}>Antwort simulieren</button>
             <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-violet-900" onClick={simulatePendingResponse}>Antwort ausstehend</button>
-          </div>
-          <div className="mt-3 rounded-xl border border-violet-200 bg-white p-3 text-xs text-violet-950">
-            <span className="font-semibold">Beweiskette:</span> {raw.AUFTRAGS_NR} → {interactionTrace.request.messageId} → {interactionTrace.correlationId} → {interactionTrace.response.messageId ?? interactionTrace.response.status}
           </div>
         </section>
 
@@ -340,22 +393,10 @@ export default function BridgePage() {
             <JsonBlock value={raw} />
           </Section>
 
-          <Section eyebrow="02 · Snapshot erzeugen" title="Originalzustand unverändert sichern">
-            <p className="mt-1 text-xs text-muted-foreground">Quelle, Vertrag, Message-ID, Correlation-ID, Request/Response-Trace, Zeitpunkt und Originalwerte bilden gemeinsam den Nachweis.</p>
-            <JsonBlock value={snapshot} />
-          </Section>
-
+          <Section eyebrow="02 · Snapshot erzeugen" title="Originalzustand unverändert sichern"><JsonBlock value={snapshot} /></Section>
           <Section eyebrow="03 · Schema prüfen" title="Entspricht die Nachricht dem bestätigten Vertrag?" wide>
-            <p className="mt-1 text-xs text-muted-foreground">Vor der fachlichen Übersetzung wird Struktur, Datentyp und Format gegen den bestätigten Schnittstellenvertrag geprüft.</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              <div><p className="text-xs font-semibold">Bestätigter Contract</p><JsonBlock value={contract} /></div>
-              <div><p className="text-xs font-semibold">Prüfergebnis</p><JsonBlock value={schema} /></div>
-            </div>
-            {gatewayIssues.filter(({ scope }) => scope === "contract").map(({ issue, message }) => (
-              <p key={issue} className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-800">{issue}: {message}</p>
-            ))}
+            <div className="mt-3 grid gap-3 md:grid-cols-2"><div><p className="text-xs font-semibold">Bestätigter Contract</p><JsonBlock value={contract} /></div><div><p className="text-xs font-semibold">Prüfergebnis</p><JsonBlock value={schema} /></div></div>
           </Section>
-
           <Section eyebrow="04 · Missing-Regel prüfen" title="Ist der Quellwert laut bestätigter Regel fehlend?"><JsonBlock value={missing} /></Section>
           <Section eyebrow="05 · Semantik bestimmen" title="Was bedeutet Feld und konkreter Wert?"><JsonBlock value={semantics} /></Section>
           <Section eyebrow="06 · Field Map anwenden" title="Quellfelder neutralen Feldern zuordnen"><JsonBlock value={fieldMap} /></Section>
@@ -364,49 +405,77 @@ export default function BridgePage() {
           <Section eyebrow="09 · Canonical Model aufbauen" title="Neutral übersetzte Werte speichern"><JsonBlock value={mapped} /></Section>
 
           <Section eyebrow="10 · Validieren" title="Fachliche Regeln gegen das Ergebnis prüfen" wide>
-            <p className="mt-1 text-xs text-muted-foreground">Transport- und Vertragsprobleme bleiben getrennte Fehlerklassen.</p>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               {checks.map(({ label, ok, rule, observed, severity }) => (
                 <div key={label} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
-                  <div>
-                    <p className="text-sm font-medium">{label}</p>
-                    <p className="text-[11px] text-muted-foreground">{observed} · Regel: {rule} · {severity}</p>
-                  </div>
+                  <div><p className="text-sm font-medium">{label}</p><p className="text-[11px] text-muted-foreground">{observed} · Regel: {rule} · {severity}</p></div>
                   <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${ok ? "bg-teal-50 text-teal-700" : "bg-red-50 text-red-700"}`}>{ok ? "OK" : "FEHLER"}</span>
                 </div>
               ))}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Daten-Fehlerfall laden</button>
-              <button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadRecord(demoValidRecord)}>Gültigen Fall laden</button>
-            </div>
+            <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Daten-Fehlerfall laden</button><button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadRecord(demoValidRecord)}>Gültigen Fall laden</button></div>
           </Section>
 
           <Section eyebrow="11 · Issue erzeugen" title={(issues.length + gatewayIssues.length) ? `${issues.length + gatewayIssues.length} Abweichung${issues.length + gatewayIssues.length === 1 ? "" : "en"} dokumentiert` : "Keine Issues"}>
-            {gatewayIssues.length > 0 && <JsonBlock value={gatewayIssues} />}
-            {issues.length > 0 ? <JsonBlock value={issues} /> : gatewayIssues.length === 0 && <p className="mt-3 rounded-xl bg-teal-50 p-3 text-sm text-teal-800">Keine Regelverletzung gefunden.</p>}
+            {issues.length + gatewayIssues.length === 0 ? <p className="mt-3 rounded-xl bg-teal-50 p-3 text-sm text-teal-800">Keine Regelverletzung gefunden.</p> : <p className="mt-3 text-sm text-muted-foreground">Die einzelnen Ursachen werden in Schritt 13 verständlich erklärt.</p>}
+            <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technische Issues anzeigen</summary><JsonBlock value={{ gatewayIssues, issues }} /></details>
           </Section>
 
           <Section eyebrow="12 · Trace erzeugen" title="Jeder Wert und jede Nachricht behält seine Spur">
-            <p className="mt-1 text-xs text-muted-foreground">Request/Response-Verknüpfung und Daten-Trace bleiben getrennt, aber über Message- und Correlation-ID gemeinsam nachvollziehbar.</p>
-            <JsonBlock value={{ interactionTrace, valueTrace: trace }} />
+            <p className="mt-1 text-xs text-muted-foreground">Die technische Spur bleibt vollständig vorhanden, steht aber nicht mehr vor der verständlichen Erklärung.</p>
+            <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technischen Trace anzeigen</summary><JsonBlock value={{ interactionTrace, valueTrace: trace }} /></details>
           </Section>
 
-          <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert"}>
-            <div className={`mt-3 rounded-xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
-              <p className={`text-lg font-bold ${effectiveReleaseAllowed ? "text-teal-800" : "text-red-800"}`}>releaseAllowed = {String(effectiveReleaseAllowed)}</p>
-              <p className="mt-2 text-sm text-muted-foreground">{effectiveReleaseAllowed ? "Transport, Vertrag, Datenprüfung und Report enthalten kein BLOCKING-Issue." : `${effectiveBlockingCount} BLOCKING-Issue${effectiveBlockingCount === 1 ? "" : "s"} vorhanden. Freigabe blockiert.`}</p>
-              <p className="mt-2 text-xs font-semibold">BLOCKING-Issues gesamt: {effectiveBlockingCount}</p>
-              {!releaseConsistent && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-900">Interne Abweichung erkannt: Engine, sichtbare Prüfungen und Report stimmen nicht überein. Die Anzeige bleibt fail-safe blockiert.</p>}
+          <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert"} wide>
+            <div className={`mt-3 rounded-2xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
+              <p className="text-xs font-bold uppercase tracking-[0.14em]">Was ist die Entscheidung?</p>
+              <p className={`mt-1 text-2xl font-bold ${effectiveReleaseAllowed ? "text-teal-900" : "text-red-900"}`}>{effectiveReleaseAllowed ? "Dieser Datensatz kann intern freigegeben werden." : "Dieser Datensatz darf noch nicht weitergegeben werden."}</p>
+              <p className="mt-2 text-sm leading-relaxed opacity-80">{effectiveReleaseAllowed ? "Transport, Schnittstellenvertrag und fachliche Regeln sind bestätigt. Es gibt aktuell keinen bekannten Blocker." : `${effectiveBlockingCount} bestätigte Blocker verhindern eine sichere Weitergabe. Die Bridge verändert keinen Wert, um diese Probleme zu verstecken.`}</p>
             </div>
+
+            {!effectiveReleaseAllowed && (
+              <div className="mt-4 space-y-3">
+                <p className="text-sm font-bold">Warum ist die Freigabe blockiert?</p>
+                {humanReasons.map(({ key, title, explanation }, index) => (
+                  <div key={key} className="rounded-xl border border-red-200 bg-white p-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-red-700">Ursache {index + 1}</p>
+                    <p className="mt-1 font-semibold text-slate-950">{title}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">{explanation}</p>
+                  </div>
+                ))}
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-amber-800">Was bedeutet das?</p>
+                  <p className="mt-1 text-sm leading-relaxed text-amber-950">Mindestens ein Teil der Nachricht ist nicht sicher bestätigt. Eine automatische Weitergabe könnte deshalb einen falschen oder falsch verstandenen Wert in das nächste System tragen.</p>
+                </div>
+                <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+                  <p className="text-xs font-bold uppercase tracking-wide text-sky-800">Nächster sicherer Schritt</p>
+                  <ol className="mt-2 space-y-2 text-sm text-sky-950">
+                    {humanNextSteps.map((step, index) => <li key={step}><strong>{index + 1}.</strong> {step}</li>)}
+                  </ol>
+                </div>
+              </div>
+            )}
+
+            <details className="mt-4 rounded-xl border bg-white px-3 py-2">
+              <summary className="cursor-pointer text-sm font-semibold">Technischen Entscheidungsnachweis anzeigen</summary>
+              <JsonBlock value={{ releaseAllowed: effectiveReleaseAllowed, blockingIssues: effectiveBlockingCount, engineRelease: release, reportErrors: report.errors }} />
+              {!releaseConsistent && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-900">Interne Abweichung erkannt: Engine, sichtbare Prüfungen und Report stimmen nicht überein. Die Anzeige bleibt fail-safe blockiert.</p>}
+            </details>
           </Section>
 
-          <Section eyebrow="14 · Report erzeugen" title="Bestätigt, offen, fehlerhaft, nächster Schritt"><JsonBlock value={report} /></Section>
+          <Section eyebrow="14 · Report erzeugen" title="Was ist bestätigt, was bleibt offen und was passiert als Nächstes?" wide>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-teal-200 bg-teal-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-teal-700">Bestätigt</p><p className="mt-1 text-xl font-semibold text-teal-950">{report.confirmedMappings.length} Feldzuordnungen</p><p className="mt-1 text-xs text-teal-900/70">Die bekannten Zuordnungen bleiben nachvollziehbar.</p></div>
+              <div className={`rounded-xl border p-4 ${report.errors.length ? "border-red-200 bg-red-50" : "border-teal-200 bg-teal-50"}`}><p className="text-xs font-bold uppercase tracking-wide">Zu klären</p><p className="mt-1 text-xl font-semibold">{report.errors.length}</p><p className="mt-1 text-xs opacity-70">{report.errors.length ? "Diese Punkte verhindern aktuell die Freigabe." : "Keine blockierenden Punkte offen."}</p></div>
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-sky-700">Nächster Schritt</p><p className="mt-1 text-sm font-semibold text-sky-950">{effectiveReleaseAllowed ? "Freigabe dokumentieren und Ausgabe übergeben." : humanNextSteps[0] ?? report.nextStep}</p></div>
+            </div>
+            <details className="mt-4 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Vollständigen technischen Report anzeigen</summary><JsonBlock value={report} /></details>
+          </Section>
         </div>
 
         <section className="rounded-2xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
           <p className="font-semibold">Grundprinzip</p>
-          <p className="mt-1">Die Bridge schreibt nichts zurück in System A. Sobald Report, Engine oder sichtbare BLOCKING-Prüfungen eine Abweichung zeigen, bleibt die Freigabe fail-safe blockiert.</p>
+          <p className="mt-1">Die Bridge erklärt zuerst verständlich, was schiefgelaufen ist. Der technische Nachweis bleibt vollständig erhalten und kann bei Bedarf aufgeklappt werden.</p>
         </section>
       </div>
     </main>
