@@ -33,8 +33,6 @@ export default function BridgePage() {
   const [rawInput, setRawInput] = useState(() => JSON.stringify(demoValidRecord, null, 2));
   const [inputError, setInputError] = useState<string | null>(null);
 
-  // A single evaluation object is the source of truth for every visible step.
-  // Nothing below recomputes release/issues/canonical values independently.
   const evaluation = evaluateRecord(raw, capturedAt);
   const {
     snapshot,
@@ -52,10 +50,15 @@ export default function BridgePage() {
     report,
   } = evaluation;
 
-  const blockingIssueCount = issues.filter(({ severity }) => severity === "blocking").length;
+  // Fail-safe release gate: the visible decision is derived directly from failed
+  // blocking checks. Even if a downstream release object were ever inconsistent,
+  // the UI can never display an allowed release while blocking checks are failing.
+  const blockingChecks = checks.filter(({ ok, severity }) => !ok && severity === "blocking");
+  const effectiveBlockingCount = blockingChecks.length;
+  const effectiveReleaseAllowed = effectiveBlockingCount === 0;
   const releaseConsistent =
-    release.blockingIssues === blockingIssueCount &&
-    release.releaseAllowed === (blockingIssueCount === 0);
+    release.blockingIssues === effectiveBlockingCount &&
+    release.releaseAllowed === effectiveReleaseAllowed;
 
   function loadRecord(nextRecord: RawRecord) {
     setRaw(nextRecord);
@@ -95,7 +98,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.8</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.9 · Fail-safe Gate</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Der 14-Schritte-Entknotungs-Check läuft jetzt als sichtbarer Prüfpfad.</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Kein Wert wird stillschweigend umgedeutet. Quelle, Bedeutung, Zuordnung, Transformation, Prüfung und Freigabe bleiben getrennt und nachvollziehbar.</p>
         </header>
@@ -187,19 +190,21 @@ export default function BridgePage() {
             <JsonBlock value={trace} />
           </Section>
 
-          <Section eyebrow="13 · Freigabe entscheiden" title={release.releaseAllowed ? "Freigabe erlaubt" : "Freigabe blockiert"}>
-            {!releaseConsistent ? (
-              <div className="mt-3 rounded-xl border border-red-300 bg-red-50 p-4 text-red-900">
-                <p className="font-bold">Interner Konsistenzfehler</p>
-                <p className="mt-2 text-sm">Die Freigabeanzeige passt nicht zur Zahl der BLOCKING-Issues. Deshalb wird keine Freigabe ausgewiesen.</p>
-              </div>
-            ) : (
-              <div className={`mt-3 rounded-xl border p-4 ${release.releaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
-                <p className={`text-lg font-bold ${release.releaseAllowed ? "text-teal-800" : "text-red-800"}`}>releaseAllowed = {String(release.releaseAllowed)}</p>
-                <p className="mt-2 text-sm text-muted-foreground">{release.reason}</p>
-                <p className="mt-2 text-xs font-semibold">BLOCKING-Issues: {release.blockingIssues}</p>
-              </div>
-            )}
+          <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Freigabe erlaubt" : "Freigabe blockiert"}>
+            <div className={`mt-3 rounded-xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
+              <p className={`text-lg font-bold ${effectiveReleaseAllowed ? "text-teal-800" : "text-red-800"}`}>releaseAllowed = {String(effectiveReleaseAllowed)}</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {effectiveReleaseAllowed
+                  ? "Keine fehlgeschlagene BLOCKING-Regel vorhanden."
+                  : `${effectiveBlockingCount} fehlgeschlagene BLOCKING-Regel${effectiveBlockingCount === 1 ? "" : "n"} vorhanden. Freigabe blockiert.`}
+              </p>
+              <p className="mt-2 text-xs font-semibold">BLOCKING-Issues: {effectiveBlockingCount}</p>
+              {!releaseConsistent && (
+                <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-900">
+                  Interne Abweichung erkannt: Die Engine-Release-Angabe stimmt nicht mit den fehlgeschlagenen BLOCKING-Prüfungen überein. Die Anzeige bleibt deshalb fail-safe blockiert.
+                </p>
+              )}
+            </div>
           </Section>
 
           <Section eyebrow="14 · Report erzeugen" title="Bestätigt, offen, fehlerhaft, nächster Schritt">
