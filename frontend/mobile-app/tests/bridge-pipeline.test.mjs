@@ -12,9 +12,17 @@ function blockingIssues(evaluation) {
   return evaluation.issues.filter(({ severity }) => severity === "blocking");
 }
 
-test("valid case stays consistent from source through report", () => {
+test("valid case stays consistent from ingress through report", () => {
   const evaluation = evaluateRecord(demoValidRecord, capturedAt);
 
+  assert.deepEqual(evaluation.ingress, {
+    source: "system_a",
+    transport: "demo",
+    messageId: `msg:system_a:A-10027:${capturedAt}`,
+    receivedAt: capturedAt,
+    destination: "bridge",
+  });
+  assert.deepEqual(evaluation.snapshot.ingress, evaluation.ingress);
   assert.deepEqual(evaluation.snapshot.values, demoValidRecord);
   assert.deepEqual(evaluation.mapped, {
     customerId: "4711",
@@ -28,11 +36,32 @@ test("valid case stays consistent from source through report", () => {
   assert.equal(evaluation.release.blockingIssues, 0);
   assert.equal(evaluation.release.releaseAllowed, true);
   assert.equal(evaluation.report.errors.length, 0);
+  assert.equal(evaluation.provenance.transport, "demo");
+  assert.equal(evaluation.provenance.messageId, evaluation.ingress.messageId);
 
   const dateTrace = evaluation.trace.find(({ sourceField }) => sourceField === "DATUM");
   assert.equal(dateTrace?.sourceValue, "07.09.2026");
   assert.equal(dateTrace?.canonicalValue, "2026-09-07");
   assert.equal(dateTrace?.validation, "passed");
+});
+
+test("custom ingress context is preserved without changing source values", () => {
+  const evaluation = evaluateRecord(demoValidRecord, capturedAt, {
+    source: "legacy_orders",
+    transport: "queue",
+    messageId: "queue-msg-4711",
+    destination: "petraplan-bridge",
+  });
+
+  assert.deepEqual(evaluation.snapshot.values, demoValidRecord);
+  assert.equal(evaluation.ingress.source, "legacy_orders");
+  assert.equal(evaluation.ingress.transport, "queue");
+  assert.equal(evaluation.ingress.messageId, "queue-msg-4711");
+  assert.equal(evaluation.ingress.receivedAt, capturedAt);
+  assert.equal(evaluation.ingress.destination, "petraplan-bridge");
+  assert.equal(evaluation.provenance.source, "legacy_orders");
+  assert.equal(evaluation.provenance.transport, "queue");
+  assert.equal(evaluation.release.releaseAllowed, true);
 });
 
 test("conflict case creates exactly two blocking issues and blocks release", () => {
