@@ -85,7 +85,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.6</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.7</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Der 14-Schritte-Entknotungs-Check läuft jetzt als sichtbarer Prüfpfad.</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Kein Wert wird stillschweigend umgedeutet. Quelle, Bedeutung, Zuordnung, Transformation, Prüfung und Freigabe bleiben getrennt und nachvollziehbar.</p>
         </header>
@@ -146,6 +146,7 @@ export default function BridgePage() {
           </Section>
 
           <Section eyebrow="09 · Canonical Model aufbauen" title="Neutral übersetzte Werte speichern">
+            <p className="mt-1 text-xs text-muted-foreground">Ab hier gelten nur die kanonischen Feldnamen und die bereits bestätigten Transformationen: status, quantity und orderDate bleiben über Trace und Validierung identisch nachvollziehbar.</p>
             <JsonBlock value={mapped} />
           </Section>
 
