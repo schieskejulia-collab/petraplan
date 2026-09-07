@@ -149,6 +149,33 @@ test("conflict case creates exactly two data blockers and blocks release", () =>
   assert.equal(evaluation.release.releaseAllowed, false);
 });
 
+test("full entanglement demo can never report blockers while allowing release", () => {
+  const evaluation = evaluateRecord(
+    demoConflictRecord,
+    capturedAt,
+    {
+      source: "legacy_orders",
+      transport: "webservice",
+      service: "legacy-order-service",
+      operation: "pushOrder",
+      interactionMode: "request_reply",
+      contract: "order-v2-field-drift",
+      transportStatus: "received",
+      messageId: `request:A-10027:${capturedAt}`,
+      correlationId: "corr:A-10027:demo",
+      destination: "petraplan-bridge",
+    },
+    { status: "pending", messageId: null, respondedAt: null, result: null },
+  );
+
+  const blocking = totalBlockingIssues(evaluation);
+  assert.equal(blocking, 3);
+  assert.equal(evaluation.report.errors.length, 3);
+  assert.equal(evaluation.release.blockingIssues, 3);
+  assert.equal(evaluation.release.releaseAllowed, false);
+  assert.equal(evaluation.report.errors.length > 0 && evaluation.release.releaseAllowed, false);
+});
+
 test("release gate always matches transport, contract and data blockers", () => {
   const cases = [
     evaluateRecord(demoValidRecord, capturedAt),
@@ -162,5 +189,6 @@ test("release gate always matches transport, contract and data blockers", () => 
     assert.equal(evaluation.release.blockingIssues, blocking);
     assert.equal(evaluation.release.releaseAllowed, blocking === 0);
     assert.equal(evaluation.report.errors.length, blocking);
+    assert.equal(evaluation.report.errors.length > 0 && evaluation.release.releaseAllowed, false);
   }
 });
