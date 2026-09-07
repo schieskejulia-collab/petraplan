@@ -94,7 +94,7 @@ export default function BridgePage() {
         return {
           key: `${field}-${issue}`,
           title: `Der Statuswert „${sourceValue}“ hat keine bestätigte Bedeutung`,
-          explanation: "Die Bridge könnte den Wert raten oder stillschweigend ersetzen. Genau das tut sie nicht. Ohne bestätigte Value-Map bleibt der Status ungeklärt.",
+          explanation: "Ohne bestätigte Value-Map gibt es keine sichere Bedeutung für diesen Status. Die Bridge erfindet keine Bedeutung und ersetzt den Wert nicht stillschweigend.",
           next: `Klären, was STATUS=${sourceValue} fachlich bedeutet und die Zuordnung erst danach bestätigen.`,
         };
       }
@@ -272,7 +272,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.16 · Ursachen-Erklärung</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.17 · Klarer Bericht</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Vier Phasen außen. Vierzehn Schritte darunter.</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check zeigt nicht nur, ob etwas blockiert ist, sondern warum, was das bedeutet und welcher sichere nächste Schritt folgt.</p>
         </header>
@@ -465,9 +465,26 @@ export default function BridgePage() {
 
           <Section eyebrow="14 · Report erzeugen" title="Was ist bestätigt, was bleibt offen und was passiert als Nächstes?" wide>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-teal-200 bg-teal-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-teal-700">Bestätigt</p><p className="mt-1 text-xl font-semibold text-teal-950">{report.confirmedMappings.length} Feldzuordnungen</p><p className="mt-1 text-xs text-teal-900/70">Die bekannten Zuordnungen bleiben nachvollziehbar.</p></div>
-              <div className={`rounded-xl border p-4 ${report.errors.length ? "border-red-200 bg-red-50" : "border-teal-200 bg-teal-50"}`}><p className="text-xs font-bold uppercase tracking-wide">Zu klären</p><p className="mt-1 text-xl font-semibold">{report.errors.length}</p><p className="mt-1 text-xs opacity-70">{report.errors.length ? "Diese Punkte verhindern aktuell die Freigabe." : "Keine blockierenden Punkte offen."}</p></div>
-              <div className="rounded-xl border border-sky-200 bg-sky-50 p-4"><p className="text-xs font-bold uppercase tracking-wide text-sky-700">Nächster Schritt</p><p className="mt-1 text-sm font-semibold text-sky-950">{effectiveReleaseAllowed ? "Freigabe dokumentieren und Ausgabe übergeben." : humanNextSteps[0] ?? report.nextStep}</p></div>
+              <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-teal-700">Bekannt</p>
+                <p className="mt-1 text-xl font-semibold text-teal-950">{report.confirmedMappings.length} Feldnamen-Zuordnungen</p>
+                <p className="mt-1 text-xs text-teal-900/70">Diese Feldnamen-Zuordnungen sind bekannt. Die Bedeutung einzelner Werte kann trotzdem noch ungeklärt sein.</p>
+              </div>
+              <div className={`rounded-xl border p-4 ${report.errors.length ? "border-red-200 bg-red-50" : "border-teal-200 bg-teal-50"}`}>
+                <p className="text-xs font-bold uppercase tracking-wide">Offene Blocker</p>
+                <p className="mt-1 text-xl font-semibold">{report.errors.length}</p>
+                <p className="mt-1 text-xs opacity-70">{report.errors.length ? "Diese Punkte verhindern aktuell die Freigabe." : "Keine blockierenden Punkte offen."}</p>
+              </div>
+              <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-sky-700">Nächste sichere Schritte</p>
+                {effectiveReleaseAllowed ? (
+                  <p className="mt-1 text-sm font-semibold text-sky-950">Freigabe dokumentieren und Ausgabe übergeben.</p>
+                ) : (
+                  <ol className="mt-2 space-y-2 text-sm font-semibold text-sky-950">
+                    {humanNextSteps.map((step, index) => <li key={step}><strong>{index + 1}.</strong> {step}</li>)}
+                  </ol>
+                )}
+              </div>
             </div>
             <details className="mt-4 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Vollständigen technischen Report anzeigen</summary><JsonBlock value={report} /></details>
           </Section>
