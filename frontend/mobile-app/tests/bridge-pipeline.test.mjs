@@ -252,3 +252,21 @@ test("constraint decision independently matches the release gate for representat
     if (!decision.releaseAllowed) assert.ok(decision.resolutionProposals.length > 0);
   }
 });
+
+test("pipeline exposes the exact constraint set used for release and report", () => {
+  const evaluation = evaluateRecord(demoConflictRecord, capturedAt, {
+    contract: "order-v2-field-drift",
+  });
+  const embeddedDecision = decideFromConstraints(evaluation.constraints);
+  const recomputed = evaluateBridgeConstraints(evaluation);
+
+  assert.deepEqual(evaluation.constraints, recomputed);
+  assert.equal(embeddedDecision.releaseAllowed, evaluation.release.releaseAllowed);
+  assert.equal(embeddedDecision.blockingIssues, evaluation.release.blockingIssues);
+  assert.deepEqual(
+    embeddedDecision.failedConstraintIds,
+    ["contract.version", "status.value_map", "quantity.positive"],
+  );
+  assert.equal(evaluation.report.errors.length, embeddedDecision.blockingIssues);
+  assert.ok(evaluation.report.nextStep.includes("Auflösungsvorschläge"));
+});
