@@ -7,6 +7,7 @@ import {
 } from "../.bridge-test-build/bridge-pipeline.js";
 import {
   blockingConstraintFailures,
+  decideFromConstraints,
   evaluateBridgeConstraints,
 } from "../.bridge-test-build/bridge-constraints.js";
 
@@ -201,7 +202,7 @@ test("constraint model gives every rule evidence, safe action and resolution pro
   const results = evaluateBridgeConstraints(evaluateRecord(demoConflictRecord, capturedAt));
   const failures = blockingConstraintFailures(results);
 
-  assert.equal(results.length, 6);
+  assert.equal(results.length, 8);
   assert.equal(failures.length, 2);
   assert.deepEqual(failures.map(({ id }) => id), ["status.value_map", "quantity.positive"]);
 
@@ -222,10 +223,32 @@ test("constraint model separates contract, semantics and data conflicts", () => 
   assert.deepEqual(
     failures.map(({ id, category }) => [id, category]),
     [
-      ["contract.confirmed", "contract"],
+      ["contract.version", "contract"],
       ["status.value_map", "semantics"],
       ["quantity.positive", "data"],
     ],
   );
   assert.equal(failures.length, evaluation.release.blockingIssues);
+});
+
+test("constraint decision independently matches the release gate for representative cases", () => {
+  const cases = [
+    evaluateRecord(demoValidRecord, capturedAt),
+    evaluateRecord(demoConflictRecord, capturedAt),
+    evaluateRecord(demoValidRecord, capturedAt, { transportStatus: "timeout" }),
+    evaluateRecord(demoValidRecord, capturedAt, { contract: "unknown-contract" }),
+    evaluateRecord({ ...demoValidRecord, KUNDEN_NR: "" }, capturedAt),
+    evaluateRecord({ ...demoValidRecord, DATUM: "09/07/2026" }, capturedAt),
+  ];
+
+  for (const evaluation of cases) {
+    const results = evaluateBridgeConstraints(evaluation);
+    const decision = decideFromConstraints(results);
+
+    assert.equal(decision.releaseAllowed, evaluation.release.releaseAllowed);
+    assert.equal(decision.blockingIssues, evaluation.release.blockingIssues);
+    assert.equal(decision.blockingIssues, evaluation.report.errors.length);
+    assert.equal(decision.failedConstraintIds.length, decision.blockingIssues);
+    if (!decision.releaseAllowed) assert.ok(decision.resolutionProposals.length > 0);
+  }
 });
