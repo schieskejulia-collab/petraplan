@@ -16,11 +16,19 @@ export type ConstraintResult = {
   resolutionProposal: string;
 };
 
+export type ConstraintDecision = {
+  releaseAllowed: boolean;
+  blockingIssues: number;
+  failedConstraintIds: string[];
+  resolutionProposals: string[];
+};
+
 export function evaluateBridgeConstraints(evaluation: BridgeEvaluation): ConstraintResult[] {
   const statusTargets = evaluation.valueMap
     .filter(([field]) => field === "STATUS")
     .map(([, source, target]) => `${source} → ${target}`)
     .join(", ");
+  const failedSchema = evaluation.schema.filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk);
 
   return [
     {
@@ -38,18 +46,34 @@ export function evaluateBridgeConstraints(evaluation: BridgeEvaluation): Constra
         : "Transportweg prüfen und erst nach bestätigtem Eingang erneut bewerten.",
     },
     {
-      id: "contract.confirmed",
+      id: "contract.version",
       category: "contract",
       field: null,
       label: "Schnittstellenvertrag ist bestätigt",
-      passed: evaluation.ingress.contract === evaluation.contract.name && evaluation.schema.every(({ present, typeOk, formatOk }) => present && typeOk && formatOk),
+      passed: evaluation.ingress.contract === evaluation.contract.name,
       severity: "blocking",
-      rule: `Vertrag muss ${evaluation.contract.name} entsprechen und alle Felder müssen Schema/Format erfüllen`,
-      evidence: `gesendet=${evaluation.ingress.contract}; bestätigt=${evaluation.contract.name}; schemaFehler=${evaluation.schema.filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk).length}`,
+      rule: `Vertragsversion muss ${evaluation.contract.name} entsprechen`,
+      evidence: `gesendet=${evaluation.ingress.contract}; bestätigt=${evaluation.contract.name}`,
       safeAction: "Keine unbekannte Vertragsversion stillschweigend übernehmen.",
       resolutionProposal: evaluation.ingress.contract === evaluation.contract.name
-        ? "Abweichende Felder gezielt gegen den bestätigten Vertrag prüfen."
+        ? "Keine Vertragsauflösung nötig."
         : `Vertragsversion ${evaluation.ingress.contract} bestätigen oder eine dokumentierte Zuordnung zu ${evaluation.contract.name} anlegen.`,
+    },
+    {
+      id: "contract.schema",
+      category: "contract",
+      field: null,
+      label: "Nachricht entspricht dem bestätigten Schema",
+      passed: failedSchema.length === 0,
+      severity: "blocking",
+      rule: "Alle Pflichtfelder müssen vorhanden sein und dem bestätigten Typ/Format entsprechen",
+      evidence: failedSchema.length === 0
+        ? "schemaFehler=0"
+        : `schemaFehler=${failedSchema.length}; felder=${failedSchema.map(({ field }) => field).join(",")}`,
+      safeAction: "Abweichende Struktur nicht stillschweigend als gültigen Vertrag behandeln.",
+      resolutionProposal: failedSchema.length === 0
+        ? "Keine Schemaauflösung nötig."
+        : `Abweichende Felder (${failedSchema.map(({ field }) => field).join(", ")}) gegen ${evaluation.contract.name} prüfen und Vertrag oder Nachricht eindeutig angleichen.`,
     },
     {
       id: "customer.required",
@@ -62,6 +86,18 @@ export function evaluateBridgeConstraints(evaluation: BridgeEvaluation): Constra
       evidence: `KUNDEN_NR=${evaluation.raw.KUNDEN_NR || "<leer>"}`,
       safeAction: "Fehlende Kundenkennung nicht erfinden.",
       resolutionProposal: "Kundenkennung an der Quelle ergänzen oder die Pflichtregel fachlich neu bestätigen.",
+    },
+    {
+      id: "order.demo_reference",
+      category: "data",
+      field: "AUFTRAGS_NR",
+      label: "Auftragsnummer entspricht dem Demo-Referenzfall",
+      passed: evaluation.checks.find(({ field }) => field === "AUFTRAGS_NR")?.ok ?? false,
+      severity: "warning",
+      rule: "Demo-Referenz ist A-10027",
+      evidence: `AUFTRAGS_NR=${evaluation.raw.AUFTRAGS_NR}`,
+      safeAction: "Abweichende Auftragsnummer dokumentieren; sie blockiert die fachliche Freigabe nicht.",
+      resolutionProposal: "Nur für den Demo-Vergleich prüfen, ob die erwartete Referenz A-10027 verwendet werden sollte.",
     },
     {
       id: "status.value_map",
@@ -106,4 +142,14 @@ export function evaluateBridgeConstraints(evaluation: BridgeEvaluation): Constra
 
 export function blockingConstraintFailures(results: ConstraintResult[]): ConstraintResult[] {
   return results.filter(({ passed, severity }) => !passed && severity === "blocking");
+}
+
+export function decideFromConstraints(results: ConstraintResult[]): ConstraintDecision {
+  const failures = blockingConstraintFailures(results);
+  return {
+    releaseAllowed: failures.length === 0,
+    blockingIssues: failures.length,
+    failedConstraintIds: failures.map(({ id }) => id),
+    resolutionProposals: [...new Set(failures.map(({ resolutionProposal }) => resolutionProposal))],
+  };
 }
