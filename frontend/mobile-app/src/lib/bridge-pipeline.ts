@@ -1,3 +1,10 @@
+import {
+  blockingConstraintFailures,
+  decideFromConstraints,
+  evaluateConstraintSet,
+  type ConstraintResult,
+} from "./bridge-constraints";
+
 export type RawRecord = {
   KUNDEN_NR: string;
   AUFTRAGS_NR: string;
@@ -172,6 +179,7 @@ export type BridgeEvaluation = {
   mapped: MappedRecord;
   checks: ValidationCheck[];
   issues: ValidationIssue[];
+  constraints: ConstraintResult[];
   trace: TraceStep[];
   passed: boolean;
   release: ReleaseDecision;
@@ -423,16 +431,33 @@ export function evaluateRecord(
   ];
 
   const issues: ValidationIssue[] = checks.filter(({ ok }) => !ok).map((check) => ({ field: check.field, issue: check.issueCode, sourceValue: raw[check.field], rule: check.rule, severity: check.severity, message: issueMessage(check, raw) }));
-  const dataBlockingIssues = issues.filter(({ severity }) => severity === "blocking").length;
-  const blockingIssues = dataBlockingIssues + gatewayIssues.length;
-  const releaseAllowed = blockingIssues === 0;
-  const passed = issues.length === 0 && gatewayIssues.length === 0;
+
+  // Single source of truth for decision + report: every blocking outcome is
+  // derived from the same constraint set. Gateway/issues remain as detailed
+  // compatibility views, but they no longer calculate the release decision.
+  const constraints = evaluateConstraintSet({
+    ingress,
+    contract: orderContract,
+    schema,
+    raw,
+    mapped,
+    checks,
+    valueMap,
+  });
+  const constraintDecision = decideFromConstraints(constraints);
+  const blockingConstraints = blockingConstraintFailures(constraints);
+  const warningConstraints = constraints.filter(({ passed: constraintPassed, severity }) => !constraintPassed && severity === "warning");
+  const releaseAllowed = constraintDecision.releaseAllowed;
+  const blockingIssues = constraintDecision.blockingIssues;
+  const passed = constraints.every(({ passed: constraintPassed }) => constraintPassed);
   const sourceRecord = raw.AUFTRAGS_NR;
   const report = {
     confirmedMappings: fieldMap.map(([from, to]) => `${from} → ${to}`),
-    openPoints: issues.filter(({ severity }) => severity === "warning").map(({ message }) => message),
-    errors: [...gatewayIssues.map(({ message }) => message), ...issues.filter(({ severity }) => severity === "blocking").map(({ message }) => message)],
-    nextStep: releaseAllowed ? "Freigabe dokumentieren und Ausgabe übergeben." : "BLOCKING-Issues klären; Transport-, Vertrags- und Datenfehler bleiben getrennt nachvollziehbar.",
+    openPoints: warningConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
+    errors: blockingConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
+    nextStep: releaseAllowed
+      ? "Freigabe dokumentieren und Ausgabe übergeben."
+      : `Auflösungsvorschläge: ${constraintDecision.resolutionProposals.join(" | ")}`,
   };
 
   return {
@@ -462,12 +487,15 @@ export function evaluateRecord(
     mapped,
     checks,
     issues,
+    constraints,
     trace: buildTrace(raw, mapped, checks),
     passed,
     release: {
       releaseAllowed,
       blockingIssues,
-      reason: releaseAllowed ? "Keine fehlgeschlagene BLOCKING-Regel vorhanden." : `${blockingIssues} BLOCKING-Issue${blockingIssues === 1 ? "" : "s"} aus Transport, Vertrag oder Datenprüfung vorhanden. Freigabe blockiert.`,
+      reason: releaseAllowed
+        ? "Alle BLOCKING-Constraints sind erfüllt."
+        : `${blockingIssues} BLOCKING-Constraint${blockingIssues === 1 ? "" : "s"} fehlgeschlagen: ${constraintDecision.failedConstraintIds.join(", ")}. Freigabe blockiert.`,
     },
     provenance: {
       source: ingress.source,
@@ -486,7 +514,10 @@ export function evaluateRecord(
       responseMessageId: interactionTrace.response.messageId,
       mode: "read_only",
       overallStatus: passed ? "valid" : "needs_review",
-      conflicts: [...gatewayIssues.map(({ message }) => message), ...issues.map(({ message }) => message)],
+      conflicts: [
+        ...blockingConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
+        ...warningConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
+      ],
     },
     report,
   };
