@@ -30,6 +30,8 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - name: Compile Bridge pipeline and constraints for node tests
-        run: npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+        run: |
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-pipeline.js
       - name: Test Bridge release consistency and constraints
         run: node --test tests/bridge-pipeline.test.mjs
