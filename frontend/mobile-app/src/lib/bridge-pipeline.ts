@@ -4,6 +4,10 @@ import {
   evaluateConstraintSet,
   type ConstraintResult,
 } from "./bridge-constraints";
+import {
+  deriveBridgeState,
+  type BridgeStateDecision,
+} from "./bridge-state";
 
 export type RawRecord = {
   KUNDEN_NR: string;
@@ -180,6 +184,7 @@ export type BridgeEvaluation = {
   checks: ValidationCheck[];
   issues: ValidationIssue[];
   constraints: ConstraintResult[];
+  state: BridgeStateDecision;
   trace: TraceStep[];
   passed: boolean;
   release: ReleaseDecision;
@@ -432,9 +437,8 @@ export function evaluateRecord(
 
   const issues: ValidationIssue[] = checks.filter(({ ok }) => !ok).map((check) => ({ field: check.field, issue: check.issueCode, sourceValue: raw[check.field], rule: check.rule, severity: check.severity, message: issueMessage(check, raw) }));
 
-  // Single source of truth for decision + report: every blocking outcome is
-  // derived from the same constraint set. Gateway/issues remain as detailed
-  // compatibility views, but they no longer calculate the release decision.
+  // Constraints remain the single source of truth. The state layer interprets
+  // their result into an explicit reaction without changing source values.
   const constraints = evaluateConstraintSet({
     ingress,
     contract: orderContract,
@@ -445,6 +449,7 @@ export function evaluateRecord(
     valueMap,
   });
   const constraintDecision = decideFromConstraints(constraints);
+  const state = deriveBridgeState(constraints);
   const blockingConstraints = blockingConstraintFailures(constraints);
   const warningConstraints = constraints.filter(({ passed: constraintPassed, severity }) => !constraintPassed && severity === "warning");
   const releaseAllowed = constraintDecision.releaseAllowed;
@@ -455,9 +460,9 @@ export function evaluateRecord(
     confirmedMappings: fieldMap.map(([from, to]) => `${from} → ${to}`),
     openPoints: warningConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
     errors: blockingConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
-    nextStep: releaseAllowed
-      ? "Freigabe dokumentieren und Ausgabe übergeben."
-      : `Auflösungsvorschläge: ${constraintDecision.resolutionProposals.join(" | ")}`,
+    nextStep: state.state === "VALID"
+      ? state.reaction
+      : `${state.state}: ${state.reaction} Auflösungsvorschläge: ${constraintDecision.resolutionProposals.join(" | ")}`,
   };
 
   return {
@@ -488,6 +493,7 @@ export function evaluateRecord(
     checks,
     issues,
     constraints,
+    state,
     trace: buildTrace(raw, mapped, checks),
     passed,
     release: {
