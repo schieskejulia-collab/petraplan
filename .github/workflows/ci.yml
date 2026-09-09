@@ -36,4 +36,4 @@ jobs:
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-state.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-pipeline.js
       - name: Test Bridge release consistency, constraints and state
-        run: node --test tests/bridge-pipeline.test.mjs
+        run: node --test tests/*.test.mjs
