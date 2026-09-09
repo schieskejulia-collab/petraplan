@@ -270,3 +270,56 @@ test("pipeline exposes the exact constraint set used for release and report", ()
   assert.equal(evaluation.report.errors.length, embeddedDecision.blockingIssues);
   assert.ok(evaluation.report.nextStep.includes("Auflösungsvorschläge"));
 });
+
+test("constraints carry explicit scope, comparison semantics and no-suppression policy", () => {
+  const evaluation = evaluateRecord(demoConflictRecord, capturedAt);
+  const results = evaluation.constraints;
+
+  assert.deepEqual(results.map(({ sequence }) => sequence), [1, 2, 3, 4, 5, 6, 7, 8]);
+  for (const constraint of results) {
+    assert.equal(constraint.scope.contract, "order-v1");
+    assert.equal(constraint.scope.field, constraint.field);
+    assert.equal(constraint.sourcePolicy, "preserve");
+    assert.equal(constraint.errorPolicy, "capture");
+    assert.ok(constraint.comparison.operator.length > 0);
+    assert.ok(constraint.comparison.expected.length > 0);
+    assert.ok(constraint.comparison.observedType.length > 0);
+  }
+
+  const status = results.find(({ id }) => id === "status.value_map");
+  assert.equal(status.comparison.operator, "in");
+  assert.equal(status.comparison.observed, "UNBEKANNT");
+
+  const quantity = results.find(({ id }) => id === "quantity.positive");
+  assert.equal(quantity.comparison.operator, "greater_than");
+  assert.equal(quantity.comparison.expected, "0");
+  assert.equal(quantity.comparison.observed, "-4");
+  assert.equal(quantity.comparison.observedType, "number");
+  assert.ok(quantity.evidence.includes("source=-4"));
+  assert.ok(quantity.evidence.includes("canonical=-4"));
+  assert.deepEqual(evaluation.snapshot.values, demoConflictRecord);
+});
+
+test("release expression is explicit ordered AND over blocking constraints", () => {
+  const evaluation = evaluateRecord(demoConflictRecord, capturedAt, {
+    contract: "order-v2-field-drift",
+  });
+  const decision = decideFromConstraints(evaluation.constraints);
+
+  assert.ok(decision.expression.includes("transport.received=TRUE"));
+  assert.ok(decision.expression.includes("contract.version=FALSE"));
+  assert.ok(decision.expression.includes("status.value_map=FALSE"));
+  assert.ok(decision.expression.includes("quantity.positive=FALSE"));
+  assert.equal(decision.expression.includes("order.demo_reference"), false);
+  assert.deepEqual(decision.evaluatedConstraintIds, [
+    "transport.received",
+    "contract.version",
+    "contract.schema",
+    "customer.required",
+    "order.demo_reference",
+    "status.value_map",
+    "quantity.positive",
+    "date.canonical",
+  ]);
+  assert.equal(decision.releaseAllowed, false);
+});
