@@ -1,1 +1,0 @@
-Temporary marker for the next runtime capability wiring step. This file can be removed once the runtime decision module and CI wiring are verified against the current BridgeCapabilityProfile API.
