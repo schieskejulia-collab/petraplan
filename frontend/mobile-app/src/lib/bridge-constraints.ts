@@ -80,11 +80,29 @@ function result(
   };
 }
 
+function isRealCanonicalDate(value: string): boolean {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+
+  const [, yearText, monthText, dayText] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
+  if (month < 1 || month > 12 || day < 1) return false;
+
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return day <= daysInMonth;
+}
+
 export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[] {
   const statusEntries = input.valueMap.filter(([field]) => field === "STATUS");
   const statusTargets = statusEntries.map(([, source, target]) => `${source} → ${target}`).join(", ");
   const statusSources = statusEntries.map(([, source]) => source);
   const failedSchema = input.schema.filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk);
+  const dateCheckPassed = input.checks.find(({ field }) => field === "DATUM")?.ok ?? false;
+  const calendarDatePassed = isRealCanonicalDate(input.mapped.orderDate);
 
   return [
     result(input, {
@@ -235,19 +253,21 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
       sequence: 8,
       category: "data",
       field: "DATUM",
-      label: "Datum ist eindeutig normalisiert",
-      passed: input.checks.find(({ field }) => field === "DATUM")?.ok ?? false,
+      label: "Datum ist eindeutig normalisiert und kalendergültig",
+      passed: dateCheckPassed && calendarDatePassed,
       severity: "blocking",
       comparison: {
         operator: "matches",
-        expected: "YYYY-MM-DD",
+        expected: "existierendes Kalenderdatum im Format YYYY-MM-DD",
         observed: input.mapped.orderDate,
         observedType: typeof input.mapped.orderDate,
       },
-      rule: "Nach bestätigter Transformation muss YYYY-MM-DD vorliegen",
-      evidence: `source=${input.raw.DATUM}; sourceType=${typeof input.raw.DATUM}; canonical=${input.mapped.orderDate}; canonicalType=${typeof input.mapped.orderDate}`,
-      safeAction: "Unbekanntes Datumsformat nicht stillschweigend übernehmen; Quellwert bleibt erhalten.",
-      resolutionProposal: "Datumsformat bestätigen oder eine eindeutige Transformationsregel hinterlegen.",
+      rule: "Nach bestätigter Transformation muss ein reales Kalenderdatum in YYYY-MM-DD vorliegen",
+      evidence: `source=${input.raw.DATUM}; sourceType=${typeof input.raw.DATUM}; canonical=${input.mapped.orderDate}; formatOk=${dateCheckPassed}; calendarOk=${calendarDatePassed}; canonicalType=${typeof input.mapped.orderDate}`,
+      safeAction: "Unbekanntes oder unmögliches Datum nicht stillschweigend übernehmen; Quellwert bleibt erhalten.",
+      resolutionProposal: dateCheckPassed && calendarDatePassed
+        ? "Keine Datumsauflösung nötig."
+        : "Datumsformat und tatsächliche Kalendergültigkeit an der Quelle prüfen; keinen unmöglichen Tag oder Monat automatisch korrigieren.",
     }),
   ];
 }
