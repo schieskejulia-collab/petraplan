@@ -478,6 +478,7 @@ export function evaluateRecord(
   const mapped = toMappedRecord(canonicalMapping);
 
   const quantitySchemaOk = schema.find(({ field }) => field === "MENGE")?.formatOk ?? false;
+  const quantityConversion = canonicalMapping.fields.find(({ targetField }) => targetField === "quantity")?.conversion;
   const dateSchemaOk = schema.find(({ field }) => field === "DATUM")?.formatOk ?? false;
 
   const transformations = [
@@ -505,7 +506,7 @@ export function evaluateRecord(
       ok: isMissing(raw.MENGE)
         ? false
         : !quantitySchemaOk
-          ? true
+          ? quantityConversion?.safety !== "blocked"
           : mapped.quantity !== null && Number.isFinite(mapped.quantity) && mapped.quantity > 0,
       rule: "Zahl > 0",
       issueCode: "NEGATIVE_VALUE",
