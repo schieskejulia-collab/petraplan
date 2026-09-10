@@ -1,46 +1,43 @@
-import type { BridgeCapabilityProfile } from "./bridge-capability-profile";
+import {
+  assessOperationAgainstProfile,
+  type CapabilityProfile,
+  type OperationCapabilityAssessment,
+  type OperationRequirement,
+} from "./bridge-capability-profile";
 
 export type BridgeRuntimeDecision = {
-  capabilityId: string;
-  allowed: boolean;
-  reason: "supported" | "unsupported" | "missing_prerequisite";
-  missingPrerequisites: string[];
+  operation: string;
+  allowedByCapabilities: boolean;
+  failedRequirements: string[];
+  evidence: string[];
+  sourcePolicy: "preserve";
+  releaseAuthority: "none";
 };
 
-export function decideCapabilityAtRuntime(
-  profile: BridgeCapabilityProfile,
-  capabilityId: string,
-  availablePrerequisites: string[] = [],
+/**
+ * Runtime gate for technical operations.
+ *
+ * This delegates capability truth to the previously built CapabilityProfile instead
+ * of re-interpreting driver/database behavior at runtime. It deliberately does not
+ * grant business release authority and never changes the connected source.
+ */
+export function decideRuntimeOperation(
+  profile: CapabilityProfile,
+  operation: string,
+  requirements: readonly OperationRequirement[],
 ): BridgeRuntimeDecision {
-  const capability = profile.capabilities.find((item) => item.id === capabilityId);
-
-  if (!capability || capability.supported === false) {
-    return {
-      capabilityId,
-      allowed: false,
-      reason: "unsupported",
-      missingPrerequisites: [],
-    };
-  }
-
-  const prerequisites = capability.prerequisites ?? [];
-  const missingPrerequisites = prerequisites.filter(
-    (required) => !availablePrerequisites.includes(required),
+  const assessment: OperationCapabilityAssessment = assessOperationAgainstProfile(
+    profile,
+    operation,
+    requirements,
   );
 
-  if (missingPrerequisites.length > 0) {
-    return {
-      capabilityId,
-      allowed: false,
-      reason: "missing_prerequisite",
-      missingPrerequisites,
-    };
-  }
-
   return {
-    capabilityId,
-    allowed: true,
-    reason: "supported",
-    missingPrerequisites: [],
+    operation: assessment.operation,
+    allowedByCapabilities: assessment.allowedByProfile,
+    failedRequirements: [...assessment.failedRequirements],
+    evidence: [...assessment.evidence],
+    sourcePolicy: "preserve",
+    releaseAuthority: "none",
   };
 }
