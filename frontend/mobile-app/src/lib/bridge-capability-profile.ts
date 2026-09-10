@@ -95,8 +95,10 @@ function hasText(value: string): boolean {
  *
  * The profile does not infer support from a database family name alone. A capability
  * is only treated as established when the input explicitly reports its support state
- * and includes usable evidence. The profile never decides business release and never
- * mutates the connected source.
+ * and includes strong, reusable evidence. Human-only or merely observed behavior can
+ * be recorded, but cannot authorize later operations from this profile.
+ *
+ * The profile never decides business release and never mutates the connected source.
  */
 export function buildCapabilityProfile(input: CapabilityProfileInput): CapabilityProfile {
   const identityComplete =
@@ -108,14 +110,19 @@ export function buildCapabilityProfile(input: CapabilityProfileInput): Capabilit
 
   const structureComplete = Object.values(input.structure).every(Boolean);
 
-  const unresolvedCapabilities = input.capabilities
-    .filter(({ support, evidence }) => support === "unknown" || evidence.level === "missing" || !hasText(evidence.reference))
-    .map(({ capability }) => capability);
-
   const weaklyEvidencedCapabilities = input.capabilities
     .filter(({ support, evidence }) =>
       support !== "unknown" &&
       hasText(evidence.reference) &&
+      !strongEvidence.has(evidence.level),
+    )
+    .map(({ capability }) => capability);
+
+  const unresolvedCapabilities = input.capabilities
+    .filter(({ support, evidence }) =>
+      support === "unknown" ||
+      evidence.level === "missing" ||
+      !hasText(evidence.reference) ||
       !strongEvidence.has(evidence.level),
     )
     .map(({ capability }) => capability);
@@ -147,11 +154,11 @@ export function buildCapabilityProfile(input: CapabilityProfileInput): Capabilit
     },
     {
       id: "capability.evidence",
-      label: "Fähigkeitsangaben besitzen verwendbare Belege",
+      label: "Fähigkeitsangaben besitzen starke, wiederverwendbare Belege",
       passed: evidenceComplete,
-      observed: unresolvedCapabilities.length === 0 ? "alle Angaben belegt" : `ungeklärt: ${unresolvedCapabilities.join(", ")}`,
-      expected: "expliziter Supportstatus plus verwertbare Evidenz",
-      safeAction: "Unbelegte Fähigkeiten als unbekannt behandeln, nicht als unterstützt.",
+      observed: unresolvedCapabilities.length === 0 ? "alle Angaben stark belegt" : `ungeklärt/zu schwach: ${unresolvedCapabilities.join(", ")}`,
+      expected: "expliziter Supportstatus plus Metadaten-, Treiber- oder Dokumentationsbeleg",
+      safeAction: "Beobachtete oder nur menschlich behauptete Fähigkeiten dokumentieren, aber nicht als wiederverwendbare technische Wahrheit behandeln.",
     },
     {
       id: "capability.unknowns",
@@ -225,7 +232,7 @@ export function assessOperationAgainstProfile(
     const supported =
       profile.usableForOperationChecks &&
       match?.support === "supported" &&
-      match.evidence.level !== "missing" &&
+      strongEvidence.has(match.evidence.level) &&
       hasText(match.evidence.reference);
 
     if (!supported) failedRequirements.push(requirement.capability);
