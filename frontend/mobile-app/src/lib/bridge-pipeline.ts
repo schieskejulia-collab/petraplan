@@ -8,6 +8,11 @@ import {
   deriveBridgeState,
   type BridgeStateDecision,
 } from "./bridge-state";
+import {
+  assessCanonicalMapping,
+  type CanonicalMappingAssessment,
+  type CanonicalFieldRule,
+} from "./bridge-canonical-mapping";
 
 export type RawRecord = {
   KUNDEN_NR: string;
@@ -18,11 +23,11 @@ export type RawRecord = {
 };
 
 export type MappedRecord = {
-  customerId: string;
-  orderId: string;
+  customerId: string | null;
+  orderId: string | null;
   status: "open" | "closed" | "in_progress" | null;
-  quantity: number;
-  orderDate: string;
+  quantity: number | null;
+  orderDate: string | null;
 };
 
 export type IngressTransport = "demo" | "api" | "queue" | "file" | "manual" | "webservice";
@@ -180,6 +185,7 @@ export type BridgeEvaluation = {
   fieldMap: typeof fieldMap;
   valueMap: typeof valueMap;
   transformations: Array<{ field: keyof RawRecord; before: string; after: string; rule: string }>;
+  canonicalMapping: CanonicalMappingAssessment;
   mapped: MappedRecord;
   checks: ValidationCheck[];
   issues: ValidationIssue[];
@@ -248,12 +254,64 @@ function isMissing(value: string): boolean {
   return missingMarkers.has(value.trim().toUpperCase());
 }
 
-function normalizeDate(value: string): string {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
-  const match = value.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-  if (!match) return value;
-  const [, day, month, year] = match;
-  return `${year}-${month}-${day}`;
+function confirmedDateFormat(value: string): "YYYY-MM-DD" | "DD.MM.YYYY" | undefined {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return "YYYY-MM-DD";
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(value)) return "DD.MM.YYYY";
+  return undefined;
+}
+
+function canonicalRules(raw: RawRecord): CanonicalFieldRule[] {
+  return [
+    {
+      sourceField: "KUNDEN_NR",
+      targetField: "customerId",
+      conversion: { sourceField: "KUNDEN_NR", targetField: "customerId", sourceType: "string", targetType: "string" },
+    },
+    {
+      sourceField: "AUFTRAGS_NR",
+      targetField: "orderId",
+      conversion: { sourceField: "AUFTRAGS_NR", targetField: "orderId", sourceType: "string", targetType: "string" },
+    },
+    {
+      sourceField: "STATUS",
+      targetField: "status",
+      conversion: { sourceField: "STATUS", targetField: "status", sourceType: "string", targetType: "string" },
+      valueMap: {
+        OFFEN: "open",
+        GESCHLOSSEN: "closed",
+        IN_BEARBEITUNG: "in_progress",
+      },
+    },
+    {
+      sourceField: "MENGE",
+      targetField: "quantity",
+      conversion: { sourceField: "MENGE", targetField: "quantity", sourceType: "string", targetType: "decimal" },
+    },
+    {
+      sourceField: "DATUM",
+      targetField: "orderDate",
+      conversion: {
+        sourceField: "DATUM",
+        targetField: "orderDate",
+        sourceType: "string",
+        targetType: "date",
+        sourceFormat: confirmedDateFormat(raw.DATUM),
+        targetFormat: "YYYY-MM-DD",
+      },
+    },
+  ];
+}
+
+function toMappedRecord(canonicalMapping: CanonicalMappingAssessment): MappedRecord {
+  const { canonical } = canonicalMapping;
+  const status = canonical.status;
+  return {
+    customerId: typeof canonical.customerId === "string" ? canonical.customerId : null,
+    orderId: typeof canonical.orderId === "string" ? canonical.orderId : null,
+    status: status === "open" || status === "closed" || status === "in_progress" ? status : null,
+    quantity: typeof canonical.quantity === "number" ? canonical.quantity : null,
+    orderDate: typeof canonical.orderDate === "string" ? canonical.orderDate : null,
+  };
 }
 
 export function createIngressContext(
@@ -364,7 +422,12 @@ function buildGatewayIssues(ingress: IngressContext, schema: SchemaCheck[]): Gat
 }
 
 function buildMissingChecks(raw: RawRecord): MissingCheck[] {
-  return (Object.keys(raw) as Array<keyof RawRecord>).map((field) => ({ field, sourceValue: raw[field], missing: isMissing(raw[field]), rule: "Nur bestätigte Marker gelten als fehlend: leer, NULL, N/A" }));
+  return (Object.keys(raw) as Array<keyof RawRecord>).map((field) => ({
+    field,
+    sourceValue: raw[field],
+    missing: isMissing(raw[field]),
+    rule: "Nur bestätigte Marker gelten als fehlend: leer, NULL, N/A",
+  }));
 }
 
 function buildSemantics(raw: RawRecord): SemanticEntry[] {
@@ -375,16 +438,6 @@ function buildSemantics(raw: RawRecord): SemanticEntry[] {
     { field: "MENGE", fieldMeaning: "Mengenwert des Auftrags", valueMeaning: isMissing(raw.MENGE) ? "fehlender Wert" : `Quellwert ${raw.MENGE}` },
     { field: "DATUM", fieldMeaning: "Auftragsdatum", valueMeaning: `Quellformat ${raw.DATUM}` },
   ];
-}
-
-function mapRecord(source: RawRecord): MappedRecord {
-  return {
-    customerId: source.KUNDEN_NR,
-    orderId: source.AUFTRAGS_NR,
-    status: statusMap[source.STATUS] ?? null,
-    quantity: Number(source.MENGE),
-    orderDate: normalizeDate(source.DATUM),
-  };
 }
 
 function issueMessage(check: ValidationCheck, raw: RawRecord): string {
@@ -404,8 +457,8 @@ function buildTrace(raw: RawRecord, mapped: MappedRecord, checks: ValidationChec
     { sourceField: "KUNDEN_NR", sourceValue: raw.KUNDEN_NR, meaning: "Kundenkennung aus der Quelle", targetField: "customerId", mapping: "KUNDEN_NR → customerId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.customerId, validation: validationFor("KUNDEN_NR") },
     { sourceField: "AUFTRAGS_NR", sourceValue: raw.AUFTRAGS_NR, meaning: "Auftragskennung aus der Quelle", targetField: "orderId", mapping: "AUFTRAGS_NR → orderId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.orderId, validation: validationFor("AUFTRAGS_NR") },
     { sourceField: "STATUS", sourceValue: raw.STATUS, meaning: "Quellstatus des Auftrags", targetField: "status", mapping: "STATUS → status", valueMap: mapped.status ? `${raw.STATUS} → ${mapped.status}` : "keine bestätigte Value-Map", transformation: "keine", canonicalValue: mapped.status, validation: validationFor("STATUS") },
-    { sourceField: "MENGE", sourceValue: raw.MENGE, meaning: "Menge des Auftrags", targetField: "quantity", mapping: "MENGE → quantity", valueMap: "nicht erforderlich", transformation: "Text → Zahl", canonicalValue: Number.isFinite(mapped.quantity) ? mapped.quantity : null, validation: validationFor("MENGE") },
-    { sourceField: "DATUM", sourceValue: raw.DATUM, meaning: "Auftragsdatum", targetField: "orderDate", mapping: "DATUM → orderDate", valueMap: "nicht erforderlich", transformation: raw.DATUM === mapped.orderDate ? "keine" : `${raw.DATUM} → ${mapped.orderDate}`, canonicalValue: mapped.orderDate, validation: validationFor("DATUM") },
+    { sourceField: "MENGE", sourceValue: raw.MENGE, meaning: "Menge des Auftrags", targetField: "quantity", mapping: "MENGE → quantity", valueMap: "nicht erforderlich", transformation: mapped.quantity === null ? "nicht übernommen" : "Text → Zahl nach Conversion-Safety-Prüfung", canonicalValue: mapped.quantity, validation: validationFor("MENGE") },
+    { sourceField: "DATUM", sourceValue: raw.DATUM, meaning: "Auftragsdatum", targetField: "orderDate", mapping: "DATUM → orderDate", valueMap: "nicht erforderlich", transformation: mapped.orderDate === null ? "nicht übernommen" : raw.DATUM === mapped.orderDate ? "keine" : `${raw.DATUM} → ${mapped.orderDate}`, canonicalValue: mapped.orderDate, validation: validationFor("DATUM") },
   ];
 }
 
@@ -421,24 +474,68 @@ export function evaluateRecord(
   const gatewayIssues = buildGatewayIssues(ingress, schema);
   const missing = buildMissingChecks(raw);
   const semantics = buildSemantics(raw);
-  const mapped = mapRecord(raw);
+  const canonicalMapping = assessCanonicalMapping(raw, canonicalRules(raw));
+  const mapped = toMappedRecord(canonicalMapping);
+
+  const quantitySchemaOk = schema.find(({ field }) => field === "MENGE")?.formatOk ?? false;
+  const dateSchemaOk = schema.find(({ field }) => field === "DATUM")?.formatOk ?? false;
+
   const transformations = [
-    { field: "MENGE" as const, before: raw.MENGE, after: Number.isFinite(mapped.quantity) ? String(mapped.quantity) : raw.MENGE, rule: "numerischen Text in Zahl überführen" },
-    { field: "DATUM" as const, before: raw.DATUM, after: mapped.orderDate, rule: "bestätigtes Datumsformat nach YYYY-MM-DD normalisieren" },
+    {
+      field: "MENGE" as const,
+      before: raw.MENGE,
+      after: mapped.quantity === null ? "<nicht übernommen>" : String(mapped.quantity),
+      rule: "nur nach bestätigter Conversion-Safety-Prüfung in Zahl überführen",
+    },
+    {
+      field: "DATUM" as const,
+      before: raw.DATUM,
+      after: mapped.orderDate ?? "<nicht übernommen>",
+      rule: "nur nach bestätigter Conversion-Safety-Prüfung nach YYYY-MM-DD normalisieren",
+    },
   ];
 
   const checks: ValidationCheck[] = [
     { field: "KUNDEN_NR", label: "Kunden-ID vorhanden", ok: !isMissing(raw.KUNDEN_NR), rule: "Pflichtfeld", issueCode: "MISSING_REQUIRED_VALUE", severity: "blocking", observed: `KUNDEN_NR: ${raw.KUNDEN_NR || "—"}` },
     { field: "AUFTRAGS_NR", label: "Auftragsnummer entspricht dem Demo-Prüffall", ok: raw.AUFTRAGS_NR === "A-10027", rule: "Demo-Referenz A-10027", issueCode: "UNEXPECTED_ORDER_ID", severity: "warning", observed: `AUFTRAGS_NR: ${raw.AUFTRAGS_NR}` },
     { field: "STATUS", label: "Status erlaubt", ok: mapped.status !== null, rule: "OFFEN / GESCHLOSSEN / IN_BEARBEITUNG", issueCode: "UNKNOWN_STATUS", severity: "blocking", observed: `STATUS: ${raw.STATUS} → ${mapped.status ?? "nicht zugeordnet"}` },
-    { field: "MENGE", label: "Menge größer als 0", ok: !isMissing(raw.MENGE) && Number.isFinite(mapped.quantity) && mapped.quantity > 0, rule: "Zahl > 0", issueCode: "NEGATIVE_VALUE", severity: "blocking", observed: `MENGE: ${Number.isFinite(mapped.quantity) ? mapped.quantity : raw.MENGE}` },
-    { field: "DATUM", label: "Datum gültig", ok: /^\d{4}-\d{2}-\d{2}$/.test(mapped.orderDate), rule: "YYYY-MM-DD nach bestätigter Transformation", issueCode: "INVALID_DATE_FORMAT", severity: "blocking", observed: `DATUM: ${raw.DATUM} → ${mapped.orderDate}` },
+    {
+      field: "MENGE",
+      label: "Menge größer als 0",
+      ok: isMissing(raw.MENGE)
+        ? false
+        : !quantitySchemaOk
+          ? true
+          : mapped.quantity !== null && Number.isFinite(mapped.quantity) && mapped.quantity > 0,
+      rule: "Zahl > 0",
+      issueCode: "NEGATIVE_VALUE",
+      severity: "blocking",
+      observed: `MENGE: ${mapped.quantity ?? raw.MENGE}`,
+    },
+    {
+      field: "DATUM",
+      label: "Datum gültig",
+      ok: !dateSchemaOk
+        ? true
+        : mapped.orderDate !== null && /^\d{4}-\d{2}-\d{2}$/.test(mapped.orderDate),
+      rule: "YYYY-MM-DD nach bestätigter Transformation",
+      issueCode: "INVALID_DATE_FORMAT",
+      severity: "blocking",
+      observed: `DATUM: ${raw.DATUM} → ${mapped.orderDate ?? "nicht übernommen"}`,
+    },
   ];
 
-  const issues: ValidationIssue[] = checks.filter(({ ok }) => !ok).map((check) => ({ field: check.field, issue: check.issueCode, sourceValue: raw[check.field], rule: check.rule, severity: check.severity, message: issueMessage(check, raw) }));
+  const issues: ValidationIssue[] = checks
+    .filter(({ ok }) => !ok)
+    .map((check) => ({
+      field: check.field,
+      issue: check.issueCode,
+      sourceValue: raw[check.field],
+      rule: check.rule,
+      severity: check.severity,
+      message: issueMessage(check, raw),
+    }));
 
-  // Constraints remain the single source of truth. The state layer interprets
-  // their result into an explicit reaction without changing source values.
   const constraints = evaluateConstraintSet({
     ingress,
     contract: orderContract,
@@ -489,6 +586,7 @@ export function evaluateRecord(
     fieldMap,
     valueMap,
     transformations,
+    canonicalMapping,
     mapped,
     checks,
     issues,
