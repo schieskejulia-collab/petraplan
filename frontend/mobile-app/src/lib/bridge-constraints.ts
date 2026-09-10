@@ -80,7 +80,8 @@ function result(
   };
 }
 
-function isRealCanonicalDate(value: string): boolean {
+function isRealCanonicalDate(value: string | null): boolean {
+  if (typeof value !== "string") return false;
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
 
@@ -96,6 +97,12 @@ function isRealCanonicalDate(value: string): boolean {
   return day <= daysInMonth;
 }
 
+function canonicalQuantity(input: ConstraintInput): number | null {
+  return typeof input.mapped.quantity === "number" && Number.isFinite(input.mapped.quantity)
+    ? input.mapped.quantity
+    : null;
+}
+
 export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[] {
   const statusEntries = input.valueMap.filter(([field]) => field === "STATUS");
   const statusTargets = statusEntries.map(([, source, target]) => `${source} → ${target}`).join(", ");
@@ -103,6 +110,7 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
   const failedSchema = input.schema.filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk);
   const dateCheckPassed = input.checks.find(({ field }) => field === "DATUM")?.ok ?? false;
   const calendarDatePassed = isRealCanonicalDate(input.mapped.orderDate);
+  const quantity = canonicalQuantity(input);
 
   return [
     result(input, {
@@ -240,11 +248,11 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
       comparison: {
         operator: "greater_than",
         expected: "0",
-        observed: Number.isFinite(input.mapped.quantity) ? String(input.mapped.quantity) : input.raw.MENGE,
-        observedType: Number.isFinite(input.mapped.quantity) ? typeof input.mapped.quantity : typeof input.raw.MENGE,
+        observed: quantity === null ? input.raw.MENGE : String(quantity),
+        observedType: quantity === null ? typeof input.raw.MENGE : typeof quantity,
       },
       rule: "MENGE muss numerisch und größer als 0 sein",
-      evidence: `source=${input.raw.MENGE}; sourceType=${typeof input.raw.MENGE}; canonical=${Number.isFinite(input.mapped.quantity) ? input.mapped.quantity : "ungültig"}; canonicalType=${Number.isFinite(input.mapped.quantity) ? typeof input.mapped.quantity : "invalid"}`,
+      evidence: `source=${input.raw.MENGE}; sourceType=${typeof input.raw.MENGE}; canonical=${quantity ?? "nicht übernommen"}; canonicalType=${quantity === null ? "unresolved" : typeof quantity}`,
       safeAction: "Negativen oder ungültigen Mengenwert nicht automatisch korrigieren; Quellwert bleibt erhalten.",
       resolutionProposal: "Entweder einen gültigen positiven Wert aus der Quelle übernehmen oder die Regel > 0 bewusst ändern und neu bestätigen.",
     }),
@@ -259,11 +267,11 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
       comparison: {
         operator: "matches",
         expected: "existierendes Kalenderdatum im Format YYYY-MM-DD",
-        observed: input.mapped.orderDate,
-        observedType: typeof input.mapped.orderDate,
+        observed: input.mapped.orderDate ?? "<nicht übernommen>",
+        observedType: input.mapped.orderDate === null ? "unresolved" : typeof input.mapped.orderDate,
       },
       rule: "Nach bestätigter Transformation muss ein reales Kalenderdatum in YYYY-MM-DD vorliegen",
-      evidence: `source=${input.raw.DATUM}; sourceType=${typeof input.raw.DATUM}; canonical=${input.mapped.orderDate}; formatOk=${dateCheckPassed}; calendarOk=${calendarDatePassed}; canonicalType=${typeof input.mapped.orderDate}`,
+      evidence: `source=${input.raw.DATUM}; sourceType=${typeof input.raw.DATUM}; canonical=${input.mapped.orderDate ?? "nicht übernommen"}; formatOk=${dateCheckPassed}; calendarOk=${calendarDatePassed}; canonicalType=${input.mapped.orderDate === null ? "unresolved" : typeof input.mapped.orderDate}`,
       safeAction: "Unbekanntes oder unmögliches Datum nicht stillschweigend übernehmen; Quellwert bleibt erhalten.",
       resolutionProposal: dateCheckPassed && calendarDatePassed
         ? "Keine Datumsauflösung nötig."
