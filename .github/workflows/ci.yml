@@ -29,11 +29,13 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
-      - name: Compile Bridge pipeline, constraints and state for node tests
+      - name: Compile Bridge pipeline, constraints, state and transitions for node tests
         run: |
-          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-state.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-pipeline.js
-      - name: Test Bridge release consistency, constraints and state
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-transition.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-transition.js
+      - name: Test Bridge release consistency, constraints, state and transitions
         run: node --test tests/*.test.mjs
