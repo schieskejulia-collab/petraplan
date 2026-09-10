@@ -29,14 +29,19 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
-      - name: Compile Bridge pipeline, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate and adapter contract for node tests
+      - name: Compile Bridge pipeline, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract and source readiness for node tests
         run: |
-          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts src/lib/bridge-evidence.ts src/lib/bridge-ingress-context.ts src/lib/bridge-addressing.ts src/lib/bridge-capability-profile.ts src/lib/bridge-runtime-decision.ts src/lib/bridge-adapter-contract.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts src/lib/bridge-evidence.ts src/lib/bridge-ingress-context.ts src/lib/bridge-addressing.ts src/lib/bridge-capability-profile.ts src/lib/bridge-runtime-decision.ts src/lib/bridge-adapter-contract.ts src/lib/bridge-source-readiness.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-state.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-transition.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-transition.js
           sed -i 's|from "./bridge-capability-profile";|from "./bridge-capability-profile.js";|' .bridge-test-build/bridge-runtime-decision.js
-      - name: Test Bridge release consistency, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate and adapter contract
+          sed -i 's|from "./bridge-ingress-context";|from "./bridge-ingress-context.js";|' .bridge-test-build/bridge-source-readiness.js
+          sed -i 's|from "./bridge-addressing";|from "./bridge-addressing.js";|' .bridge-test-build/bridge-source-readiness.js
+          sed -i 's|from "./bridge-adapter-contract";|from "./bridge-adapter-contract.js";|' .bridge-test-build/bridge-source-readiness.js
+          sed -i 's|from "./bridge-capability-profile";|from "./bridge-capability-profile.js";|' .bridge-test-build/bridge-source-readiness.js
+          sed -i 's|from "./bridge-runtime-decision";|from "./bridge-runtime-decision.js";|' .bridge-test-build/bridge-source-readiness.js
+      - name: Test Bridge release consistency, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract and source readiness
         run: node --test tests/*.test.mjs
