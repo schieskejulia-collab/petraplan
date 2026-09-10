@@ -33,8 +33,9 @@ jobs:
         run: |
           npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts src/lib/bridge-evidence.ts src/lib/bridge-ingress-context.ts src/lib/bridge-addressing.ts src/lib/bridge-capability-profile.ts src/lib/bridge-runtime-decision.ts src/lib/bridge-adapter-contract.ts src/lib/bridge-source-readiness.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-pipeline.js
-          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-state.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-test-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-state.js
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-transition.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-transition.js
           sed -i 's|from "./bridge-capability-profile";|from "./bridge-capability-profile.js";|' .bridge-test-build/bridge-runtime-decision.js
