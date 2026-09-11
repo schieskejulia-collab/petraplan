@@ -54,12 +54,27 @@ function statusLabel(status: string) {
   return "blockiert";
 }
 
-function domainLabel(domain: string) {
-  if (domain === "source_provenance") return "Ursprung";
-  if (domain === "bridge_analysis") return "Analyse";
-  if (domain === "instance_relations") return "Beziehungen";
-  if (domain === "query_read") return "Leseweg";
-  return domain.replaceAll("_", " ");
+function stepLabel(domain: string, summary: string) {
+  if (domain === "source_provenance") return "Ursprung belegen";
+  if (domain === "bridge_analysis") return "Datenlage prüfen";
+  if (domain === "instance_relations") return "Beziehungen prüfen";
+  if (summary.startsWith("canonical_intent:")) return "Fachliche Frage festhalten";
+  if (summary.startsWith("mapping:")) return "Zuordnung prüfen";
+  if (summary.startsWith("dialect:")) return "Technische Sprache wählen";
+  if (summary.startsWith("read_access:")) return "Zugriff prüfen";
+  if (summary.startsWith("execution_gate:")) return "Freigabe prüfen";
+  return "Nachweis prüfen";
+}
+
+function openPointTitle(item: string) {
+  if (/contract|vertrag/i.test(item)) return "Vertragsstand ist noch nicht bestätigt";
+  if (/status/i.test(item)) return "Ein Statuswert ist noch nicht eindeutig zugeordnet";
+  if (/menge|quantity|negative/i.test(item)) return "Ein Wert widerspricht der bestätigten Regel";
+  if (/relation|beziehung|record-link|zielidentität/i.test(item)) return "Eine Beziehung braucht noch einen belastbaren Nachweis";
+  if (/fresh|snapshot|stale|aktual/i.test(item)) return "Die Aktualität des Lesestands ist noch nicht bestätigt";
+  if (/mapping|feld|field/i.test(item)) return "Eine Zuordnung ist noch nicht vollständig bestätigt";
+  if (/dialekt|dialect|query/i.test(item)) return "Die technische Abfrage braucht noch Bestätigung";
+  return "Dieser Punkt ist noch offen";
 }
 
 export default function UnifiedTracePage() {
@@ -204,11 +219,11 @@ export default function UnifiedTracePage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.14em] opacity-70">Schritt {index + 1}</p>
-                        <p className="mt-0.5 font-semibold">{domainLabel(step.domain)}</p>
+                        <p className="mt-0.5 font-semibold">{stepLabel(step.domain, step.summary)}</p>
                       </div>
                       <span className="shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-wide">{statusLabel(step.status)}</span>
                     </div>
-                    <p className="mt-2 text-sm leading-relaxed">{step.summary}</p>
+                    <p className="mt-2 text-sm leading-relaxed">{step.summary.replace(/^[a-z_]+:\s*/i, "")}</p>
                     {step.evidence.length > 0 && (
                       <details className="mt-3 text-xs">
                         <summary className="cursor-pointer font-semibold">Technische Belege ({step.evidence.length})</summary>
@@ -259,11 +274,19 @@ export default function UnifiedTracePage() {
           {report.openPoints.length === 0 ? (
             <p className="mt-3 text-sm text-muted-foreground">Für diesen Demo-Nachweisweg sind keine offenen Punkte vorhanden.</p>
           ) : (
-            <ul className="mt-3 space-y-2 text-sm">
+            <div className="mt-3 space-y-2">
               {report.openPoints.map((item, index) => (
-                <li key={`${item}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-950">{item}</li>
+                <details key={`${item}-${index}`} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-amber-950">
+                  <summary className="cursor-pointer list-none text-sm font-semibold">
+                    <span className="flex items-center justify-between gap-3">
+                      <span>{openPointTitle(item)}</span>
+                      <span className="text-xs font-medium opacity-70">Details</span>
+                    </span>
+                  </summary>
+                  <p className="mt-2 border-t border-amber-200 pt-2 text-xs leading-relaxed opacity-90">{item}</p>
+                </details>
               ))}
-            </ul>
+            </div>
           )}
         </section>
 
