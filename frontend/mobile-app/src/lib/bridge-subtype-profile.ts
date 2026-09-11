@@ -1,11 +1,9 @@
-import type { EvidenceStatus } from "./bridge-instance-profile";
-
-export type InheritanceStrategy =
-  | "single_table"
-  | "joined"
-  | "table_per_concrete_type"
-  | "mapped_superclass"
-  | "unknown";
+import type {
+  ConfirmedInstanceProfile,
+  EvidenceStatus,
+  InheritanceStrategy,
+  SubtypeProfileEntry,
+} from "./bridge-instance-profile";
 
 export type SubtypeDefinition = {
   baseType: string;
@@ -18,18 +16,7 @@ export type SubtypeDefinition = {
   evidence: string[];
 };
 
-export type SubtypeAssessment = {
-  baseType: string;
-  subtype: string | null;
-  discriminatorField: string;
-  observedDiscriminatorValue: string | null;
-  subtypeStatus: EvidenceStatus;
-  inheritanceStrategy: InheritanceStrategy;
-  inheritanceStrategyStatus: EvidenceStatus;
-  evidence: string[];
-  blockers: string[];
-  note: string;
-};
+export type SubtypeAssessment = SubtypeProfileEntry;
 
 function hasObservedValue(value: string | undefined): value is string {
   if (value === undefined) return false;
@@ -96,5 +83,21 @@ export function assessSubtype(input: {
     evidence: [...definition.evidence],
     blockers,
     note,
+  };
+}
+
+/**
+ * Adds already-assessed subtype evidence to an instance profile without
+ * changing identities, relations or source evidence. This keeps subtype
+ * classification part of the profile while preserving its independent proof
+ * status.
+ */
+export function attachSubtypeAssessment(
+  profile: ConfirmedInstanceProfile,
+  assessment: SubtypeAssessment,
+): ConfirmedInstanceProfile {
+  return {
+    ...profile,
+    subtypes: [...profile.subtypes, assessment],
   };
 }
