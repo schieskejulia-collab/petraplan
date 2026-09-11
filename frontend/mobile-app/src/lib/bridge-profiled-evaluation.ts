@@ -19,10 +19,20 @@ import {
   type RelationVerification,
 } from "./bridge-relation-verification";
 
+export type RelationExplanation = {
+  relationId: string;
+  label: string;
+  status: "confirmed" | "needs_confirmation";
+  confirmedBy: string[];
+  remainsUnproven: string[];
+  conclusion: string;
+};
+
 export type ProfiledBridgeReport = BridgeEvaluation["report"] & {
   confirmedIdentities: string[];
   relationFindings: string[];
   relationVerifications: RelationVerification[];
+  relationExplanations: RelationExplanation[];
   relationDecision: RelationGateDecision;
 };
 
@@ -80,6 +90,54 @@ export function evaluateRecordWithInstanceProfile(
     return `${label}: Record-Link=${verification.technicalLinkStatus}, Zielidentität=${verification.targetIdentityStatus}, DB-FK=${verification.foreignKeyConstraintStatus}, Kardinalität=${verification.cardinalityStatus === "confirmed" ? verification.cardinality : "unbestätigt"}. ${verification.note}`;
   });
 
+  const relationExplanations: RelationExplanation[] = relationVerifications.map((verification) => {
+    const relation = instanceProfile.relations.find(({ id }) => id === verification.relationId);
+    const label = relation
+      ? `${relation.sourceEntity} → ${relation.targetEntity}`
+      : verification.relationId;
+
+    const confirmedBy: string[] = [];
+    if (verification.semanticStatus === "confirmed") {
+      confirmedBy.push("Die fachliche Bedeutung der Beziehung ist im bestätigten Relationsprofil bekannt.");
+    }
+    if (verification.targetIdentityStatus === "confirmed" && verification.targetField && verification.matchedValue) {
+      confirmedBy.push(`Der Ziel-Datensatz wurde mit ${verification.targetField}=${verification.matchedValue} beobachtet.`);
+    }
+    if (verification.technicalLinkStatus === "confirmed" && verification.sourceField && verification.matchedValue) {
+      confirmedBy.push(`Der Quellwert ${verification.sourceField}=${verification.matchedValue} stimmt mit der bestätigten Zielkennung überein.`);
+    }
+
+    const remainsUnproven: string[] = [];
+    if (verification.targetIdentityStatus !== "confirmed") {
+      remainsUnproven.push("Die Zielidentität ist noch nicht durch einen beobachteten Ziel-Datensatz bestätigt.");
+    }
+    if (verification.technicalLinkStatus !== "confirmed") {
+      remainsUnproven.push("Der konkrete Record-Link ist noch nicht belegt.");
+    }
+    if (verification.foreignKeyConstraintStatus !== "confirmed") {
+      remainsUnproven.push("Ein Datenbank-Foreign-Key-Constraint ist nicht beobachtet.");
+    }
+    if (verification.cardinalityStatus !== "confirmed") {
+      remainsUnproven.push("Die Kardinalität der Beziehung ist nicht durch Quellenmetadaten bestätigt.");
+    }
+
+    const requiredProofConfirmed =
+      verification.semanticStatus === "confirmed" &&
+      verification.targetIdentityStatus === "confirmed" &&
+      verification.technicalLinkStatus === "confirmed";
+
+    return {
+      relationId: verification.relationId,
+      label,
+      status: requiredProofConfirmed ? "confirmed" : "needs_confirmation",
+      confirmedBy,
+      remainsUnproven,
+      conclusion: requiredProofConfirmed
+        ? "Der konkrete Record-Link ist bestätigt. Nicht beobachtete Datenbank-Metadaten bleiben ausdrücklich offen und werden nicht erfunden."
+        : "Die vorhandenen Belege reichen noch nicht aus, um den konkreten Record-Link freizugeben.",
+    };
+  });
+
   const unresolvedRelationPoints = relationVerifications
     .filter(({ technicalLinkStatus, foreignKeyConstraintStatus, cardinalityStatus }) =>
       technicalLinkStatus !== "confirmed" ||
@@ -110,6 +168,7 @@ export function evaluateRecordWithInstanceProfile(
       confirmedIdentities,
       relationFindings,
       relationVerifications,
+      relationExplanations,
       relationDecision,
       openPoints: [
         ...evaluation.report.openPoints,
