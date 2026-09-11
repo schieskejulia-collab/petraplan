@@ -3,12 +3,13 @@ import { useLocation } from "wouter";
 import {
   demoConflictRecord,
   demoValidRecord,
-  evaluateRecord,
   parseRawRecord,
   type IngressContext,
   type RawRecord,
   type ResponseContext,
 } from "../lib/bridge-pipeline";
+import { evaluateRecordWithInstanceProfile } from "../lib/bridge-profiled-evaluation";
+import { demoObservedCustomer, demoOrderToCustomerEvidence } from "../lib/bridge-relation-demo";
 
 function JsonBlock({ value }: { value: unknown }) {
   return (
@@ -38,7 +39,17 @@ export default function BridgePage() {
   const [inputError, setInputError] = useState<string | null>(null);
   const [demoCaseActive, setDemoCaseActive] = useState(false);
 
-  const evaluation = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
+  const relationEvidence = raw.KUNDEN_NR === demoObservedCustomer.CUSTOMER_ID
+    ? [demoOrderToCustomerEvidence]
+    : [];
+
+  const evaluation = evaluateRecordWithInstanceProfile(
+    raw,
+    capturedAt,
+    ingressOverrides,
+    responseOverrides,
+    relationEvidence,
+  );
   const {
     ingress,
     interactionTrace,
@@ -56,12 +67,16 @@ export default function BridgePage() {
     issues,
     trace,
     release,
+    relationDecision,
+    relationVerifications,
+    instanceProfile,
     report,
   } = evaluation;
 
   const blockingChecks = checks.filter(({ ok, severity }) => !ok && severity === "blocking");
-  const visibleBlockingCount = blockingChecks.length + gatewayIssues.length;
-  const reportBlockingCount = report.errors.length;
+  const relationBlockingCount = relationDecision.releaseAllowed ? 0 : relationDecision.blockingRelations.length;
+  const visibleBlockingCount = blockingChecks.length + gatewayIssues.length + relationBlockingCount;
+  const reportBlockingCount = report.errors.length + relationBlockingCount;
   const effectiveBlockingCount = Math.max(visibleBlockingCount, reportBlockingCount, release.blockingIssues);
   const effectiveReleaseAllowed =
     release.releaseAllowed === true &&
@@ -149,6 +164,18 @@ export default function BridgePage() {
         diagnosis: "Der eingegangene Wert widerspricht einer bestätigten Regel.",
         safeAction: "Wert unverändert halten und Weitergabe blockieren.",
         proposal: `Entweder ${field} an der Quelle korrigieren oder die zugrunde liegende Regel fachlich neu bestätigen.`,
+      };
+    }),
+    ...relationDecision.blockingRelations.map((relationId) => {
+      const verification = relationVerifications.find((item) => item.relationId === relationId);
+      return {
+        key: `relation-${relationId}`,
+        type: "Beziehungsnachweis",
+        title: `Beziehung ${relationId} ist noch nicht ausreichend belegt`,
+        evidence: verification?.blockers.join(" ") ?? "Für diese Beziehung fehlt ein belastbarer Zielbeleg.",
+        diagnosis: "Die fachliche Bedeutung allein reicht nicht. Für die Freigabe müssen Zielidentität und konkreter Record-Link bestätigt sein.",
+        safeAction: "Quelle und vorhandene Zielbelege unverändert lassen; keine Beziehung aus Feldnamen oder Konventionen erfinden.",
+        proposal: "Einen beobachteten Ziel-Datensatz mit bestätigtem Identitätsfeld beistellen und Quell- gegen Zielkennung prüfen.",
       };
     }),
   ];
@@ -294,7 +321,7 @@ export default function BridgePage() {
         <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button>
 
         <header className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.18 · Auflösungsvorschläge</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-teal-700">Bridge-Prototyp · Version 0.19 · Relationsnachweis</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Vier Phasen außen. Vierzehn Schritte darunter.</h1>
           <p className="max-w-3xl text-sm text-muted-foreground md:text-base">Der Entknotungs-Check lokalisiert den Knoten, bestimmt seine Art und zeigt, was sicher getan werden kann – ohne unbestätigte Werte selbst zu erfinden.</p>
         </header>
@@ -438,21 +465,21 @@ export default function BridgePage() {
             <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Daten-Fehlerfall laden</button><button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadRecord(demoValidRecord)}>Gültigen Fall laden</button></div>
           </Section>
 
-          <Section eyebrow="11 · Issue erzeugen" title={(issues.length + gatewayIssues.length) ? `${issues.length + gatewayIssues.length} Abweichung${issues.length + gatewayIssues.length === 1 ? "" : "en"} dokumentiert` : "Keine Issues"}>
-            {issues.length + gatewayIssues.length === 0 ? <p className="mt-3 rounded-xl bg-teal-50 p-3 text-sm text-teal-800">Keine Regelverletzung gefunden.</p> : <p className="mt-3 text-sm text-muted-foreground">Die Ursachen werden in Schritt 13 nach Problemart getrennt und mit Auflösungsvorschlägen erklärt.</p>}
-            <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technische Issues anzeigen</summary><JsonBlock value={{ gatewayIssues, issues }} /></details>
+          <Section eyebrow="11 · Issue erzeugen" title={(issues.length + gatewayIssues.length + relationBlockingCount) ? `${issues.length + gatewayIssues.length + relationBlockingCount} Abweichung${issues.length + gatewayIssues.length + relationBlockingCount === 1 ? "" : "en"} dokumentiert` : "Keine Issues"}>
+            {issues.length + gatewayIssues.length + relationBlockingCount === 0 ? <p className="mt-3 rounded-xl bg-teal-50 p-3 text-sm text-teal-800">Keine Regelverletzung gefunden.</p> : <p className="mt-3 text-sm text-muted-foreground">Die Ursachen werden in Schritt 13 nach Problemart getrennt und mit Auflösungsvorschlägen erklärt.</p>}
+            <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technische Issues anzeigen</summary><JsonBlock value={{ gatewayIssues, issues, relationDecision }} /></details>
           </Section>
 
           <Section eyebrow="12 · Trace erzeugen" title="Jeder Wert und jede Nachricht behält seine Spur">
             <p className="mt-1 text-xs text-muted-foreground">Die technische Spur bleibt vollständig vorhanden, steht aber nicht mehr vor der verständlichen Erklärung.</p>
-            <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technischen Trace anzeigen</summary><JsonBlock value={{ interactionTrace, valueTrace: trace }} /></details>
+            <details className="mt-3 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Technischen Trace anzeigen</summary><JsonBlock value={{ interactionTrace, valueTrace: trace, instanceProfile }} /></details>
           </Section>
 
           <Section eyebrow="13 · Freigabe entscheiden" title={effectiveReleaseAllowed ? "Interne Freigabe möglich" : "Freigabe blockiert – Knoten lokalisiert"} wide>
             <div className={`mt-3 rounded-2xl border p-4 ${effectiveReleaseAllowed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
               <p className="text-xs font-bold uppercase tracking-[0.14em]">Was ist die Entscheidung?</p>
               <p className={`mt-1 text-2xl font-bold ${effectiveReleaseAllowed ? "text-teal-900" : "text-red-900"}`}>{effectiveReleaseAllowed ? "Dieser Datensatz kann intern freigegeben werden." : "Dieser Datensatz darf noch nicht weitergegeben werden."}</p>
-              <p className="mt-2 text-sm leading-relaxed opacity-80">{effectiveReleaseAllowed ? "Transport, Schnittstellenvertrag und fachliche Regeln sind bestätigt. Es gibt aktuell keinen bekannten Blocker." : `${effectiveBlockingCount} Blocker wurden lokalisiert. Die Bridge zeigt jetzt für jeden Knoten Problemart, Beleg, sichere Sofortmaßnahme und Auflösungsvorschlag.`}</p>
+              <p className="mt-2 text-sm leading-relaxed opacity-80">{effectiveReleaseAllowed ? "Transport, Schnittstellenvertrag, fachliche Regeln und der benötigte konkrete Relationsbeleg sind bestätigt. Es gibt aktuell keinen bekannten Blocker." : `${effectiveBlockingCount} Blocker wurden lokalisiert. Die Bridge zeigt jetzt für jeden Knoten Problemart, Beleg, sichere Sofortmaßnahme und Auflösungsvorschlag.`}</p>
             </div>
 
             {!effectiveReleaseAllowed && (
@@ -484,7 +511,7 @@ export default function BridgePage() {
 
             <details className="mt-4 rounded-xl border bg-white px-3 py-2">
               <summary className="cursor-pointer text-sm font-semibold">Technischen Entscheidungsnachweis anzeigen</summary>
-              <JsonBlock value={{ releaseAllowed: effectiveReleaseAllowed, blockingIssues: effectiveBlockingCount, engineRelease: release, reportErrors: report.errors }} />
+              <JsonBlock value={{ releaseAllowed: effectiveReleaseAllowed, blockingIssues: effectiveBlockingCount, engineRelease: release, relationDecision, reportErrors: report.errors }} />
               {!releaseConsistent && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs font-semibold text-amber-900">Interne Abweichung erkannt: Engine, sichtbare Prüfungen und Report stimmen nicht überein. Die Anzeige bleibt fail-safe blockiert.</p>}
             </details>
           </Section>
@@ -496,7 +523,7 @@ export default function BridgePage() {
                 <p className="mt-1 text-xl font-semibold text-teal-950">{report.confirmedMappings.length} Feldnamen-Zuordnungen</p>
                 <p className="mt-1 text-xs text-teal-900/70">Diese Feldnamen-Zuordnungen sind bekannt. Die Bedeutung einzelner Werte kann trotzdem noch ungeklärt sein.</p>
               </div>
-              <div className={`rounded-xl border p-4 ${report.errors.length ? "border-red-200 bg-red-50" : "border-teal-200 bg-teal-50"}`}>
+              <div className={`rounded-xl border p-4 ${report.errors.length || relationBlockingCount ? "border-red-200 bg-red-50" : "border-teal-200 bg-teal-50"}`}>
                 <p className="text-xs font-bold uppercase tracking-wide">Lokalisierte Knoten</p>
                 <p className="mt-1 text-xl font-semibold">{resolutionFindings.length}</p>
                 <p className="mt-1 text-xs opacity-70">{resolutionFindings.length ? "Jeder Knoten ist nach Art, Beleg und Ursache getrennt beschrieben." : "Kein blockierender Knoten offen."}</p>
@@ -512,6 +539,40 @@ export default function BridgePage() {
                 )}
               </div>
             </div>
+
+            <div className="mt-4 space-y-3">
+              <p className="text-sm font-bold">Beziehungsnachweis</p>
+              {report.relationExplanations.map((explanation) => (
+                <div key={explanation.relationId} className={`rounded-xl border p-4 ${explanation.status === "confirmed" ? "border-teal-200 bg-teal-50" : "border-amber-200 bg-amber-50"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold">{explanation.label}</p>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${explanation.status === "confirmed" ? "bg-white text-teal-800" : "bg-white text-amber-800"}`}>
+                      {explanation.status === "confirmed" ? "Record-Link bestätigt" : "Bestätigung nötig"}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-lg bg-white/80 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-teal-800">Bestätigt durch</p>
+                      {explanation.confirmedBy.length ? (
+                        <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                          {explanation.confirmedBy.map((item) => <li key={item}>✓ {item}</li>)}
+                        </ul>
+                      ) : <p className="mt-2 text-sm text-slate-700">Noch kein ausreichender Beleg.</p>}
+                    </div>
+                    <div className="rounded-lg bg-white/80 p-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wide text-amber-800">Bleibt unbewiesen</p>
+                      {explanation.remainsUnproven.length ? (
+                        <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                          {explanation.remainsUnproven.map((item) => <li key={item}>• {item}</li>)}
+                        </ul>
+                      ) : <p className="mt-2 text-sm text-slate-700">Keine offenen Relationspunkte.</p>}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm font-medium text-slate-800">{explanation.conclusion}</p>
+                </div>
+              ))}
+            </div>
+
             <details className="mt-4 rounded-xl border px-3 py-2"><summary className="cursor-pointer text-sm font-semibold">Vollständigen technischen Report anzeigen</summary><JsonBlock value={report} /></details>
           </Section>
         </div>
