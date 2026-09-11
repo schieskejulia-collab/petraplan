@@ -29,12 +29,13 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
-      - name: Compile Bridge pipeline, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety and canonical mapping for node tests
+      - name: Compile Bridge pipeline, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety, canonical mapping and provenance for node tests
         run: |
-          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts src/lib/bridge-evidence.ts src/lib/bridge-ingress-context.ts src/lib/bridge-addressing.ts src/lib/bridge-capability-profile.ts src/lib/bridge-runtime-decision.ts src/lib/bridge-adapter-contract.ts src/lib/bridge-source-readiness.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts src/lib/bridge-evidence.ts src/lib/bridge-ingress-context.ts src/lib/bridge-addressing.ts src/lib/bridge-capability-profile.ts src/lib/bridge-runtime-decision.ts src/lib/bridge-adapter-contract.ts src/lib/bridge-source-readiness.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-test-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-provenance";|from "./bridge-provenance.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-state.js
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-transition.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-transition.js
@@ -45,5 +46,5 @@ jobs:
           sed -i 's|from "./bridge-capability-profile";|from "./bridge-capability-profile.js";|' .bridge-test-build/bridge-source-readiness.js
           sed -i 's|from "./bridge-runtime-decision";|from "./bridge-runtime-decision.js";|' .bridge-test-build/bridge-source-readiness.js
           sed -i 's|from "./bridge-type-conversion";|from "./bridge-type-conversion.js";|' .bridge-test-build/bridge-canonical-mapping.js
-      - name: Test Bridge release consistency, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety and canonical mapping
+      - name: Test Bridge release consistency, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety, canonical mapping and provenance
         run: node --test tests/*.test.mjs
