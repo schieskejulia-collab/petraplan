@@ -2,7 +2,10 @@
 
 This roadmap hardens the current Truth Chain prototype as a **read-only analysis and translation bridge**. PetraPlan is not a write-back or migration engine: the source remains unchanged.
 
-Related internal model: [`reference-model-dialect-mapping.md`](./reference-model-dialect-mapping.md).
+Related internal models:
+
+- [`reference-model-dialect-mapping.md`](./reference-model-dialect-mapping.md)
+- [`hibernate-derived-architecture.md`](./hibernate-derived-architecture.md)
 
 ## Implemented / represented today
 
@@ -35,7 +38,40 @@ Version mappings and semantic contracts explicitly. Every interpreted payload mu
 
 No silent drift from a legacy source schema to a new semantic meaning.
 
-### 3. Relationship and identity context
+### 3. Confirmed instance profile
+
+Do not stop at field names. The observed instance may need to preserve:
+
+- source / schema / catalog
+- entity / table
+- source data types
+- nullable / required state
+- primary and composite keys
+- foreign keys
+- relation metadata
+- collection / storage shape
+- subtype / discriminator metadata
+- technical defaults
+- evidence references
+- observed time / snapshot identity
+
+The instance profile describes structure. It does not automatically establish business semantics.
+
+### 4. Identity hardening
+
+Identity is a separate concern from field conversion.
+
+A source object may use a simple key, a natural key, a synthetic key or a composite key. PetraPlan must preserve source identity and distinguish:
+
+- candidate match
+- confirmed `same_entity`
+- source identity
+- canonical identity
+- composite-key completeness
+
+A partial key match must not silently become entity equivalence.
+
+### 5. Relationship hardening
 
 Do not reduce a system to isolated fields.
 
@@ -43,13 +79,44 @@ Where the source exposes relationships, distinguish explicitly between:
 
 - identity
 - technical relation
+- direction
 - cardinality
 - observed linkage
+- owner / inverse side
+- foreign key
+- join table
+- association entity
 - confirmed business meaning
 
 A technical foreign-key-like relation is not automatically a business rule.
 
-### 4. Observability / trace context
+A join structure may also carry business meaning of its own. Do not collapse it automatically into invisible plumbing.
+
+### 6. Inheritance / subtype hardening
+
+A common conceptual type may have multiple concrete technical forms.
+
+Track where available:
+
+- base type
+- concrete subtype
+- inheritance strategy
+- discriminator field / value
+- shared fields
+- subtype-specific fields
+- table-per-type information
+
+A discriminator can support subtype recognition but must not bypass evidence requirements.
+
+### 7. Collection / ordering semantics
+
+Lists, sets, maps, bags, arrays, indexed collections and join tables may represent the same business relation differently.
+
+Keep storage mechanics separate from business meaning.
+
+Ordering may be technical rather than semantic. Only treat order as a business rule when evidence confirms it.
+
+### 8. Observability / trace context
 
 Keep enough context to explain an evaluation later:
 
@@ -62,7 +129,7 @@ Keep enough context to explain an evaluation later:
 
 The goal is reproducibility and explanation, not write orchestration.
 
-### 5. Read model / cache strategy
+### 9. Read model / cache strategy
 
 Do not route high-volume reads directly to a fragile legacy source without understanding the source capability and load profile.
 
@@ -70,13 +137,15 @@ Introduce a read model only when a real source connection and measured need exis
 
 A cache or read model must never become Source Truth by convenience.
 
-### 6. Runtime context as evidence
+### 10. Runtime context as evidence
 
 Session, freshness, version and conflict state may change what was actually observable at a given moment.
 
 Record those states when available, but do not confuse a runtime representation with the preserved source itself.
 
-### 7. Read-only adapter discipline
+Transaction and cascade behavior may be useful to explain upstream state transitions, but they remain context only.
+
+### 11. Read-only adapter discipline
 
 Concrete adapters may differ by database, API, file format or legacy technology, but the Bridge contract stays conservative:
 
@@ -86,14 +155,31 @@ Concrete adapters may differ by database, API, file format or legacy technology,
 - source mutation is forbidden
 - technical capability does not grant semantic or release authority
 
+### 12. Release authority remains separate
+
+Access, mapping and validation must remain separate from decision authority.
+
+- Source adapters can read.
+- Mapping can translate confirmed structures.
+- Validation can produce findings.
+- Only release logic may derive VALID / NEEDS_CONFIRMATION / BLOCKED.
+
+No lower layer may silently upgrade an uncertain result to VALID.
+
 ## Non-goals for the current bridge
 
 - No production writes to legacy/source systems.
 - No automatic source correction or write-back.
+- No automatic source-ID generation.
+- No automatic persistence / merge back into source systems.
+- No cascade mutations.
 - No distributed transactions, Saga orchestration or compensating writes.
 - No commit/rollback workflow as part of the Bridge product.
+- No source-schema creation or mutation.
 - No cache treated as Source Truth.
 - No automatically inferred business semantics without confirmation.
+- No relationship meaning inferred solely from a join or foreign key.
+- No subtype meaning inferred solely from naming convention.
 - No knowledge graph merely because one could exist; use relationship modelling only when the source and use case justify it.
 - No LLM authority to mutate source data or override release constraints.
 
