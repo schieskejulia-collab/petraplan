@@ -65,6 +65,22 @@ export type AssociationEntityProfileEntry = {
   note: string;
 };
 
+export type HierarchyProfileEntry = {
+  relationId: string;
+  entity: string;
+  nodeIdField: string;
+  parentIdField: string;
+  status: EvidenceStatus;
+  traversalStatus: "complete" | "cycle_detected" | "missing_parent" | "depth_limit" | "unresolved";
+  startId: string | null;
+  observedPath: string[];
+  cycleDetected: boolean;
+  maxDepth: number;
+  evidence: string[];
+  blockers: string[];
+  note: string;
+};
+
 export type RelationDirection = "unidirectional" | "bidirectional" | "unknown";
 export type RelationCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many" | "unknown";
 
@@ -91,6 +107,7 @@ export type ConfirmedInstanceProfile = {
   subtypes: SubtypeProfileEntry[];
   collections: CollectionProfileEntry[];
   associationEntities: AssociationEntityProfileEntry[];
+  hierarchies: HierarchyProfileEntry[];
 };
 
 export type OrderIdentitySource = {
@@ -218,5 +235,6 @@ export function buildOrderInstanceProfile(input: {
     subtypes: [],
     collections: [],
     associationEntities: [],
+    hierarchies: [],
   };
 }
