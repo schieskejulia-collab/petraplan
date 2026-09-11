@@ -20,6 +20,26 @@ export type ObservedIdentity = {
   note: string;
 };
 
+export type InheritanceStrategy =
+  | "single_table"
+  | "joined"
+  | "table_per_concrete_type"
+  | "mapped_superclass"
+  | "unknown";
+
+export type SubtypeProfileEntry = {
+  baseType: string;
+  subtype: string | null;
+  discriminatorField: string;
+  observedDiscriminatorValue: string | null;
+  subtypeStatus: EvidenceStatus;
+  inheritanceStrategy: InheritanceStrategy;
+  inheritanceStrategyStatus: EvidenceStatus;
+  evidence: string[];
+  blockers: string[];
+  note: string;
+};
+
 export type RelationDirection = "unidirectional" | "bidirectional" | "unknown";
 export type RelationCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many" | "unknown";
 
@@ -43,6 +63,7 @@ export type ConfirmedInstanceProfile = {
   observedAt: string;
   identities: ObservedIdentity[];
   relations: RelationProfile[];
+  subtypes: SubtypeProfileEntry[];
 };
 
 export type OrderIdentitySource = {
@@ -167,5 +188,6 @@ export function buildOrderInstanceProfile(input: {
     observedAt,
     identities: [orderIdentity, customerIdentity],
     relations: [orderToCustomer],
+    subtypes: [],
   };
 }
