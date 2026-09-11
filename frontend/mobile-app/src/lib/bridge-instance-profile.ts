@@ -81,6 +81,24 @@ export type HierarchyProfileEntry = {
   note: string;
 };
 
+export type ComponentFieldProfile = {
+  field: string;
+  value: string | null;
+  status: EvidenceStatus;
+};
+
+export type ComponentProfileEntry = {
+  componentId: string;
+  ownerEntity: string;
+  componentType: string;
+  status: EvidenceStatus;
+  hasOwnIdentity: false;
+  fields: ComponentFieldProfile[];
+  evidence: string[];
+  blockers: string[];
+  note: string;
+};
+
 export type RelationDirection = "unidirectional" | "bidirectional" | "unknown";
 export type RelationCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many" | "unknown";
 
@@ -108,6 +126,7 @@ export type ConfirmedInstanceProfile = {
   collections: CollectionProfileEntry[];
   associationEntities: AssociationEntityProfileEntry[];
   hierarchies: HierarchyProfileEntry[];
+  components: ComponentProfileEntry[];
 };
 
 export type OrderIdentitySource = {
@@ -236,5 +255,6 @@ export function buildOrderInstanceProfile(input: {
     collections: [],
     associationEntities: [],
     hierarchies: [],
+    components: [],
   };
 }
