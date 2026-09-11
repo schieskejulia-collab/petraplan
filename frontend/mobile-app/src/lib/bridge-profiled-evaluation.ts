@@ -10,6 +10,10 @@ import {
   type ConfirmedInstanceProfile,
 } from "./bridge-instance-profile";
 import {
+  decideFromRelationVerifications,
+  type RelationGateDecision,
+} from "./bridge-relation-decision";
+import {
   verifyRelations,
   type RelationEvidence,
   type RelationVerification,
@@ -19,11 +23,14 @@ export type ProfiledBridgeReport = BridgeEvaluation["report"] & {
   confirmedIdentities: string[];
   relationFindings: string[];
   relationVerifications: RelationVerification[];
+  relationDecision: RelationGateDecision;
 };
 
-export type ProfiledBridgeEvaluation = Omit<BridgeEvaluation, "report"> & {
+export type ProfiledBridgeEvaluation = Omit<BridgeEvaluation, "report" | "release"> & {
   instanceProfile: ConfirmedInstanceProfile;
   relationVerifications: RelationVerification[];
+  relationDecision: RelationGateDecision;
+  release: BridgeEvaluation["release"];
   report: ProfiledBridgeReport;
 };
 
@@ -63,6 +70,7 @@ export function evaluateRecordWithInstanceProfile(
     .map(({ subject, status, note }) => `Identität ${subject} ist ${status}: ${note}`);
 
   const relationVerifications = verifyRelations(instanceProfile.relations, relationEvidence);
+  const relationDecision = decideFromRelationVerifications(relationVerifications);
 
   const relationFindings = relationVerifications.map((verification) => {
     const relation = instanceProfile.relations.find(({ id }) => id === verification.relationId);
@@ -82,20 +90,35 @@ export function evaluateRecordWithInstanceProfile(
       `Beziehung ${verification.relationId}: ${blocker}`,
     ));
 
+  const relationReleaseBlocked = !relationDecision.releaseAllowed;
+  const release = relationReleaseBlocked
+    ? {
+        releaseAllowed: false,
+        blockingIssues: evaluation.release.blockingIssues + relationDecision.blockingRelations.length,
+        reason: `${evaluation.release.reason} Relationsprüfung: ${relationDecision.note}`,
+      }
+    : evaluation.release;
+
   return {
     ...evaluation,
+    release,
     instanceProfile,
     relationVerifications,
+    relationDecision,
     report: {
       ...evaluation.report,
       confirmedIdentities,
       relationFindings,
       relationVerifications,
+      relationDecision,
       openPoints: [
         ...evaluation.report.openPoints,
         ...unresolvedIdentityPoints,
         ...unresolvedRelationPoints,
       ],
+      nextStep: relationReleaseBlocked
+        ? "Zielidentität und konkreten Record-Link für die offene Beziehung belegen; keine Freigabe bis dahin."
+        : evaluation.report.nextStep,
     },
   };
 }
