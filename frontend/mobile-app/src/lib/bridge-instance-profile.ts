@@ -56,6 +56,50 @@ function hasValue(value: string): boolean {
 }
 
 /**
+ * Assesses a composite identity without turning mere field presence into an
+ * identity claim.
+ *
+ * All parts must be present. Even then, the identity is only confirmed when
+ * the definition itself is supported by confirmed evidence (for example a
+ * documented composite key or observed source metadata). If the definition is
+ * only a candidate, the complete value tuple stays a candidate as well.
+ */
+export function assessCompositeIdentity(input: {
+  subject: string;
+  parts: Array<{ field: string; value: string }>;
+  definitionStatus: EvidenceStatus;
+  evidence: string[];
+}): ObservedIdentity {
+  const parts: IdentityPart[] = input.parts.map(({ field, value }) => ({
+    field,
+    value,
+    present: hasValue(value),
+  }));
+  const allPartsPresent = parts.length > 1 && parts.every(({ present }) => present);
+
+  let status: EvidenceStatus = "unresolved";
+  if (allPartsPresent) {
+    status = input.definitionStatus === "confirmed" ? "confirmed" : "candidate";
+  }
+
+  const missingParts = parts.filter(({ present }) => !present).map(({ field }) => field);
+  const note = !allPartsPresent
+    ? `Composite identity is unresolved because ${missingParts.length > 0 ? `parts are missing: ${missingParts.join(", ")}` : "fewer than two identity parts were supplied"}.`
+    : input.definitionStatus === "confirmed"
+      ? "All confirmed composite-identity parts are present; identity is confirmed for this observed tuple."
+      : "All parts are present, but the composite-identity definition itself is not confirmed; tuple remains a candidate.";
+
+  return {
+    subject: input.subject,
+    kind: "composite_identifier",
+    parts,
+    status,
+    evidence: [...input.evidence],
+    note,
+  };
+}
+
+/**
  * Builds the smallest conservative identity/relation view for the current
  * order demo contract.
  *
