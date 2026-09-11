@@ -52,6 +52,7 @@ jobs:
           sed -i 's|from "./bridge-instance-profile";|from "./bridge-instance-profile.js";|' .bridge-test-build/bridge-profiled-evaluation.js
           sed -i 's|from "./bridge-relation-decision";|from "./bridge-relation-decision.js";|' .bridge-test-build/bridge-profiled-evaluation.js
           sed -i 's|from "./bridge-relation-verification";|from "./bridge-relation-verification.js";|' .bridge-test-build/bridge-profiled-evaluation.js
+          sed -i 's|from "./bridge-subtype-profile";|from "./bridge-subtype-profile.js";|' .bridge-test-build/bridge-profiled-evaluation.js
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-relation-demo.js
           sed -i 's|from "./bridge-relation-verification";|from "./bridge-relation-verification.js";|' .bridge-test-build/bridge-relation-demo.js
           sed -i 's|from "./bridge-instance-profile";|from "./bridge-instance-profile.js";|' .bridge-test-build/bridge-subtype-profile.js
