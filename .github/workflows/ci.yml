@@ -29,9 +29,9 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm run build
-      - name: Compile Bridge pipeline, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety, canonical mapping, provenance, instance profile, relation verification and relation decision for node tests
+      - name: Compile Bridge pipeline, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety, canonical mapping, provenance, instance profile, relation verification, relation decision and subtype profile for node tests
         run: |
-          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts src/lib/bridge-evidence.ts src/lib/bridge-ingress-context.ts src/lib/bridge-addressing.ts src/lib/bridge-capability-profile.ts src/lib/bridge-runtime-decision.ts src/lib/bridge-adapter-contract.ts src/lib/bridge-source-readiness.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-instance-profile.ts src/lib/bridge-relation-verification.ts src/lib/bridge-relation-decision.ts src/lib/bridge-profiled-evaluation.ts src/lib/bridge-relation-demo.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-transition.ts src/lib/bridge-evidence.ts src/lib/bridge-ingress-context.ts src/lib/bridge-addressing.ts src/lib/bridge-capability-profile.ts src/lib/bridge-runtime-decision.ts src/lib/bridge-adapter-contract.ts src/lib/bridge-source-readiness.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-instance-profile.ts src/lib/bridge-relation-verification.ts src/lib/bridge-relation-decision.ts src/lib/bridge-profiled-evaluation.ts src/lib/bridge-relation-demo.ts src/lib/bridge-subtype-profile.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-pipeline.js
           sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-test-build/bridge-pipeline.js
@@ -54,5 +54,6 @@ jobs:
           sed -i 's|from "./bridge-relation-verification";|from "./bridge-relation-verification.js";|' .bridge-test-build/bridge-profiled-evaluation.js
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-relation-demo.js
           sed -i 's|from "./bridge-relation-verification";|from "./bridge-relation-verification.js";|' .bridge-test-build/bridge-relation-demo.js
-      - name: Test Bridge release consistency, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety, canonical mapping, provenance, relation verification and relation release gating
+          sed -i 's|from "./bridge-instance-profile";|from "./bridge-instance-profile.js";|' .bridge-test-build/bridge-subtype-profile.js
+      - name: Test Bridge release consistency, constraints, state, transitions, evidence, ingress context, addressing, capability profile, runtime gate, adapter contract, source readiness, type conversion safety, canonical mapping, provenance, relation verification, relation release gating and subtype profiling
         run: node --test tests/*.test.mjs
