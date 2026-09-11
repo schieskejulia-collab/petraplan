@@ -18,6 +18,10 @@ import {
   type RelationEvidence,
   type RelationVerification,
 } from "./bridge-relation-verification";
+import {
+  attachSubtypeAssessment,
+  type SubtypeAssessment,
+} from "./bridge-subtype-profile";
 
 export type RelationExplanation = {
   relationId: string;
@@ -34,6 +38,7 @@ export type ProfiledBridgeReport = BridgeEvaluation["report"] & {
   relationVerifications: RelationVerification[];
   relationExplanations: RelationExplanation[];
   relationDecision: RelationGateDecision;
+  subtypeFindings: string[];
 };
 
 export type ProfiledBridgeEvaluation = Omit<BridgeEvaluation, "report" | "release"> & {
@@ -46,11 +51,13 @@ export type ProfiledBridgeEvaluation = Omit<BridgeEvaluation, "report" | "releas
 
 /**
  * Extends the existing read-only bridge evaluation with a conservative
- * instance profile and optional relation evidence.
+ * instance profile and optional relation/subtype evidence.
  *
  * Evidence may confirm that a concrete source reference points to an observed
  * target record. It never upgrades database FK/cardinality facts unless those
- * facts are explicitly supplied as observed evidence.
+ * facts are explicitly supplied as observed evidence. Subtype assessments are
+ * likewise attached with their own evidence status rather than treated as
+ * implicit truth.
  */
 export function evaluateRecordWithInstanceProfile(
   raw: RawRecord,
@@ -58,15 +65,20 @@ export function evaluateRecordWithInstanceProfile(
   ingressOverrides: Partial<IngressContext> = {},
   responseOverrides: Partial<ResponseContext> = {},
   relationEvidence: RelationEvidence[] = [],
+  subtypeAssessments: SubtypeAssessment[] = [],
 ): ProfiledBridgeEvaluation {
   const evaluation = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
 
-  const instanceProfile = buildOrderInstanceProfile({
+  let instanceProfile = buildOrderInstanceProfile({
     raw,
     source: evaluation.ingress.source,
     sourceSnapshotId: evaluation.snapshot.id,
     observedAt: capturedAt,
   });
+
+  for (const subtypeAssessment of subtypeAssessments) {
+    instanceProfile = attachSubtypeAssessment(instanceProfile, subtypeAssessment);
+  }
 
   const confirmedIdentities = instanceProfile.identities
     .filter(({ status }) => status === "confirmed")
@@ -78,6 +90,18 @@ export function evaluateRecordWithInstanceProfile(
   const unresolvedIdentityPoints = instanceProfile.identities
     .filter(({ status }) => status !== "confirmed")
     .map(({ subject, status, note }) => `Identität ${subject} ist ${status}: ${note}`);
+
+  const subtypeFindings = instanceProfile.subtypes.map((assessment) => {
+    const subtypeLabel = assessment.subtype ?? "ungeklärt";
+    return `${assessment.baseType} → ${subtypeLabel}: ${assessment.subtypeStatus}. ${assessment.note}`;
+  });
+
+  const unresolvedSubtypePoints = instanceProfile.subtypes
+    .filter(({ subtypeStatus }) => subtypeStatus !== "confirmed")
+    .flatMap((assessment) => [
+      `Subtype ${assessment.baseType} ist ${assessment.subtypeStatus}: ${assessment.note}`,
+      ...assessment.blockers.map((blocker) => `Subtype ${assessment.baseType}: ${blocker}`),
+    ]);
 
   const relationVerifications = verifyRelations(instanceProfile.relations, relationEvidence);
   const relationDecision = decideFromRelationVerifications(relationVerifications);
@@ -170,9 +194,11 @@ export function evaluateRecordWithInstanceProfile(
       relationVerifications,
       relationExplanations,
       relationDecision,
+      subtypeFindings,
       openPoints: [
         ...evaluation.report.openPoints,
         ...unresolvedIdentityPoints,
+        ...unresolvedSubtypePoints,
         ...unresolvedRelationPoints,
       ],
       nextStep: relationReleaseBlocked
