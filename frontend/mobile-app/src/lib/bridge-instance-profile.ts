@@ -40,6 +40,31 @@ export type SubtypeProfileEntry = {
   note: string;
 };
 
+export type CollectionShape = "list" | "set" | "map" | "bag" | "array" | "unknown";
+
+export type CollectionProfileEntry = {
+  relationId: string;
+  shape: CollectionShape;
+  shapeStatus: EvidenceStatus;
+  ordered: boolean | null;
+  orderingStatus: EvidenceStatus;
+  orderField: string | null;
+  evidence: string[];
+  blockers: string[];
+  note: string;
+};
+
+export type AssociationEntityProfileEntry = {
+  relationId: string;
+  joinObject: string | null;
+  status: EvidenceStatus;
+  hasOwnMeaning: boolean | null;
+  ownFields: string[];
+  evidence: string[];
+  blockers: string[];
+  note: string;
+};
+
 export type RelationDirection = "unidirectional" | "bidirectional" | "unknown";
 export type RelationCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many" | "unknown";
 
@@ -64,6 +89,8 @@ export type ConfirmedInstanceProfile = {
   identities: ObservedIdentity[];
   relations: RelationProfile[];
   subtypes: SubtypeProfileEntry[];
+  collections: CollectionProfileEntry[];
+  associationEntities: AssociationEntityProfileEntry[];
 };
 
 export type OrderIdentitySource = {
@@ -189,5 +216,7 @@ export function buildOrderInstanceProfile(input: {
     identities: [orderIdentity, customerIdentity],
     relations: [orderToCustomer],
     subtypes: [],
+    collections: [],
+    associationEntities: [],
   };
 }
