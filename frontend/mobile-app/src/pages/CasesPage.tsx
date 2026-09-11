@@ -40,9 +40,14 @@ export default function CasesPage() {
               <h1 className="text-3xl font-semibold">Truth Cases</h1>
               <p className="text-sm text-muted-foreground">Nachvollziehbare Fälle von Source Truth bis Release Truth.</p>
             </div>
-            <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" onClick={() => setLocation("/bridge")}>
-              Bridge öffnen
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" onClick={() => setLocation("/trace")}>
+                Nachweisweg
+              </button>
+              <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" onClick={() => setLocation("/bridge")}>
+                Bridge öffnen
+              </button>
+            </div>
           </div>
         </header>
 
