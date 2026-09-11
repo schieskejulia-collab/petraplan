@@ -99,6 +99,24 @@ export type ComponentProfileEntry = {
   note: string;
 };
 
+export type ReadOrigin = "source" | "cache" | "unknown";
+export type FreshnessStatus = "fresh" | "stale" | "future_timestamp" | "unbounded" | "unresolved";
+
+export type FreshnessProfileEntry = {
+  sourceSnapshotId: string;
+  readOrigin: ReadOrigin;
+  capturedAt: string;
+  assessedAt: string;
+  maxAgeMs: number | null;
+  ageMs: number | null;
+  status: EvidenceStatus;
+  freshnessStatus: FreshnessStatus;
+  cacheIsSourceTruth: false;
+  evidence: string[];
+  blockers: string[];
+  note: string;
+};
+
 export type RelationDirection = "unidirectional" | "bidirectional" | "unknown";
 export type RelationCardinality = "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many" | "unknown";
 
@@ -127,6 +145,7 @@ export type ConfirmedInstanceProfile = {
   associationEntities: AssociationEntityProfileEntry[];
   hierarchies: HierarchyProfileEntry[];
   components: ComponentProfileEntry[];
+  freshness: FreshnessProfileEntry[];
 };
 
 export type OrderIdentitySource = {
@@ -256,5 +275,6 @@ export function buildOrderInstanceProfile(input: {
     associationEntities: [],
     hierarchies: [],
     components: [],
+    freshness: [],
   };
 }
