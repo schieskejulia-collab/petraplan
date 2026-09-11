@@ -13,6 +13,10 @@ import {
   type CanonicalMappingAssessment,
   type CanonicalFieldRule,
 } from "./bridge-canonical-mapping";
+import {
+  buildProvenanceMetadata,
+  type ProvenanceMetadata,
+} from "./bridge-provenance";
 
 export type RawRecord = {
   KUNDEN_NR: string;
@@ -163,6 +167,7 @@ export type Provenance = {
   mode: "read_only";
   overallStatus: "valid" | "needs_review";
   conflicts: string[];
+  metadata: ProvenanceMetadata;
 };
 
 export type BridgeEvaluation = {
@@ -172,6 +177,7 @@ export type BridgeEvaluation = {
   gatewayIssues: GatewayIssue[];
   raw: RawRecord;
   snapshot: {
+    id: string;
     capturedAt: string;
     source: string;
     sourceRecord: string;
@@ -554,6 +560,19 @@ export function evaluateRecord(
   const blockingIssues = constraintDecision.blockingIssues;
   const passed = constraints.every(({ passed: constraintPassed }) => constraintPassed);
   const sourceRecord = raw.AUFTRAGS_NR;
+  const provenanceMetadata = buildProvenanceMetadata({
+    source: ingress.source,
+    sourceRecord,
+    capturedAt,
+    messageId: ingress.messageId,
+    values: raw,
+    versions: {
+      bridgeVersion: "petraplan-bridge-v1",
+      contractVersion: orderContract.name,
+      mappingVersion: "order-mapping-v1",
+      validationVersion: "order-validation-v1",
+    },
+  });
   const report = {
     confirmedMappings: fieldMap.map(([from, to]) => `${from} → ${to}`),
     openPoints: warningConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
@@ -570,6 +589,7 @@ export function evaluateRecord(
     gatewayIssues,
     raw,
     snapshot: {
+      id: provenanceMetadata.sourceSnapshotId,
       capturedAt,
       source: ingress.source,
       sourceRecord,
@@ -623,6 +643,7 @@ export function evaluateRecord(
         ...blockingConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
         ...warningConstraints.map(({ label, evidence }) => `${label}: ${evidence}`),
       ],
+      metadata: provenanceMetadata,
     },
     report,
   };
