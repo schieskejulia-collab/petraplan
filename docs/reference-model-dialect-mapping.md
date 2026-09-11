@@ -2,6 +2,8 @@
 
 Dieses Dokument hält die internen Architekturprinzipien fest, die wir aus etablierten ORM-/Hibernate-Mustern für die PetraPlan-Bridge ableiten.
 
+Vertiefende Ableitungen aus dem vollständigen Hibernate-Leseblock stehen in [`hibernate-derived-architecture.md`](./hibernate-derived-architecture.md).
+
 Es ist **keine neue öffentliche Methode**. Der Entknotungs-Check bleibt bei genau vier Phasen:
 
 1. Eingang
@@ -31,10 +33,10 @@ Oder als internes Schichtenmodell:
    Systemspezifische Variante: Datenbankdialekt, Treiber, lokale Erweiterungen, unterstützte Fähigkeiten und andere konkrete Besonderheiten.
 
 4. **Mapping / Übersetzung**  
-   Explizite Zuordnung zwischen Modellen und Strukturen, z. B. Feld ↔ Feld, Wert ↔ Wert, Typ ↔ Typ, Objekt ↔ Tabelle, Attribut ↔ Spalte.
+   Explizite Zuordnung zwischen Modellen und Strukturen, z. B. Feld ↔ Feld, Wert ↔ Wert, Typ ↔ Typ, Objekt ↔ Tabelle, Attribut ↔ Spalte, Identität ↔ Identität und Relation ↔ Relation.
 
 5. **Reale Systeminstanz**  
-   Tatsächlich vorhandene Tabellen, Felder, Beziehungen, Werte, Status, lokale Besonderheiten und Laufzeitzustände.
+   Tatsächlich vorhandene Tabellen, Felder, Schlüssel, Beziehungen, Werte, Status, Untertypen, lokale Besonderheiten und Laufzeitzustände.
 
 ## Wichtigste Sicherheitsregel
 
@@ -75,22 +77,75 @@ PetraPlan behandelt Mapping deshalb nicht als versteckte Hilfsfunktion, sondern 
 - Field Map
 - Value Map
 - Type / Conversion Mapping
-- Beziehungen und Identität
+- Identity Mapping
+- Relation Mapping
+- Subtype / Discriminator Mapping
 - Herkunft und Mapping-Version
+
+### Identität gehört vor die Übersetzung
+
+Ein Objekt ist nicht automatisch über genau ein Feld eindeutig.
+
+Eine reale Instanz kann natürliche, technische oder zusammengesetzte Schlüssel verwenden. PetraPlan muss deshalb unterscheiden zwischen:
+
+- Kandidat für dieselbe Entität
+- bestätigter Identität
+- zusammengesetzten Schlüsselbestandteilen
+- Quellidentität
+- kanonischer Identität
+
+**Candidate match ≠ confirmed same_entity.**
+
+Erst wenn alle erforderlichen Identitätsbestandteile bestätigt sind, darf eine Zuordnung als dieselbe Entität verwendet werden.
 
 ### Beziehungen gehören zur Struktur
 
 Ein System besteht nicht nur aus isolierten Feldern. Beziehungen zwischen Objekten, Tabellen und Geschäftsobjekten können entscheidenden Kontext liefern.
 
-Eine spätere Relationsanalyse muss daher unterscheiden zwischen:
+Eine Relationsanalyse muss unterscheiden zwischen:
 
 - Identität
 - Beziehung
+- Richtung
 - Kardinalität
 - technischer Verknüpfung
+- Owner-/Inverse-Seite
+- Join-Tabelle
+- Association Entity
 - bestätigter fachlicher Bedeutung
 
 Eine technische Relation ist noch keine fachliche Wahrheit.
+
+Ebenso wichtig:
+
+**Eine Beziehung kann selbst Bedeutung tragen.**
+
+Eine Join-Struktur kann reine Technik sein, aber auch ein eigenständiges fachliches Objekt mit eigenen Attributen.
+
+### Vererbung und konkrete Systemausprägung
+
+Ein gemeinsamer fachlicher Kern kann mehrere technische Untertypen oder Speicherstrategien haben.
+
+PetraPlan muss deshalb zwischen gemeinsamem Referenztyp und konkreter Instanzausprägung unterscheiden, z. B. anhand von:
+
+- Basistyp
+- Untertyp
+- Discriminator-Feld / -Wert
+- gemeinsam genutzten Feldern
+- untertypspezifischen Feldern
+- Tabellenstrategie
+
+Ein Discriminator ist Evidenz für eine Ausprägung, aber ersetzt nicht die Prüfung des konkreten Kontexts.
+
+### Collections und Sortierung sind technische Formen
+
+Liste, Set, Map, Bag, Array, Join-Tabelle oder sortierte Collection können dieselbe fachliche Beziehung unterschiedlich repräsentieren.
+
+Darum gilt:
+
+- Speicherform und Fachbedeutung getrennt halten.
+- Reihenfolge nicht als Geschäftsregel interpretieren, solange sie nicht bestätigt ist.
+- Canonical Model nach Bedeutung bauen, nicht nach ORM-Darstellung.
 
 ### Laufzeitkontext ist beobachtbare Evidenz
 
@@ -129,6 +184,29 @@ Für Berichte oder Analysezwecke braucht ein System nicht zwingend ein voll schr
 
 PetraPlan bevorzugt deshalb bewusst eine **read-only Analyse- und Übersetzungsschicht**.
 
+## Bestätigtes Instanzprofil
+
+Das Instanzprofil soll künftig mehr als nur Feldnamen enthalten.
+
+Mindestens relevant sind:
+
+- Source / Schema / Catalog
+- Entity / Tabelle
+- Felder / Spalten
+- Quell-Datentypen
+- Primärschlüssel
+- zusammengesetzte Schlüssel
+- Fremdschlüssel
+- nullable / required
+- technische Defaults
+- Beziehungen / Kardinalitäten
+- Join-Strukturen
+- Collection-/Storage-Shape
+- Vererbungs-/Subtype-Metadaten
+- Snapshot / Zeitpunkt / Evidence References
+
+Diese Struktur beschreibt die beobachtete Instanz. Fachliche Bedeutung muss weiterhin separat bestätigt werden.
+
 ## Was wir bewusst nicht übernehmen
 
 Bestimmte Hibernate-Themen sind wichtiges Hintergrundwissen, gehören aber nicht in den PetraPlan-Produktkern:
@@ -138,9 +216,12 @@ Bestimmte Hibernate-Themen sind wichtiges Hintergrundwissen, gehören aber nicht
 - Transaktionssteuerung für Writes
 - Commit-/Rollback-Orchestrierung als Bridge-Funktion
 - automatische Merge-/Update-Logik zurück in die Quelle
+- automatische ID-Erzeugung für Quelldaten
+- Cascading-Schreiboperationen
 - pessimistische Sperren als Produktmechanismus
 - Cache-Inhalte als Source Truth
 - automatisch generierte Semantik ohne Bestätigung
+- Schema-Erzeugung oder Schema-Mutation als Bridge-Funktion
 
 PetraPlan liest, ordnet ein, übersetzt, prüft, entscheidet und dokumentiert. Die Quelle wird nicht zurückgeschrieben.
 
@@ -151,18 +232,24 @@ PetraPlan liest, ordnet ein, übersetzt, prüft, entscheidet und dokumentiert. D
 - Quelle und Snapshot erfassen
 - technische Identität und Zugriffskontext prüfen
 - Metadaten / Struktur lesen
+- Primär-/Fremdschlüssel und Relationsstruktur beobachten
+- Untertyp-/Discriminator-Evidenz erfassen
 - Referenzrahmen nur als Orientierung verwenden
 
 ### 2. Übersetzung
 
 - Dialekt / technische Ausprägung bestimmen
+- Identität bestätigen, bevor Relation oder Mapping darauf aufbaut
 - Field Map, Value Map und Type Conversion anwenden
+- bestätigte Identity-/Relation-/Subtype-Mappings anwenden
 - Beziehungen nur mit bestätigtem Kontext interpretieren
 - Canonical Model ausschließlich aus bestätigten Zuordnungen aufbauen
 
 ### 3. Prüfung
 
 - Schema-, Daten-, Semantik- und Beziehungskonflikte prüfen
+- Identität und zusammengesetzte Schlüssel prüfen
+- Kardinalität und Relationskonsistenz prüfen, wenn fachlich relevant
 - Versionen / Freshness / konkurrierende Beobachtungen berücksichtigen
 - offene oder nicht belegte Bedeutungen sichtbar halten
 
@@ -175,4 +262,4 @@ PetraPlan liest, ordnet ein, übersetzt, prüft, entscheidet und dokumentiert. D
 
 ## Interner Merksatz
 
-**Nicht jedes Detail zuerst erraten. Erst den Referenzrahmen verstehen, dann die konkrete Instanz befragen, Abweichungen belegen und nur bestätigte Übersetzungen verwenden.**
+**Nicht jedes Detail zuerst erraten. Erst den Referenzrahmen verstehen, dann die konkrete Instanz befragen, Identität und Beziehungen belegen, Abweichungen sichtbar machen und nur bestätigte Übersetzungen verwenden.**
