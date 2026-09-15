@@ -10,6 +10,7 @@ import {
 } from "../lib/bridge-pipeline";
 import { evaluateRecordWithInstanceProfile } from "../lib/bridge-profiled-evaluation";
 import { demoObservedCustomer, demoOrderToCustomerEvidence } from "../lib/bridge-relation-demo";
+import { groupConstraints } from "../lib/bridge-validation-groups";
 
 function JsonBlock({ value }: { value: unknown }) {
   return (
@@ -73,6 +74,7 @@ export default function BridgePage() {
     report,
   } = evaluation;
 
+  const validationGroups = groupConstraints(evaluation.constraints);
   const blockingChecks = checks.filter(({ ok, severity }) => !ok && severity === "blocking");
   const relationBlockingCount = relationDecision.releaseAllowed ? 0 : relationDecision.blockingRelations.length;
   const visibleBlockingCount = blockingChecks.length + gatewayIssues.length + relationBlockingCount;
@@ -463,6 +465,19 @@ export default function BridgePage() {
               ))}
             </div>
             <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Daten-Fehlerfall laden</button><button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadRecord(demoValidRecord)}>Gültigen Fall laden</button></div>
+            <div className="mt-4 grid gap-2 md:grid-cols-4">
+              {validationGroups.map(({ id, label, constraintIds, passed: groupPassed, blockingIssues, warningIssues }) => (
+                <div key={id} className={`rounded-xl border p-3 ${groupPassed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold">{label}</p>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${groupPassed ? "bg-white text-teal-800" : "bg-white text-red-800"}`}>
+                      {groupPassed ? "OK" : "offen"}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-xs opacity-75">{constraintIds.length} Prüfungen · {blockingIssues} Blocker · {warningIssues} Warnungen</p>
+                </div>
+              ))}
+            </div>
           </Section>
 
           <Section eyebrow="11 · Issue erzeugen" title={(issues.length + gatewayIssues.length + relationBlockingCount) ? `${issues.length + gatewayIssues.length + relationBlockingCount} Abweichung${issues.length + gatewayIssues.length + relationBlockingCount === 1 ? "" : "en"} dokumentiert` : "Keine Issues"}>
