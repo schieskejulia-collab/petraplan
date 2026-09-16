@@ -175,3 +175,63 @@ test("VALID is only possible when all blocking constraints pass", () => {
   assert.equal(evaluation.state.state, "VALID");
   assert.equal(evaluation.release.releaseAllowed, true);
 });
+
+test("the five selectable demo cases keep their intended release semantics and preserve source values", () => {
+  const demoCases = [
+    {
+      id: "valid",
+      raw: { ...demoValidRecord },
+      releaseAllowed: true,
+      state: "VALID",
+      expectedConstraint: null,
+      expectedSeverity: null,
+    },
+    {
+      id: "unknown-field",
+      raw: { ...demoValidRecord, LEGACY_FLAG: "X" },
+      releaseAllowed: true,
+      state: "VALID",
+      expectedConstraint: "contract.unknown_fields",
+      expectedSeverity: "warning",
+    },
+    {
+      id: "missing-required",
+      raw: { ...demoValidRecord, KUNDEN_NR: "" },
+      releaseAllowed: false,
+      state: "BLOCKED",
+      expectedConstraint: "customer.required",
+      expectedSeverity: "blocking",
+    },
+    {
+      id: "unknown-status",
+      raw: { ...demoValidRecord, STATUS: "UNBEKANNT" },
+      releaseAllowed: false,
+      state: "NEEDS_CONFIRMATION",
+      expectedConstraint: "status.value_map",
+      expectedSeverity: "blocking",
+    },
+    {
+      id: "negative-quantity",
+      raw: { ...demoValidRecord, MENGE: "-4" },
+      releaseAllowed: false,
+      state: "BLOCKED",
+      expectedConstraint: "quantity.positive",
+      expectedSeverity: "blocking",
+    },
+  ];
+
+  for (const demoCase of demoCases) {
+    const evaluation = evaluateRecord(demoCase.raw, capturedAt);
+
+    assert.equal(evaluation.release.releaseAllowed, demoCase.releaseAllowed, `${demoCase.id}: release`);
+    assert.equal(evaluation.state.state, demoCase.state, `${demoCase.id}: state`);
+    assert.deepEqual(evaluation.snapshot.values, demoCase.raw, `${demoCase.id}: source snapshot`);
+
+    if (demoCase.expectedConstraint) {
+      const constraint = evaluation.constraints.find(({ id }) => id === demoCase.expectedConstraint);
+      assert.ok(constraint, `${demoCase.id}: expected constraint exists`);
+      assert.equal(constraint.passed, false, `${demoCase.id}: expected constraint fails visibly`);
+      assert.equal(constraint.severity, demoCase.expectedSeverity, `${demoCase.id}: severity`);
+    }
+  }
+});
