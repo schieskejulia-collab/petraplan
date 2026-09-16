@@ -39,6 +39,7 @@ export default function BridgePage() {
   const [rawInput, setRawInput] = useState(() => JSON.stringify(demoValidRecord, null, 2));
   const [inputError, setInputError] = useState<string | null>(null);
   const [demoCaseActive, setDemoCaseActive] = useState(false);
+  const [selectedDemoCase, setSelectedDemoCase] = useState("valid");
 
   const relationEvidence = raw.KUNDEN_NR === demoObservedCustomer.CUSTOMER_ID
     ? [demoOrderToCustomerEvidence]
@@ -247,6 +248,11 @@ export default function BridgePage() {
     setDemoCaseActive(false);
   }
 
+  function loadDemoRecord(id: string, nextRecord: RawRecord) {
+    loadRecord(nextRecord);
+    setSelectedDemoCase(id);
+  }
+
   function loadEntanglementDemo() {
     const now = new Date().toISOString();
     setRaw(demoConflictRecord);
@@ -267,6 +273,7 @@ export default function BridgePage() {
     setRawInput(JSON.stringify(demoConflictRecord, null, 2));
     setInputError(null);
     setDemoCaseActive(true);
+    setSelectedDemoCase("entanglement");
   }
 
   function simulateTransportTimeout() {
@@ -284,6 +291,7 @@ export default function BridgePage() {
     setRawInput(JSON.stringify(demoValidRecord, null, 2));
     setInputError(null);
     setDemoCaseActive(false);
+    setSelectedDemoCase("transport-timeout");
   }
 
   function simulateResponse() {
@@ -303,6 +311,7 @@ export default function BridgePage() {
   function readRawRecord() {
     try {
       loadRecord(parseRawRecord(JSON.parse(rawInput)));
+      setSelectedDemoCase("custom");
     } catch (error) {
       setInputError(error instanceof Error ? error.message : "Der Datensatz konnte nicht gelesen werden.");
     }
@@ -316,6 +325,45 @@ export default function BridgePage() {
   ] as const;
 
   const flow = ["Source", "Snapshot", "Schema", "Missing", "Semantik", "Field Map", "Value Map", "Transformation", "Canonical", "Validierung", "Issue", "Trace", "Freigabe", "Report"];
+
+  const unknownFieldRecord = { ...demoValidRecord, LEGACY_FLAG: "X" } as RawRecord;
+  const demoCases = [
+    {
+      id: "valid",
+      title: "1 · Gültiger Fall",
+      description: "Alle bestätigten Regeln passen. Interne Freigabe ist möglich.",
+      tone: "ok",
+      record: demoValidRecord,
+    },
+    {
+      id: "unknown-field",
+      title: "2 · Warnung: Unknown Field",
+      description: "LEGACY_FLAG ist nicht Teil des bestätigten Vertrags. Das Feld bleibt sichtbar, wird nicht interpretiert und blockiert die Freigabe nicht.",
+      tone: "warning",
+      record: unknownFieldRecord,
+    },
+    {
+      id: "missing-required",
+      title: "3 · Blocker: Pflichtwert fehlt",
+      description: "KUNDEN_NR fehlt. Die Bridge erfindet keinen Ersatzwert und blockiert die Freigabe.",
+      tone: "blocking",
+      record: { ...demoValidRecord, KUNDEN_NR: "" },
+    },
+    {
+      id: "unknown-status",
+      title: "4 · Blocker: Unknown Status",
+      description: "STATUS=UNBEKANNT hat keine bestätigte Bedeutung und muss fachlich geklärt werden.",
+      tone: "blocking",
+      record: { ...demoValidRecord, STATUS: "UNBEKANNT" },
+    },
+    {
+      id: "negative-quantity",
+      title: "5 · Blocker: Negative Menge",
+      description: "MENGE=-4 verletzt die bestätigte Regel > 0. Der Quellwert bleibt trotzdem unverändert nachvollziehbar.",
+      tone: "blocking",
+      record: { ...demoValidRecord, MENGE: "-4" },
+    },
+  ] as const;
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -338,6 +386,44 @@ export default function BridgePage() {
                 <p className="mt-1 text-xs text-teal-900/70">{detail}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="rounded-2xl border bg-card p-4 shadow-sm">
+          <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-teal-700">Demo-Fälle · direkt vergleichbar</p>
+          <h2 className="mt-1 font-semibold">Fünf Fälle auswählen und denselben Prüfpfad beobachten</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Grün ist freigegeben, Gelb ist eine sichtbare Warnung ohne Blockade, Rot ist ein echter Blocker. Die Quellwerte bleiben in jedem Fall nachvollziehbar.</p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {demoCases.map((demoCase) => {
+              const active = selectedDemoCase === demoCase.id;
+              const cardClass = demoCase.tone === "ok"
+                ? "border-teal-200 bg-teal-50 text-teal-950"
+                : demoCase.tone === "warning"
+                  ? "border-amber-200 bg-amber-50 text-amber-950"
+                  : "border-red-200 bg-red-50 text-red-950";
+              const badgeClass = demoCase.tone === "ok"
+                ? "bg-white text-teal-800"
+                : demoCase.tone === "warning"
+                  ? "bg-white text-amber-800"
+                  : "bg-white text-red-800";
+              const badgeLabel = demoCase.tone === "ok" ? "GÜLTIG" : demoCase.tone === "warning" ? "WARNUNG" : "BLOCKER";
+              return (
+                <button
+                  key={demoCase.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => loadDemoRecord(demoCase.id, demoCase.record)}
+                  className={`rounded-xl border p-4 text-left transition ${cardClass} ${active ? "ring-2 ring-slate-900 ring-offset-2" : "hover:shadow-sm"}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-semibold">{demoCase.title}</p>
+                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${badgeClass}`}>{badgeLabel}</span>
+                  </div>
+                  <p className="mt-2 text-sm leading-relaxed opacity-80">{demoCase.description}</p>
+                  {active && <p className="mt-3 text-[11px] font-bold uppercase tracking-wide">Aktiv · Ergebnis unten aktualisiert</p>}
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -384,7 +470,7 @@ export default function BridgePage() {
           <p className="mt-2 text-sm text-amber-950/80">Der Demo-Fall simuliert eine Legacy-Schnittstelle mit einer unbestätigten Vertragsversion <strong>order-v2-field-drift</strong>, einem unbekannten Statuswert, einer negativen Menge und einer noch ausstehenden Antwort.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="rounded-lg bg-amber-800 px-3 py-2 text-sm font-semibold text-white" onClick={loadEntanglementDemo}>Vollständigen Demo-Fall laden</button>
-            <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-amber-900" onClick={() => loadRecord(demoValidRecord)}>Zurück zum gültigen Fall</button>
+            <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-amber-900" onClick={() => loadDemoRecord("valid", demoValidRecord)}>Zurück zum gültigen Fall</button>
           </div>
           {demoCaseActive && <p className="mt-3 rounded-xl border border-amber-300 bg-white p-3 text-xs font-semibold text-amber-950">Demo aktiv: Die Bridge trennt jetzt Vertrags-, Semantik- und Datenkonflikte und zeigt für jeden Knoten einen konkreten Auflösungsvorschlag.</p>}
         </section>
@@ -399,7 +485,7 @@ export default function BridgePage() {
           </details>
           <div className="mt-3 flex flex-wrap gap-2">
             <button className="rounded-lg bg-sky-800 px-3 py-2 text-sm font-semibold text-white" onClick={simulateTransportTimeout}>Transport-Timeout simulieren</button>
-            <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-sky-900" onClick={() => loadRecord(demoValidRecord)}>Transport OK</button>
+            <button className="rounded-lg bg-white px-3 py-2 text-sm font-semibold text-sky-900" onClick={() => loadDemoRecord("valid", demoValidRecord)}>Transport OK</button>
           </div>
           {gatewayIssues.filter(({ scope }) => scope === "transport").map(({ issue, message }) => (
             <p key={issue} className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-800">{issue}: {message}</p>
@@ -473,7 +559,7 @@ export default function BridgePage() {
                 );
               })}
             </div>
-            <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Daten-Fehlerfall laden</button><button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadRecord(demoValidRecord)}>Gültigen Fall laden</button></div>
+            <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Daten-Fehlerfall laden</button><button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadDemoRecord("valid", demoValidRecord)}>Gültigen Fall laden</button></div>
             <div className="mt-4 grid gap-2 md:grid-cols-4">
               {validationGroups.map(({ id, label, constraintIds, blockingIssues, warningIssues }) => {
                 const state = blockingIssues > 0 ? "blocking" : warningIssues > 0 ? "warning" : "ok";
