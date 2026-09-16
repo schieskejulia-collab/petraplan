@@ -457,26 +457,49 @@ export default function BridgePage() {
 
           <Section eyebrow="10 · Validieren" title="Fachliche Regeln gegen das Ergebnis prüfen" wide>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
-              {checks.map(({ label, ok, rule, observed, severity }) => (
-                <div key={label} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
-                  <div><p className="text-sm font-medium">{label}</p><p className="text-[11px] text-muted-foreground">{observed} · Regel: {rule} · {severity}</p></div>
-                  <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${ok ? "bg-teal-50 text-teal-700" : "bg-red-50 text-red-700"}`}>{ok ? "OK" : "FEHLER"}</span>
-                </div>
-              ))}
+              {checks.map(({ label, ok, rule, observed, severity }) => {
+                const state = ok ? "ok" : severity === "warning" ? "warning" : "blocking";
+                const badgeClass = state === "ok"
+                  ? "bg-teal-50 text-teal-700"
+                  : state === "warning"
+                    ? "bg-amber-50 text-amber-800"
+                    : "bg-red-50 text-red-700";
+                const badgeLabel = state === "ok" ? "OK" : state === "warning" ? "WARNUNG" : "BLOCKER";
+                return (
+                  <div key={label} className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2">
+                    <div><p className="text-sm font-medium">{label}</p><p className="text-[11px] text-muted-foreground">{observed} · Regel: {rule} · {severity}</p></div>
+                    <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${badgeClass}`}>{badgeLabel}</span>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-4 flex flex-wrap gap-2"><button className="rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white" onClick={() => loadRecord(demoConflictRecord)}>Daten-Fehlerfall laden</button><button className="rounded-lg bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-800" onClick={() => loadRecord(demoValidRecord)}>Gültigen Fall laden</button></div>
             <div className="mt-4 grid gap-2 md:grid-cols-4">
-              {validationGroups.map(({ id, label, constraintIds, passed: groupPassed, blockingIssues, warningIssues }) => (
-                <div key={id} className={`rounded-xl border p-3 ${groupPassed ? "border-teal-200 bg-teal-50" : "border-red-200 bg-red-50"}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-semibold">{label}</p>
-                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${groupPassed ? "bg-white text-teal-800" : "bg-white text-red-800"}`}>
-                      {groupPassed ? "OK" : "offen"}
-                    </span>
+              {validationGroups.map(({ id, label, constraintIds, blockingIssues, warningIssues }) => {
+                const state = blockingIssues > 0 ? "blocking" : warningIssues > 0 ? "warning" : "ok";
+                const cardClass = state === "ok"
+                  ? "border-teal-200 bg-teal-50"
+                  : state === "warning"
+                    ? "border-amber-200 bg-amber-50"
+                    : "border-red-200 bg-red-50";
+                const badgeClass = state === "ok"
+                  ? "bg-white text-teal-800"
+                  : state === "warning"
+                    ? "bg-white text-amber-800"
+                    : "bg-white text-red-800";
+                const badgeLabel = state === "ok" ? "OK" : state === "warning" ? "WARNUNG" : "BLOCKER";
+                return (
+                  <div key={id} className={`rounded-xl border p-3 ${cardClass}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold">{label}</p>
+                      <span className={`rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide ${badgeClass}`}>
+                        {badgeLabel}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs opacity-75">{constraintIds.length} Prüfungen · {blockingIssues} Blocker · {warningIssues} Warnungen</p>
                   </div>
-                  <p className="mt-2 text-xs opacity-75">{constraintIds.length} Prüfungen · {blockingIssues} Blocker · {warningIssues} Warnungen</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Section>
 
