@@ -101,6 +101,20 @@ test("warning-only demo reference mismatch does not become a false blocker", () 
   assert.deepEqual(evaluation.snapshot.values, raw);
 });
 
+test("unknown extra field is preserved and surfaced as a warning without blocking release", () => {
+  const raw = { ...demoValidRecord, LEGACY_FLAG: "X" };
+  const evaluation = evaluateRecord(raw, capturedAt);
+  const unknownFieldConstraint = evaluation.constraints.find(({ id }) => id === "contract.unknown_fields");
+
+  assert.equal(evaluation.release.releaseAllowed, true);
+  assert.equal(evaluation.state.state, "VALID");
+  assert.equal(evaluation.report.errors.length, 0);
+  assert.ok(evaluation.report.openPoints.some((item) => item.includes("LEGACY_FLAG")));
+  assert.equal(unknownFieldConstraint?.severity, "warning");
+  assert.equal(unknownFieldConstraint?.passed, false);
+  assert.deepEqual(evaluation.snapshot.values, raw);
+});
+
 test("mixed semantic and hard-data problems fail safe as BLOCKED", () => {
   const raw = { ...demoValidRecord, STATUS: "UNBEKANNT", MENGE: "-4" };
   const evaluation = evaluateRecord(raw, capturedAt);
