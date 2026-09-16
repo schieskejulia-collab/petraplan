@@ -111,8 +111,10 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
   const dateCheckPassed = input.checks.find(({ field }) => field === "DATUM")?.ok ?? false;
   const calendarDatePassed = isRealCanonicalDate(input.mapped.orderDate);
   const quantity = canonicalQuantity(input);
+  const confirmedFields = new Set(input.contract.fields.map(({ field }) => String(field)));
+  const unknownFields = Object.keys(input.raw).filter((field) => !confirmedFields.has(field));
 
-  return [
+  const constraints: ConstraintResult[] = [
     result(input, {
       id: "transport.received",
       sequence: 1,
@@ -278,6 +280,30 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
         : "Datumsformat und tatsächliche Kalendergültigkeit an der Quelle prüfen; keinen unmöglichen Tag oder Monat automatisch korrigieren.",
     }),
   ];
+
+  if (unknownFields.length > 0) {
+    constraints.push(result(input, {
+      id: "contract.unknown_fields",
+      sequence: 9,
+      category: "contract",
+      field: null,
+      label: "Zusätzliche Quellfelder sind nicht Teil des bestätigten Vertrags",
+      passed: false,
+      severity: "warning",
+      comparison: {
+        operator: "schema_matches",
+        expected: `nur bestätigte Felder aus ${input.contract.name}`,
+        observed: unknownFields.join(", "),
+        observedType: "unknown-source-fields",
+      },
+      rule: "Unbekannte zusätzliche Felder werden sichtbar dokumentiert, aber nicht automatisch interpretiert",
+      evidence: `unbekannteFelder=${unknownFields.join(",")}`,
+      safeAction: "Zusätzliche Felder unverändert lassen und nicht in das Canonical Model übernehmen.",
+      resolutionProposal: `Für ${unknownFields.join(", ")} fachlich klären, ob die Felder ignoriert, dokumentiert oder in einer neuen Vertragsversion bestätigt werden sollen.`,
+    }));
+  }
+
+  return constraints;
 }
 
 export function evaluateBridgeConstraints(evaluation: BridgeEvaluation): ConstraintResult[] {
