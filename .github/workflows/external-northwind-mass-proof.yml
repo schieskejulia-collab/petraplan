@@ -1,0 +1,44 @@
+name: External Northwind Mass Proof
+
+on:
+  push:
+    branches: [external-northwind-mass-proof]
+  pull_request:
+    branches: [main]
+
+jobs:
+  external-northwind-mass-proof:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Compile bridge for external mass proof
+        run: |
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-schema-drift.ts src/lib/bridge-northwind-adapter.ts src/lib/bridge-conflict-truth.ts src/lib/bridge-batch-evaluation.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-external-build
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-external-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-external-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-external-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-provenance";|from "./bridge-provenance.js";|' .bridge-external-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-external-build/bridge-state.js
+          sed -i 's|from "./bridge-type-conversion";|from "./bridge-type-conversion.js";|' .bridge-external-build/bridge-canonical-mapping.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-external-build/bridge-northwind-adapter.js
+          sed -i 's|from "./bridge-schema-drift.js";|from "./bridge-schema-drift.js";|' .bridge-external-build/bridge-northwind-adapter.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-external-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-external-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-external-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-conflict-truth";|from "./bridge-conflict-truth.js";|' .bridge-external-build/bridge-batch-evaluation.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-external-build/bridge-batch-evaluation.js
+      - name: Fetch pinned foreign data and run every order through bridge
+        run: node tests/external-northwind-mass-proof.mjs
+      - name: Upload proof summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-northwind-mass-summary
+          path: frontend/mobile-app/external-northwind-mass-summary.json
+          if-no-files-found: error
