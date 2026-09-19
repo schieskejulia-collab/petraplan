@@ -58,7 +58,7 @@ export type NorthwindAdaptation = {
   evidence: {
     customerIdSource: "order.CustomerID";
     orderIdSource: "order.OrderID";
-    quantitySource: "sum(orderDetails.Quantity)";
+    quantitySource: "orderDetails[0].Quantity" | "unmapped";
     dateSource: "order.OrderDate";
     statusSource: "unmapped";
   };
@@ -73,10 +73,12 @@ function isoDateOnly(value: string | null): string {
 /**
  * Read-only source adapter for the classic Northwind order shape.
  *
- * It deliberately does NOT invent an order status. Northwind's classic Order
- * entity has no field that is semantically equivalent to the bridge contract's
- * OFFEN/GESCHLOSSEN/IN_BEARBEITUNG value map, so STATUS is left empty and a
- * blocking adaptation issue records that human confirmation is required.
+ * It deliberately does NOT invent business semantics:
+ * - STATUS stays empty because Northwind has no confirmed equivalent to the
+ *   bridge status value map.
+ * - MENGE is mapped only when exactly one Order_Detail exists. With multiple
+ *   product rows, summing quantities would invent an unconfirmed meaning for
+ *   the bridge's single MENGE field, so the value stays empty and is blocked.
  *
  * The original envelope is preserved as sourceSnapshot and is never mutated.
  */
@@ -93,11 +95,24 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
     });
   }
 
+  let quantity = "";
+  let quantitySource: NorthwindAdaptation["evidence"]["quantitySource"] = "unmapped";
+
   if (envelope.orderDetails.length === 0) {
     issues.push({
       field: "MENGE",
       code: "NO_ORDER_DETAILS",
       message: "Der Auftrag enthält keine Order_Details; eine Menge kann nicht bestätigt werden.",
+      blocking: true,
+    });
+  } else if (envelope.orderDetails.length === 1) {
+    quantity = String(envelope.orderDetails[0].Quantity);
+    quantitySource = "orderDetails[0].Quantity";
+  } else {
+    issues.push({
+      field: "MENGE",
+      code: "NO_CONFIRMED_SEMANTIC_MAPPING",
+      message: "Mehrere Order_Details enthalten positionsbezogene Mengen; eine Summierung zu Bridge-MENGE ist fachlich nicht bestätigt.",
       blocking: true,
     });
   }
@@ -109,22 +124,20 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
     blocking: true,
   });
 
-  const totalQuantity = envelope.orderDetails.reduce((sum, detail) => sum + detail.Quantity, 0);
-
   return {
     sourceSnapshot,
     raw: {
       KUNDEN_NR: envelope.order.CustomerID ?? "",
       AUFTRAGS_NR: `A-${envelope.order.OrderID}`,
       STATUS: "",
-      MENGE: envelope.orderDetails.length > 0 ? String(totalQuantity) : "",
+      MENGE: quantity,
       DATUM: isoDateOnly(envelope.order.OrderDate),
     },
     issues,
     evidence: {
       customerIdSource: "order.CustomerID",
       orderIdSource: "order.OrderID",
-      quantitySource: "sum(orderDetails.Quantity)",
+      quantitySource,
       dateSource: "order.OrderDate",
       statusSource: "unmapped",
     },
