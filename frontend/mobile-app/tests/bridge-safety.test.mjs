@@ -58,6 +58,22 @@ for (const safetyCase of safetyCases) {
   });
 }
 
+test("schema-valid but semantically unknown status stays a separate blocker", () => {
+  const raw = { ...demoValidRecord, STATUS: "STORNIERT" };
+  const evaluation = evaluateRecord(raw, capturedAt);
+  const schema = evaluation.constraints.find(({ id }) => id === "contract.schema");
+  const status = evaluation.constraints.find(({ id }) => id === "status.value_map");
+
+  assert.equal(schema?.passed, true);
+  assert.equal(status?.passed, false);
+  assert.equal(status?.severity, "blocking");
+  assert.equal(evaluation.release.releaseAllowed, false);
+  assert.equal(evaluation.release.blockingIssues, 1);
+  assert.equal(evaluation.state.state, "NEEDS_CONFIRMATION");
+  assert.deepEqual(evaluation.state.triggeringConstraintIds, ["status.value_map"]);
+  assert.deepEqual(evaluation.snapshot.values, raw);
+});
+
 test("transport timeout never releases otherwise valid data", () => {
   const evaluation = evaluateRecord(demoValidRecord, capturedAt, {
     transport: "webservice",
