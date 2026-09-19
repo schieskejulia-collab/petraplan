@@ -1,0 +1,14 @@
+{
+  "source": "northwind",
+  "orderId": "A-10248",
+  "customerId": "VINET",
+  "quantity": null,
+  "orderDate": "1996-07-04",
+  "status": null,
+  "adapterIssues": [
+    "MENGE:NO_CONFIRMED_SEMANTIC_MAPPING",
+    "STATUS:NO_CONFIRMED_SEMANTIC_MAPPING"
+  ],
+  "expectedReleaseAllowed": false,
+  "reason": "Order 10248 has multiple product-row quantities and no confirmed aggregate meaning for Bridge MENGE; Northwind also has no confirmed equivalent for the bridge status value map."
+}

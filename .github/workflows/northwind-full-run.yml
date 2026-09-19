@@ -1,0 +1,36 @@
+name: Northwind Full Bridge Run
+
+on:
+  push:
+    branches: [northwind-full-run]
+  pull_request:
+    branches: [main]
+
+jobs:
+  northwind-full-run:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Compile bridge, schema drift, conflict truth and Northwind adapter
+        run: |
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-schema-drift.ts src/lib/bridge-northwind-adapter.ts src/lib/bridge-conflict-truth.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-test-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-provenance";|from "./bridge-provenance.js";|' .bridge-test-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-state.js
+          sed -i 's|from "./bridge-type-conversion";|from "./bridge-type-conversion.js";|' .bridge-test-build/bridge-canonical-mapping.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-northwind-adapter.js
+          sed -i 's|from "./bridge-schema-drift";|from "./bridge-schema-drift.js";|' .bridge-test-build/bridge-northwind-adapter.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-test-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-test-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-test-build/bridge-conflict-truth.js
+      - name: Run Northwind order, schema drift and adapter conflict truth through bridge
+        run: node --test tests/bridge-northwind-full-run.test.mjs tests/bridge-northwind-adapter-conflict.test.mjs tests/bridge-schema-drift.test.mjs
