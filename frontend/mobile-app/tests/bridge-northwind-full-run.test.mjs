@@ -61,6 +61,9 @@ test("complete Northwind order runs through source adapter and bridge without in
   assert.equal(evaluation.ingress.source, "northwind");
   assert.equal(evaluation.interactionTrace.correlationId, "northwind:order:10248");
 
+  // Demo-only reference checks must not leak into a foreign-source run.
+  assert.equal(evaluation.constraints.some(({ id }) => id === "order.demo_reference"), false);
+
   // Only mappings with confirmed semantics survive the full bridge run.
   assert.equal(evaluation.mapped.customerId, "VINET");
   assert.equal(evaluation.mapped.orderId, "A-10248");
