@@ -1,4 +1,9 @@
 import type { RawRecord } from "./bridge-pipeline";
+import {
+  assessSchemaDrift,
+  type SchemaDriftAssessment,
+  type SchemaPathRule,
+} from "./bridge-schema-drift";
 
 export type NorthwindCustomer = {
   CustomerID: string;
@@ -63,6 +68,37 @@ export type NorthwindAdaptation = {
     statusSource: "unmapped";
   };
 };
+
+export type NorthwindSafeAdaptation =
+  | {
+      accepted: true;
+      drift: SchemaDriftAssessment;
+      sourceSnapshot: unknown;
+      adaptation: NorthwindAdaptation;
+    }
+  | {
+      accepted: false;
+      drift: SchemaDriftAssessment;
+      sourceSnapshot: unknown;
+      adaptation: null;
+    };
+
+export const northwindRuntimeSchemaContract: SchemaPathRule[] = [
+  { path: "source", expectedTypes: ["string"], required: true },
+  { path: "customer", expectedTypes: ["object"], required: true },
+  { path: "customer.CustomerID", expectedTypes: ["string"], required: true },
+  { path: "customer.CompanyName", expectedTypes: ["string"], required: true },
+  { path: "order", expectedTypes: ["object"], required: true },
+  { path: "order.OrderID", expectedTypes: ["number"], required: true },
+  { path: "order.CustomerID", expectedTypes: ["string", "null"], required: true },
+  { path: "order.OrderDate", expectedTypes: ["string", "null"], required: true },
+  { path: "orderDetails", expectedTypes: ["array"], required: true },
+  { path: "orderDetails[].OrderID", expectedTypes: ["number"], required: true },
+  { path: "orderDetails[].ProductID", expectedTypes: ["number"], required: true },
+  { path: "orderDetails[].UnitPrice", expectedTypes: ["number"], required: true },
+  { path: "orderDetails[].Quantity", expectedTypes: ["number"], required: true },
+  { path: "orderDetails[].Discount", expectedTypes: ["number"], required: true },
+];
 
 function isoDateOnly(value: string | null): string {
   if (!value) return "";
@@ -141,5 +177,32 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       dateSource: "order.OrderDate",
       statusSource: "unmapped",
     },
+  };
+}
+
+/**
+ * Runtime gate for foreign Northwind-shaped payloads.
+ * A changed/missing critical source path is treated as schema drift. The
+ * adapter is not called until the runtime contract matches, so a renamed field
+ * can never be silently guessed into the canonical bridge model.
+ */
+export function adaptNorthwindOrderSafely(source: unknown): NorthwindSafeAdaptation {
+  const sourceSnapshot = structuredClone(source);
+  const drift = assessSchemaDrift(source, "northwind-order-envelope-v1", northwindRuntimeSchemaContract);
+
+  if (!drift.compatible) {
+    return {
+      accepted: false,
+      drift,
+      sourceSnapshot,
+      adaptation: null,
+    };
+  }
+
+  return {
+    accepted: true,
+    drift,
+    sourceSnapshot,
+    adaptation: adaptNorthwindOrder(source as NorthwindOrderEnvelope),
   };
 }
