@@ -33,4 +33,4 @@ jobs:
           sed -i 's|from "./bridge-conflict-truth";|from "./bridge-conflict-truth.js";|' .bridge-batch-build/bridge-batch-evaluation.js
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-batch-build/bridge-batch-evaluation.js
       - name: Run five-record mixed batch proof
-        run: node --test tests/bridge-batch-proof.test.mjs
+        run: node --test tests/bridge-batch-proof.proof.mjs
