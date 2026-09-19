@@ -3,7 +3,7 @@ import {
   assessSchemaDrift,
   type SchemaDriftAssessment,
   type SchemaPathRule,
-} from "./bridge-schema-drift";
+} from "./bridge-schema-drift.js";
 
 export type NorthwindCustomer = {
   CustomerID: string;
