@@ -72,6 +72,11 @@ function parseCustomers(text) {
   });
 }
 
+function csvCell(value) {
+  const text = value == null ? "" : String(value);
+  return `"${text.replaceAll('"', '""')}"`;
+}
+
 const [ordersText, detailsText, customersText] = await Promise.all([
   fetchText("orders.csv"),
   fetchText("order-details.csv"),
@@ -107,6 +112,8 @@ let singleDetailOrders = 0;
 let multipleDetailOrders = 0;
 let zeroDetailOrders = 0;
 const batchItems = [];
+const sourceByRecordId = new Map();
+const schemaBlockedTraces = [];
 
 for (const order of orders) {
   const details = detailsByOrder.get(order.OrderID) ?? [];
@@ -125,8 +132,26 @@ for (const order of orders) {
   const safe = adaptNorthwindOrderSafely(envelope);
   if (JSON.stringify(envelope) !== before) sourceMutationCount += 1;
 
+  const recordId = `A-${order.OrderID}`;
+  sourceByRecordId.set(recordId, {
+    upstreamOrder: structuredClone(order),
+    upstreamCustomer: structuredClone(customer),
+    upstreamOrderDetails: structuredClone(details),
+  });
+
   if (!safe.accepted) {
     schemaBlocked += 1;
+    schemaBlockedTraces.push({
+      recordId,
+      upstreamOrder: order,
+      upstreamCustomer: customer,
+      upstreamOrderDetails: details,
+      schemaGate: "BLOCKED",
+      schemaIssues: safe.drift.issues,
+      bridgeState: "NOT_EVALUATED",
+      releaseAllowed: false,
+      reason: "Runtime schema gate blocked the record before canonical bridge evaluation.",
+    });
     continue;
   }
   schemaAccepted += 1;
@@ -165,8 +190,97 @@ for (const record of batch.records) {
   }
 }
 
+// Full learning trace: one independently inspectable entry for every foreign
+// order. It contains the untouched upstream rows, the adapter result, canonical
+// result, failed constraints, state/release decision and field-by-field trace.
+const evaluatedTraces = batch.records.map((record, index) => {
+  const source = sourceByRecordId.get(record.recordId);
+  assert.ok(source, `Missing source context for ${record.recordId}`);
+  const input = batchItems[index];
+  assert.equal(input.raw.AUFTRAGS_NR, record.recordId, "Batch/source order changed unexpectedly");
+
+  const failedConstraints = record.evaluation.constraints
+    .filter(({ passed }) => !passed)
+    .map(({ id, label, severity, evidence }) => ({ id, label, severity, evidence }));
+
+  return {
+    recordId: record.recordId,
+    correlationId: record.evaluation.ingress.correlationId,
+    upstreamOrder: source.upstreamOrder,
+    upstreamCustomer: source.upstreamCustomer,
+    upstreamOrderDetails: source.upstreamOrderDetails,
+    detailCount: source.upstreamOrderDetails.length,
+    schemaGate: "ACCEPTED",
+    adapterRaw: record.evaluation.raw,
+    adapterConflicts: record.evaluation.adapterConflicts,
+    canonicalMapped: record.evaluation.mapped,
+    bridgeState: record.state,
+    releaseAllowed: record.releaseAllowed,
+    blockingIssues: record.blockingIssues,
+    releaseReason: record.evaluation.release.reason,
+    failedConstraints,
+    errorsDetailed: record.evaluation.report.errorsDetailed,
+    fieldTrace: record.evaluation.trace,
+  };
+});
+
+const allTraces = [...evaluatedTraces, ...schemaBlockedTraces].sort((a, b) => {
+  const aId = Number(String(a.recordId).replace(/^A-/, ""));
+  const bId = Number(String(b.recordId).replace(/^A-/, ""));
+  return aId - bId;
+});
+assert.equal(allTraces.length, orders.length, "Expected exactly one trace per upstream order");
+assert.equal(new Set(allTraces.map(({ recordId }) => recordId)).size, orders.length, "Duplicate/missing order traces");
+
+const csvHeader = [
+  "recordId",
+  "customerId",
+  "companyName",
+  "orderDate",
+  "requiredDate",
+  "shippedDate",
+  "freight",
+  "detailCount",
+  "sourceQuantities",
+  "adapterStatus",
+  "adapterQuantity",
+  "canonicalStatus",
+  "canonicalQuantity",
+  "schemaGate",
+  "bridgeState",
+  "releaseAllowed",
+  "blockingIssues",
+  "blockingReasonIds",
+  "adapterConflictCodes",
+];
+const csvRows = allTraces.map((trace) => {
+  const constraints = trace.failedConstraints ?? [];
+  const conflicts = trace.adapterConflicts ?? [];
+  return [
+    trace.recordId,
+    trace.upstreamOrder?.CustomerID,
+    trace.upstreamCustomer?.CompanyName,
+    trace.upstreamOrder?.OrderDate,
+    trace.upstreamOrder?.RequiredDate,
+    trace.upstreamOrder?.ShippedDate,
+    trace.upstreamOrder?.Freight,
+    trace.detailCount ?? trace.upstreamOrderDetails?.length ?? 0,
+    (trace.upstreamOrderDetails ?? []).map(({ Quantity }) => Quantity).join(" | "),
+    trace.adapterRaw?.STATUS,
+    trace.adapterRaw?.MENGE,
+    trace.canonicalMapped?.status,
+    trace.canonicalMapped?.quantity,
+    trace.schemaGate,
+    trace.bridgeState,
+    trace.releaseAllowed,
+    trace.blockingIssues ?? "",
+    constraints.filter(({ severity }) => severity === "blocking").map(({ id }) => id).join(" | "),
+    conflicts.map(({ code, field }) => `${code}:${field}`).join(" | "),
+  ].map(csvCell).join(",");
+});
+
 const summary = {
-  proof: "external-northwind-mass-proof-v1",
+  proof: "external-northwind-mass-proof-v2",
   upstream: {
     repository: UPSTREAM_REPO,
     commit: UPSTREAM_COMMIT,
@@ -194,9 +308,20 @@ const summary = {
     stateCounts,
     blockingReasonCounts,
   },
+  traceExport: {
+    records: allTraces.length,
+    jsonl: "external-northwind-830-traces.jsonl",
+    csv: "external-northwind-830-traces.csv",
+  },
   sourceMutationCount,
 };
 
-await writeFile("external-northwind-mass-summary.json", `${JSON.stringify(summary, null, 2)}\n`, "utf8");
+await Promise.all([
+  writeFile("external-northwind-mass-summary.json", `${JSON.stringify(summary, null, 2)}\n`, "utf8"),
+  writeFile("external-northwind-830-traces.jsonl", `${allTraces.map((trace) => JSON.stringify(trace)).join("\n")}\n`, "utf8"),
+  writeFile("external-northwind-830-traces.csv", `${csvHeader.map(csvCell).join(",")}\n${csvRows.join("\n")}\n`, "utf8"),
+]);
+
 console.log("EXTERNAL_NORTHWIND_MASS_SUMMARY");
 console.log(JSON.stringify(summary, null, 2));
+console.log(`Wrote ${allTraces.length} inspectable per-order traces (JSONL + CSV).`);
