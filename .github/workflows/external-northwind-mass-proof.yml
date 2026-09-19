@@ -36,9 +36,12 @@ jobs:
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-external-build/bridge-batch-evaluation.js
       - name: Fetch pinned foreign data and run every order through bridge
         run: node tests/external-northwind-mass-proof.mjs
-      - name: Upload proof summary
+      - name: Upload proof summary and all 830 traces
         uses: actions/upload-artifact@v4
         with:
-          name: external-northwind-mass-summary
-          path: frontend/mobile-app/external-northwind-mass-summary.json
+          name: external-northwind-mass-proof
+          path: |
+            frontend/mobile-app/external-northwind-mass-summary.json
+            frontend/mobile-app/external-northwind-830-traces.csv
+            frontend/mobile-app/external-northwind-830-traces.jsonl
           if-no-files-found: error
