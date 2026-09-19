@@ -1,0 +1,36 @@
+name: Bridge Batch Proof
+
+on:
+  push:
+    branches: [bridge-batch-proof]
+  pull_request:
+    branches: [main]
+
+jobs:
+  mixed-batch-proof:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Compile batch proof modules
+        run: |
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-conflict-truth.ts src/lib/bridge-batch-evaluation.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-batch-build
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-batch-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-batch-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-batch-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-provenance";|from "./bridge-provenance.js";|' .bridge-batch-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-batch-build/bridge-state.js
+          sed -i 's|from "./bridge-type-conversion";|from "./bridge-type-conversion.js";|' .bridge-batch-build/bridge-canonical-mapping.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-batch-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-batch-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-batch-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-conflict-truth";|from "./bridge-conflict-truth.js";|' .bridge-batch-build/bridge-batch-evaluation.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-batch-build/bridge-batch-evaluation.js
+      - name: Run five-record mixed batch proof
+        run: node --test tests/bridge-batch-proof.test.mjs
