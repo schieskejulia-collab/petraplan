@@ -45,13 +45,20 @@ function resolvePath(source: unknown, path: string): ResolvedPath {
     const arraySegment = segment.endsWith("[]");
     const key = arraySegment ? segment.slice(0, -2) : segment;
     const next: unknown[] = [];
-    let found = false;
+    let foundAny = false;
+    let foundForEveryParent = true;
 
     for (const current of values) {
-      if (!current || typeof current !== "object" || Array.isArray(current)) continue;
+      if (!current || typeof current !== "object" || Array.isArray(current)) {
+        foundForEveryParent = false;
+        continue;
+      }
       const record = current as Record<string, unknown>;
-      if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
-      found = true;
+      if (!Object.prototype.hasOwnProperty.call(record, key)) {
+        foundForEveryParent = false;
+        continue;
+      }
+      foundAny = true;
       const child = record[key];
 
       if (arraySegment) {
@@ -62,7 +69,7 @@ function resolvePath(source: unknown, path: string): ResolvedPath {
       }
     }
 
-    if (!found) return { present: false, values: [] };
+    if (!foundAny || !foundForEveryParent) return { present: false, values: [] };
     values = next;
 
     // An empty array is a present container. Item-level rules are intentionally
