@@ -200,25 +200,6 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
       resolutionProposal: "Kundenkennung an der Quelle ergänzen oder die Pflichtregel fachlich neu bestätigen.",
     }),
     result(input, {
-      id: "order.demo_reference",
-      sequence: 5,
-      category: "data",
-      field: "AUFTRAGS_NR",
-      label: "Auftragsnummer entspricht dem Demo-Referenzfall",
-      passed: input.checks.find(({ field }) => field === "AUFTRAGS_NR")?.ok ?? false,
-      severity: "warning",
-      comparison: {
-        operator: "strict_equals",
-        expected: "A-10027",
-        observed: input.raw.AUFTRAGS_NR,
-        observedType: typeof input.raw.AUFTRAGS_NR,
-      },
-      rule: "Demo-Referenz ist A-10027",
-      evidence: `AUFTRAGS_NR=${input.raw.AUFTRAGS_NR}`,
-      safeAction: "Abweichende Auftragsnummer dokumentieren; sie blockiert die fachliche Freigabe nicht.",
-      resolutionProposal: "Nur für den Demo-Vergleich prüfen, ob die erwartete Referenz A-10027 verwendet werden sollte.",
-    }),
-    result(input, {
       id: "status.value_map",
       sequence: 6,
       category: "semantics",
@@ -281,6 +262,30 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
     }),
   ];
 
+  // The hard-coded A-10027 comparison is a demo-only reference check. It must not
+  // create warning noise for foreign/real sources such as Northwind.
+  if (input.ingress.source === "system_a") {
+    constraints.push(result(input, {
+      id: "order.demo_reference",
+      sequence: 5,
+      category: "data",
+      field: "AUFTRAGS_NR",
+      label: "Auftragsnummer entspricht dem Demo-Referenzfall",
+      passed: input.checks.find(({ field }) => field === "AUFTRAGS_NR")?.ok ?? false,
+      severity: "warning",
+      comparison: {
+        operator: "strict_equals",
+        expected: "A-10027",
+        observed: input.raw.AUFTRAGS_NR,
+        observedType: typeof input.raw.AUFTRAGS_NR,
+      },
+      rule: "Demo-Referenz ist A-10027",
+      evidence: `AUFTRAGS_NR=${input.raw.AUFTRAGS_NR}`,
+      safeAction: "Abweichende Auftragsnummer dokumentieren; sie blockiert die fachliche Freigabe nicht.",
+      resolutionProposal: "Nur für den Demo-Vergleich prüfen, ob die erwartete Referenz A-10027 verwendet werden sollte.",
+    }));
+  }
+
   if (unknownFields.length > 0) {
     constraints.push(result(input, {
       id: "contract.unknown_fields",
@@ -303,7 +308,7 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
     }));
   }
 
-  return constraints;
+  return constraints.sort((a, b) => a.sequence - b.sequence);
 }
 
 export function evaluateBridgeConstraints(evaluation: BridgeEvaluation): ConstraintResult[] {
