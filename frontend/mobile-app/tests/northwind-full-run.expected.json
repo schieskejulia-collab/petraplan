@@ -1,0 +1,11 @@
+{
+  "source": "northwind",
+  "orderId": "A-10248",
+  "customerId": "VINET",
+  "quantity": 27,
+  "orderDate": "1996-07-04",
+  "status": null,
+  "adapterIssue": "NO_CONFIRMED_SEMANTIC_MAPPING",
+  "expectedReleaseAllowed": false,
+  "reason": "Classic Northwind Order has no confirmed semantic equivalent for the bridge status value map."
+}
