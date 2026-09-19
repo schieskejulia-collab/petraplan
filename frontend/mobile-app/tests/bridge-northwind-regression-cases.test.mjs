@@ -51,7 +51,6 @@ test("Northwind date role is explicit: adapter uses OrderDate, not RequiredDate 
   assert.equal(adaptation.sourceSnapshot.order.RequiredDate, "1996-08-01T00:00:00Z");
   assert.equal(adaptation.sourceSnapshot.order.ShippedDate, "1996-07-16T00:00:00Z");
 
-  // Regression guard: changing the other dates must not silently change the mapped order date.
   const changedOtherDates = structuredClone(envelope);
   changedOtherDates.order.RequiredDate = "1999-01-01T00:00:00Z";
   changedOtherDates.order.ShippedDate = null;
@@ -95,7 +94,7 @@ test("ALFKI Region null stays source truth and is not reinterpreted as bridge or
   assert.equal(adaptation.sourceSnapshot.customer.Region, null);
   assert.equal(adaptation.raw.KUNDEN_NR, "ALFKI");
   assert.equal(adaptation.raw.STATUS, "");
-  assert.ok(adaptation.issues.some(({ code }) => code === "NO_CONFIRMED_SEMANTIC_MAPPING"));
+  assert.ok(adaptation.issues.some(({ code, field }) => code === "NO_CONFIRMED_SEMANTIC_MAPPING" && field === "STATUS"));
 });
 
 test("ShippedDate null is observed but must not be silently mapped to OFFEN", () => {
@@ -107,7 +106,38 @@ test("ShippedDate null is observed but must not be silently mapped to OFFEN", ()
   assert.equal(adaptation.sourceSnapshot.order.ShippedDate, null);
   assert.equal(adaptation.raw.STATUS, "");
   assert.ok(adaptation.issues.some(({ code, field }) => code === "NO_CONFIRMED_SEMANTIC_MAPPING" && field === "STATUS"));
-
-  // Core rule under test: a business signal is not yet a confirmed semantic mapping.
   assert.notEqual(adaptation.raw.STATUS, "OFFEN");
+});
+
+test("multiple Northwind order detail quantities are not silently summed into MENGE", () => {
+  const envelope = baseEnvelope();
+  const adaptation = adaptNorthwindOrder(envelope);
+
+  assert.deepEqual(envelope.orderDetails.map(({ Quantity }) => Quantity), [12, 10, 5]);
+  assert.equal(adaptation.raw.MENGE, "");
+  assert.equal(adaptation.evidence.quantitySource, "unmapped");
+  assert.ok(
+    adaptation.issues.some(
+      ({ code, field }) => code === "NO_CONFIRMED_SEMANTIC_MAPPING" && field === "MENGE",
+    ),
+  );
+  assert.notEqual(adaptation.raw.MENGE, "27");
+});
+
+test("a single Northwind order detail maps its Quantity directly without aggregation", () => {
+  const envelope = baseEnvelope();
+  envelope.orderDetails = [
+    { OrderID: 10248, ProductID: 11, UnitPrice: 14.0, Quantity: 12, Discount: 0 },
+  ];
+
+  const adaptation = adaptNorthwindOrder(envelope);
+
+  assert.equal(adaptation.raw.MENGE, "12");
+  assert.equal(adaptation.evidence.quantitySource, "orderDetails[0].Quantity");
+  assert.equal(
+    adaptation.issues.some(
+      ({ code, field }) => code === "NO_CONFIRMED_SEMANTIC_MAPPING" && field === "MENGE",
+    ),
+    false,
+  );
 });
