@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-import { evaluateRecord } from "../.bridge-test-build/bridge-pipeline.js";
+import { evaluateRecordWithConflictTruth } from "../.bridge-test-build/bridge-conflict-truth.js";
 import { adaptNorthwindOrder } from "../.bridge-test-build/bridge-northwind-adapter.js";
 
 const fixtureUrl = new URL("./fixtures/northwind-order-10248.json", import.meta.url);
@@ -40,7 +40,7 @@ test("complete Northwind order runs through source adapter and bridge without in
     ),
   );
 
-  const evaluation = evaluateRecord(
+  const evaluation = evaluateRecordWithConflictTruth(
     adaptation.raw,
     capturedAt,
     {
@@ -54,6 +54,8 @@ test("complete Northwind order runs through source adapter and bridge without in
       contract: "order-v1",
       transportStatus: "received",
     },
+    {},
+    adaptation.issues,
   );
 
   // The existing bridge receives the adapted record and preserves it again.
@@ -71,10 +73,25 @@ test("complete Northwind order runs through source adapter and bridge without in
   assert.equal(evaluation.mapped.orderDate, "1996-07-04");
   assert.equal(evaluation.mapped.status, null);
 
-  // Both unconfirmed semantics must keep release closed.
+  // Both unconfirmed semantics keep release closed. MENGE carries adapter-only
+  // evidence; STATUS is de-duplicated because status.value_map already proves it.
   assert.equal(evaluation.release.releaseAllowed, false);
-  assert.ok(evaluation.release.blockingIssues >= 2);
-  assert.ok(evaluation.report.errors.length >= 2);
+  assert.ok(evaluation.release.blockingIssues >= 4);
+  assert.ok(evaluation.report.errors.length >= 4);
   assert.ok(evaluation.constraints.some(({ id, passed }) => id === "status.value_map" && passed === false));
   assert.ok(evaluation.constraints.some(({ id, passed }) => id === "quantity.positive" && passed === false));
+  assert.ok(
+    evaluation.constraints.some(
+      ({ id, passed }) => id === "adapter.NO_CONFIRMED_SEMANTIC_MAPPING:MENGE" && passed === false,
+    ),
+  );
+  assert.equal(
+    evaluation.constraints.some(({ id }) => id === "adapter.NO_CONFIRMED_SEMANTIC_MAPPING:STATUS"),
+    false,
+  );
+  assert.ok(
+    evaluation.report.errors.some((error) =>
+      error.startsWith("[adapter] Adapter-Konflikt (NO_CONFIRMED_SEMANTIC_MAPPING)"),
+    ),
+  );
 });
