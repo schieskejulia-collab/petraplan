@@ -56,6 +56,20 @@ test("adapter-only customer conflict reaches state and release decision", () => 
     ),
   );
 
+  // Machine-readable origin is available without breaking the existing
+  // human-readable errors[] contract.
+  assert.deepEqual(evaluation.report.errorsDetailed, [
+    {
+      origin: "adapter",
+      code: "adapter.CUSTOMER_MISMATCH:KUNDEN_NR",
+      message: "Adapter-Konflikt (CUSTOMER_MISMATCH): KUNDEN_NR: Customer.CustomerID=VINET widerspricht Order.CustomerID=ALFKI.",
+    },
+  ]);
+
+  // Conflict Truth reaches the field-level trace as well as state/release.
+  const customerTrace = evaluation.trace.find(({ sourceField }) => sourceField === "KUNDEN_NR");
+  assert.equal(customerTrace?.validation, "failed");
+
   // Conflict Truth is a separate channel. Source Truth stays untouched.
   assert.deepEqual(evaluation.raw, raw);
   assert.deepEqual(evaluation.snapshot.values, raw);

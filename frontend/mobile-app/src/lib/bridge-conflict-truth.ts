@@ -25,6 +25,18 @@ export type AdapterConflict = {
   blocking: true;
 };
 
+export type ReportError = {
+  origin: "bridge" | "adapter";
+  code: string;
+  message: string;
+};
+
+export type ConflictTruthEvaluation = BridgeEvaluation & {
+  report: BridgeEvaluation["report"] & {
+    errorsDetailed: ReportError[];
+  };
+};
+
 function categoryFor(conflict: AdapterConflict): ConstraintCategory {
   return conflict.code === "NO_CONFIRMED_SEMANTIC_MAPPING" ? "semantics" : "data";
 }
@@ -86,7 +98,7 @@ export function evaluateRecordWithConflictTruth(
   ingressOverrides: Partial<IngressContext> = {},
   responseOverrides: Partial<ResponseContext> = {},
   conflictTruth: AdapterConflict[] = [],
-): BridgeEvaluation {
+): ConflictTruthEvaluation {
   const base = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
   const maxSequence = base.constraints.reduce((max, { sequence }) => Math.max(max, sequence), 0);
   const visibleConflicts = conflictTruth.filter(
@@ -112,10 +124,27 @@ export function evaluateRecordWithConflictTruth(
       ? `[adapter] ${label}: ${evidence}`
       : `${label}: ${evidence}`;
 
+  const errorsDetailed: ReportError[] = blockingConstraints.map(({ id, label, evidence }) => ({
+    origin: id.startsWith("adapter.") ? "adapter" : "bridge",
+    code: id,
+    message: `${label}: ${evidence}`,
+  }));
+
+  // Conflict Truth must also be visible at field-trace level. The canonical
+  // value remains untouched; only the validation state of the affected field
+  // changes to failed.
+  const conflictFields = new Set(visibleConflicts.map(({ field }) => field));
+  const trace = base.trace.map((step) =>
+    conflictFields.has(step.sourceField)
+      ? { ...step, validation: "failed" as const }
+      : step,
+  );
+
   return {
     ...base,
     constraints,
     state,
+    trace,
     passed,
     release: {
       releaseAllowed,
@@ -135,7 +164,10 @@ export function evaluateRecordWithConflictTruth(
     report: {
       ...base.report,
       openPoints: warningConstraints.map(formatConstraint),
-      errors: blockingConstraints.map(formatConstraint),
+      errors: errorsDetailed.map(({ origin, message }) =>
+        origin === "adapter" ? `[adapter] ${message}` : message,
+      ),
+      errorsDetailed,
       nextStep: state.state === "VALID"
         ? state.reaction
         : `${state.state}: ${state.reaction} Auflösungsvorschläge: ${constraintDecision.resolutionProposals.join(" | ")}`,
