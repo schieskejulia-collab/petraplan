@@ -105,15 +105,15 @@ assert.equal(
   `Upstream relationship mismatch: ${missingCustomerJoins.length} orders have no matching customer row`,
 );
 
-let schemaAccepted = 0;
-let schemaBlocked = 0;
+let sourceSchemaAccepted = 0;
+let sourceSchemaBlocked = 0;
 let sourceMutationCount = 0;
 let singleDetailOrders = 0;
 let multipleDetailOrders = 0;
 let zeroDetailOrders = 0;
 const batchItems = [];
 const sourceByRecordId = new Map();
-const schemaBlockedTraces = [];
+const sourceSchemaBlockedTraces = [];
 
 for (const order of orders) {
   const details = detailsByOrder.get(order.OrderID) ?? [];
@@ -140,21 +140,22 @@ for (const order of orders) {
   });
 
   if (!safe.accepted) {
-    schemaBlocked += 1;
-    schemaBlockedTraces.push({
+    sourceSchemaBlocked += 1;
+    sourceSchemaBlockedTraces.push({
       recordId,
       upstreamOrder: order,
       upstreamCustomer: customer,
       upstreamOrderDetails: details,
-      schemaGate: "BLOCKED",
-      schemaIssues: safe.drift.issues,
+      sourceSchemaGate: "BLOCKED",
+      sourceSchemaIssues: safe.drift.issues,
+      bridgeContractSchema: "NOT_EVALUATED",
       bridgeState: "NOT_EVALUATED",
       releaseAllowed: false,
-      reason: "Runtime schema gate blocked the record before canonical bridge evaluation.",
+      reason: "Source schema gate blocked the foreign record before canonical bridge evaluation.",
     });
     continue;
   }
-  schemaAccepted += 1;
+  sourceSchemaAccepted += 1;
   batchItems.push({
     raw: safe.adaptation.raw,
     capturedAt: "2026-09-19T15:30:00.000Z",
@@ -174,15 +175,21 @@ for (const order of orders) {
 }
 
 assert.equal(sourceMutationCount, 0, "External Source Truth was mutated");
-assert.equal(schemaAccepted + schemaBlocked, orders.length);
+assert.equal(sourceSchemaAccepted + sourceSchemaBlocked, orders.length);
 
 const batch = evaluateBatch(batchItems);
-assert.equal(batch.total, schemaAccepted);
+assert.equal(batch.total, sourceSchemaAccepted);
 
 const blockingReasonCounts = {};
 const stateCounts = {};
+const bridgeContractSchemaCounts = { passed: 0, failed: 0 };
 for (const record of batch.records) {
   stateCounts[record.state] = (stateCounts[record.state] ?? 0) + 1;
+  const contractSchema = record.evaluation.constraints.find(({ id }) => id === "contract.schema");
+  assert.ok(contractSchema, `Missing contract.schema constraint for ${record.recordId}`);
+  if (contractSchema.passed) bridgeContractSchemaCounts.passed += 1;
+  else bridgeContractSchemaCounts.failed += 1;
+
   for (const constraint of record.evaluation.constraints) {
     if (!constraint.passed && constraint.severity === "blocking") {
       blockingReasonCounts[constraint.id] = (blockingReasonCounts[constraint.id] ?? 0) + 1;
@@ -191,8 +198,10 @@ for (const record of batch.records) {
 }
 
 // Full learning trace: one independently inspectable entry for every foreign
-// order. It contains the untouched upstream rows, the adapter result, canonical
-// result, failed constraints, state/release decision and field-by-field trace.
+// order. Source schema acceptance and Bridge contract-schema validation are
+// deliberately separate layers: the first asks whether the foreign envelope is
+// readable by the adapter; the second asks whether the adapted record satisfies
+// the confirmed order-v1 contract.
 const evaluatedTraces = batch.records.map((record, index) => {
   const source = sourceByRecordId.get(record.recordId);
   assert.ok(source, `Missing source context for ${record.recordId}`);
@@ -202,6 +211,8 @@ const evaluatedTraces = batch.records.map((record, index) => {
   const failedConstraints = record.evaluation.constraints
     .filter(({ passed }) => !passed)
     .map(({ id, label, severity, evidence }) => ({ id, label, severity, evidence }));
+  const contractSchema = record.evaluation.constraints.find(({ id }) => id === "contract.schema");
+  assert.ok(contractSchema, `Missing contract.schema constraint for ${record.recordId}`);
 
   return {
     recordId: record.recordId,
@@ -210,7 +221,9 @@ const evaluatedTraces = batch.records.map((record, index) => {
     upstreamCustomer: source.upstreamCustomer,
     upstreamOrderDetails: source.upstreamOrderDetails,
     detailCount: source.upstreamOrderDetails.length,
-    schemaGate: "ACCEPTED",
+    sourceSchemaGate: "ACCEPTED",
+    bridgeContractSchema: contractSchema.passed ? "PASSED" : "FAILED",
+    bridgeContractSchemaEvidence: contractSchema.evidence,
     adapterRaw: record.evaluation.raw,
     adapterConflicts: record.evaluation.adapterConflicts,
     canonicalMapped: record.evaluation.mapped,
@@ -224,7 +237,7 @@ const evaluatedTraces = batch.records.map((record, index) => {
   };
 });
 
-const allTraces = [...evaluatedTraces, ...schemaBlockedTraces].sort((a, b) => {
+const allTraces = [...evaluatedTraces, ...sourceSchemaBlockedTraces].sort((a, b) => {
   const aId = Number(String(a.recordId).replace(/^A-/, ""));
   const bId = Number(String(b.recordId).replace(/^A-/, ""));
   return aId - bId;
@@ -246,7 +259,8 @@ const csvHeader = [
   "adapterQuantity",
   "canonicalStatus",
   "canonicalQuantity",
-  "schemaGate",
+  "sourceSchemaGate",
+  "bridgeContractSchema",
   "bridgeState",
   "releaseAllowed",
   "blockingIssues",
@@ -270,7 +284,8 @@ const csvRows = allTraces.map((trace) => {
     trace.adapterRaw?.MENGE,
     trace.canonicalMapped?.status,
     trace.canonicalMapped?.quantity,
-    trace.schemaGate,
+    trace.sourceSchemaGate,
+    trace.bridgeContractSchema,
     trace.bridgeState,
     trace.releaseAllowed,
     trace.blockingIssues ?? "",
@@ -280,11 +295,17 @@ const csvRows = allTraces.map((trace) => {
 });
 
 const summary = {
-  proof: "external-northwind-mass-proof-v2",
+  proof: "external-northwind-mass-proof-v3",
   upstream: {
     repository: UPSTREAM_REPO,
     commit: UPSTREAM_COMMIT,
     files: ["data/orders.csv", "data/order-details.csv", "data/customers.csv"],
+  },
+  layerDefinitions: {
+    sourceSchemaGate: "Can the foreign Northwind envelope be read safely by the source adapter without inventing structure?",
+    bridgeContractSchema: "Does the adapted five-field record satisfy the confirmed order-v1 required-field, type and format contract?",
+    semantics: "Do adapted values have a confirmed business meaning/value-map?",
+    release: "Are all independent BLOCKING constraints satisfied?",
   },
   sourceRows: {
     orders: orders.length,
@@ -297,10 +318,11 @@ const summary = {
     singleDetailOrders,
     multipleDetailOrders,
   },
-  schemaGate: {
-    accepted: schemaAccepted,
-    blocked: schemaBlocked,
+  sourceSchemaGate: {
+    accepted: sourceSchemaAccepted,
+    blocked: sourceSchemaBlocked,
   },
+  bridgeContractSchema: bridgeContractSchemaCounts,
   bridge: {
     evaluated: batch.total,
     released: batch.released,
