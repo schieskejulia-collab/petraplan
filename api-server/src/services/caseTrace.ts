@@ -117,7 +117,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     ? await one<any>(
         supabase
           .from('ingestion_logs')
-          .select('id, source_system, source_reference, source_hash, ingested_at, status, extracted_schema')
+          .select('id, source_system, source_reference, source_hash, raw_payload, ingested_at, status, extracted_schema')
           .eq('id', record.ingestion_log_id)
           .maybeSingle(),
       )
