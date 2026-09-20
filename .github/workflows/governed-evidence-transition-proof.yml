@@ -1,0 +1,42 @@
+name: Governed Evidence Transition Proof
+
+on:
+  push:
+    branches: [governed-evidence-transition-proof]
+  pull_request:
+    branches: [main]
+
+jobs:
+  governed-evidence-transition-proof:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Compile governed evidence proof
+        run: |
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-governed-evidence.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-governance-build
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-governance-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-governance-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-governance-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-provenance";|from "./bridge-provenance.js";|' .bridge-governance-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-governance-build/bridge-state.js
+          sed -i 's|from "./bridge-type-conversion";|from "./bridge-type-conversion.js";|' .bridge-governance-build/bridge-canonical-mapping.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-governance-build/bridge-governed-evidence.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-governance-build/bridge-governed-evidence.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-governance-build/bridge-governed-evidence.js
+      - name: Run BLOCKED to NEEDS_CONFIRMATION to RELEASED proof
+        run: node tests/governed-evidence-transition-proof.mjs
+      - name: Upload governed transition proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: governed-evidence-transition-proof
+          path: |
+            frontend/mobile-app/governed-evidence-transition-proof.json
+            frontend/mobile-app/governed-evidence-transition-proof.md
+          if-no-files-found: error
