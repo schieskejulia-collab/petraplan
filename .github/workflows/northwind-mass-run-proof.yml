@@ -1,0 +1,50 @@
+name: Northwind 830 Mass Run Proof
+
+on:
+  push:
+    branches: [northwind-mass-run-proof]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  northwind-830-proof:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Compile exact bridge path used by mass runner
+        run: |
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-schema-drift.ts src/lib/bridge-northwind-adapter.ts src/lib/bridge-conflict-truth.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-mass-build
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-mass-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-mass-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-mass-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-provenance";|from "./bridge-provenance.js";|' .bridge-mass-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-mass-build/bridge-state.js
+          sed -i 's|from "./bridge-type-conversion";|from "./bridge-type-conversion.js";|' .bridge-mass-build/bridge-canonical-mapping.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-mass-build/bridge-northwind-adapter.js
+          sed -i 's|from "./bridge-schema-drift.js";|from "./bridge-schema-drift.js";|' .bridge-mass-build/bridge-northwind-adapter.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-mass-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-mass-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-mass-build/bridge-conflict-truth.js
+      - name: Run all 830 external Northwind orders through the bridge
+        run: node scripts/northwind-mass-run.mjs
+      - name: Show proof summary
+        run: cat proof/northwind-830/external-northwind-mass-summary.json
+      - name: Upload source snapshots and generated traces
+        uses: actions/upload-artifact@v4
+        with:
+          name: northwind-830-proof
+          path: |
+            frontend/mobile-app/proof/northwind-830/source-orders.csv
+            frontend/mobile-app/proof/northwind-830/source-order-details.csv
+            frontend/mobile-app/proof/northwind-830/external-northwind-830-traces.csv
+            frontend/mobile-app/proof/northwind-830/external-northwind-830-traces.jsonl
+            frontend/mobile-app/proof/northwind-830/external-northwind-mass-summary.json
+          if-no-files-found: error
