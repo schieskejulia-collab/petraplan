@@ -3,6 +3,7 @@ import CasesPage from "./pages/CasesPage";
 import CaseDetailPage from "./pages/CaseDetailPage";
 import BridgePage from "./pages/BridgePage";
 import UnifiedTracePage from "./pages/UnifiedTracePage";
+import GovernanceProofPage from "./pages/GovernanceProofPage";
 
 export default function App() {
   return (
@@ -12,6 +13,7 @@ export default function App() {
       <Route path="/cases/:caseId" component={CaseDetailPage} />
       <Route path="/bridge" component={BridgePage} />
       <Route path="/trace" component={UnifiedTracePage} />
+      <Route path="/governance-proof" component={GovernanceProofPage} />
       <Route component={() => <Redirect to="/cases" />} />
     </Switch>
   );
