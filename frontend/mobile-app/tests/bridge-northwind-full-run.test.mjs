@@ -73,13 +73,20 @@ test("complete Northwind order runs through source adapter and bridge without in
   assert.equal(evaluation.mapped.orderDate, "1996-07-04");
   assert.equal(evaluation.mapped.status, null);
 
-  // Both unconfirmed semantics keep release closed. MENGE carries adapter-only
-  // evidence; STATUS is de-duplicated because status.value_map already proves it.
+  // Structure and unresolved meaning are separate causes. The adapter has
+  // already proven why STATUS/MENGE are empty, so those placeholders must not
+  // create duplicate contract.schema or quantity.positive blockers.
+  assert.equal(evaluation.constraints.find(({ id }) => id === "contract.schema")?.passed, true);
+  assert.equal(evaluation.gatewayIssues.some(({ issue }) => issue === "CONTRACT_MISMATCH"), false);
+  assert.equal(evaluation.constraints.some(({ id }) => id === "quantity.positive"), false);
+
+  // The actual causes remain explicit: STATUS has no confirmed value-map and
+  // multi-position MENGE has no confirmed aggregation meaning.
   assert.equal(evaluation.release.releaseAllowed, false);
-  assert.ok(evaluation.release.blockingIssues >= 4);
-  assert.ok(evaluation.report.errors.length >= 4);
+  assert.equal(evaluation.release.blockingIssues, 2);
+  assert.equal(evaluation.state.state, "NEEDS_CONFIRMATION");
+  assert.equal(evaluation.report.errors.length, 2);
   assert.ok(evaluation.constraints.some(({ id, passed }) => id === "status.value_map" && passed === false));
-  assert.ok(evaluation.constraints.some(({ id, passed }) => id === "quantity.positive" && passed === false));
   assert.ok(
     evaluation.constraints.some(
       ({ id, passed }) => id === "adapter.NO_CONFIRMED_SEMANTIC_MAPPING:MENGE" && passed === false,
