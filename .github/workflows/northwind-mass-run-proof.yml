@@ -33,6 +33,11 @@ jobs:
           sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-mass-build/bridge-conflict-truth.js
           sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-mass-build/bridge-conflict-truth.js
           sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-mass-build/bridge-conflict-truth.js
+      - name: Run focused Northwind guard tests against the same compiled bridge
+        run: |
+          rm -rf .bridge-test-build
+          cp -R .bridge-mass-build .bridge-test-build
+          node --test tests/bridge-northwind-full-run.test.mjs tests/bridge-northwind-adapter-conflict.test.mjs tests/bridge-schema-drift.test.mjs
       - name: Run all 830 external Northwind orders through the bridge
         run: node scripts/northwind-mass-run.mjs
       - name: Show proof summary
