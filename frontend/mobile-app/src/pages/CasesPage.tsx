@@ -51,6 +51,23 @@ export default function CasesPage() {
           </div>
         </header>
 
+        <button
+          type="button"
+          onClick={() => setLocation("/governance-proof")}
+          className="w-full rounded-2xl border bg-card p-4 text-left shadow-sm transition hover:shadow-md"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Governance Proof</p>
+              <h2 className="mt-1 text-lg font-semibold">BLOCKED → NEEDS_CONFIRMATION → RELEASED → REVOKED</h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Sichtbarer Demo-Nachweis für kontrollierte Evidenz, maschinenlesbare Release-Basis und Widerruf — bei unveränderter Source Truth.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold">PROOF</span>
+          </div>
+        </button>
+
         {loading && <p className="text-sm text-muted-foreground">Lade Fälle…</p>}
 
         {error && (
