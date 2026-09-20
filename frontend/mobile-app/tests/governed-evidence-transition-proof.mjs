@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { writeFile } from "node:fs/promises";
 
-import { evaluateWithGovernedEvidence } from "../.bridge-governance-build/bridge-governed-evidence.js";
+import {
+  assessReleaseImpact,
+  evaluateWithGovernedEvidence,
+} from "../.bridge-governance-build/bridge-governed-evidence.js";
 
 const capturedAt = "2026-09-20T20:52:00.000Z";
 const raw = {
@@ -45,6 +48,12 @@ const statusEvidence = {
 const stage0 = evaluateWithGovernedEvidence(raw, capturedAt, []);
 const stage1 = evaluateWithGovernedEvidence(raw, capturedAt, [quantityEvidence]);
 const stage2 = evaluateWithGovernedEvidence(raw, capturedAt, [quantityEvidence, statusEvidence]);
+const stage3 = evaluateWithGovernedEvidence(
+  raw,
+  capturedAt,
+  [quantityEvidence, statusEvidence],
+  [statusEvidence.evidenceId],
+);
 
 assert.equal(stage0.state.state, "BLOCKED");
 assert.equal(stage0.release.releaseAllowed, false);
@@ -79,11 +88,28 @@ const expectedReleaseBasis = [
 ].sort((a, b) => a.constraintId.localeCompare(b.constraintId));
 assert.deepEqual(releaseBasisComparable, expectedReleaseBasis);
 
+// Revocation proof: withdrawing the status evidence must invalidate the previous release basis.
+const revocationImpact = assessReleaseImpact(stage2.release.releaseBasis, [statusEvidence.evidenceId]);
+assert.equal(revocationImpact.impacted, true);
+assert.deepEqual(revocationImpact.matchedEvidenceIds, [statusEvidence.evidenceId]);
+assert.deepEqual(revocationImpact.affectedConstraintIds, ["status.value_map"]);
+assert.deepEqual(revocationImpact.affectedFields, ["STATUS"]);
+
+assert.equal(stage3.state.state, "NEEDS_CONFIRMATION");
+assert.equal(stage3.release.releaseAllowed, false);
+assert.deepEqual(stage3.release.failedConstraintIds, ["status.value_map"]);
+assert.equal(stage3.governedMapped.status, null);
+assert.ok(stage3.ignoredEvidenceIds.includes(statusEvidence.evidenceId));
+assert.deepEqual(stage3.revokedEvidenceIds, [statusEvidence.evidenceId]);
+assert.deepEqual(stage3.appliedEvidence.map(({ evidenceId }) => evidenceId), [quantityEvidence.evidenceId]);
+
 assert.deepEqual(stage0.raw, raw);
 assert.deepEqual(stage1.raw, raw);
 assert.deepEqual(stage2.raw, raw);
+assert.deepEqual(stage3.raw, raw);
 assert.equal(stage0.sourceSnapshotId, stage1.sourceSnapshotId);
 assert.equal(stage1.sourceSnapshotId, stage2.sourceSnapshotId);
+assert.equal(stage2.sourceSnapshotId, stage3.sourceSnapshotId);
 
 const mismatched = evaluateWithGovernedEvidence(raw, capturedAt, [
   { ...statusEvidence, evidenceId: "E-WRONG", sourceValue: "OFFEN" },
@@ -93,7 +119,7 @@ assert.ok(mismatched.ignoredEvidenceIds.includes("E-WRONG"));
 assert.ok(mismatched.release.failedConstraintIds.includes("status.value_map"));
 
 const proof = {
-  proof: "governed-evidence-transition-proof-v1",
+  proof: "governed-evidence-transition-proof-v2",
   warning: "Synthetic demo evidence only. This does not assert real Northwind business semantics.",
   sourceSnapshotId: stage0.sourceSnapshotId,
   rawSourcePreserved: true,
@@ -120,25 +146,39 @@ const proof = {
       canonicalStatus: stage2.governedMapped.status,
       releaseBasis: stage2.release.releaseBasis,
     },
+    {
+      stage: "04_REVOKED_REEVALUATION",
+      revokedEvidenceIds: stage3.revokedEvidenceIds,
+      priorReleaseImpact: revocationImpact,
+      state: stage3.state.state,
+      releaseAllowed: stage3.release.releaseAllowed,
+      failedConstraintIds: stage3.release.failedConstraintIds,
+      appliedEvidence: stage3.appliedEvidence,
+    },
   ],
 };
 
-const markdown = `# Governed Evidence Transition Proof\n\n` +
+const markdown = `# Governed Evidence Transition + Revocation Proof\n\n` +
   `> **Synthetischer Demo-Beweis.** Die bestaetigten Regeln und Statusbedeutungen in diesem Test sind keine Aussage ueber reale Northwind-Semantik.\n\n` +
   `## Source Truth\n\n` +
   `Snapshot: \`${proof.sourceSnapshotId}\`\n\n` +
-  `Die Raw-Source bleibt in allen drei Stufen byte-/wertgleich auf Feldebene erhalten.\n\n` +
+  `Die Raw-Source bleibt in allen vier Stufen wertgleich erhalten.\n\n` +
   `## Zustandsfolge\n\n` +
   `1. **BLOCKED** - STATUS ist unbestaetigt und MENGE=-4 verletzt die bestaetigte Ausgangsregel.\n` +
   `2. **NEEDS_CONFIRMATION** - Review ${quantityEvidence.reviewId} / ${quantityEvidence.version} bestaetigt exakt den beobachteten Mengenfall fuer diesen Demo-Kontext. STATUS bleibt offen.\n` +
-  `3. **RELEASED (VALID)** - Review ${statusEvidence.reviewId} / ${statusEvidence.version} bestaetigt die Demo-Zuordnung STATUS=UNBEKANNT -> in_progress. Keine BLOCKING-Constraints bleiben offen.\n\n` +
+  `3. **RELEASED (VALID)** - Review ${statusEvidence.reviewId} / ${statusEvidence.version} bestaetigt die Demo-Zuordnung STATUS=UNBEKANNT -> in_progress. Keine BLOCKING-Constraints bleiben offen.\n` +
+  `4. **REVOKED -> NEEDS_CONFIRMATION** - Evidence ${statusEvidence.evidenceId} wird widerrufen. Die Bridge erkennt, dass der vorherige Release davon abhing, verwirft diese Evidence bei der Neubewertung und oeffnet status.value_map wieder.\n\n` +
   `## Maschinenlesbare Release-Basis\n\n` +
   '```json\n' + JSON.stringify(stage2.release.releaseBasis, null, 2) + '\n```\n\n' +
+  `## Maschinenlesbarer Widerrufs-Impact\n\n` +
+  '```json\n' + JSON.stringify(revocationImpact, null, 2) + '\n```\n\n' +
   `## Sicherheitsnachweis\n\n` +
-  `- Keine Source-Mutation.\n` +
+  `- Keine Source-Mutation in irgendeiner Stufe.\n` +
   `- Evidence gilt nur fuer exakten Constraint + Feld + Quellwert.\n` +
   `- Falsche/mismatched Evidence wird ignoriert.\n` +
-  `- Release wird erst nach erneutem Auswerten aller BLOCKING-Constraints erlaubt.\n`;
+  `- Widerrufene Evidence wird nicht mehr angewendet.\n` +
+  `- Ein frueherer Release kann ueber seine Release-Basis auf betroffene Evidence, Constraints und Felder zurueckgefuehrt werden.\n` +
+  `- Nach Widerruf werden alle BLOCKING-Constraints erneut ausgewertet; der Datensatz faellt kontrolliert zurueck in NEEDS_CONFIRMATION.\n`;
 
 await Promise.all([
   writeFile("governed-evidence-transition-proof.json", `${JSON.stringify(proof, null, 2)}\n`, "utf8"),
