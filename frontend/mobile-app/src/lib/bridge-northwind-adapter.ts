@@ -56,6 +56,14 @@ export type NorthwindAdaptationIssue = {
   blocking: true;
 };
 
+export type NorthwindRelationshipEvidence = {
+  targetField: keyof RawRecord;
+  sourcePath: string;
+  relationship: string;
+  status: "confirmed" | "conditional" | "unconfirmed" | "conflict";
+  reason: string;
+};
+
 export type NorthwindAdaptation = {
   sourceSnapshot: NorthwindOrderEnvelope;
   raw: RawRecord;
@@ -66,6 +74,7 @@ export type NorthwindAdaptation = {
     quantitySource: "orderDetails[0].Quantity" | "unmapped";
     dateSource: "order.OrderDate";
     statusSource: "unmapped";
+    relationships: NorthwindRelationshipEvidence[];
   };
 };
 
@@ -116,13 +125,19 @@ function isoDateOnly(value: string | null): string {
  *   product rows, summing quantities would invent an unconfirmed meaning for
  *   the bridge's single MENGE field, so the value stays empty and is blocked.
  *
+ * Relationship evidence records WHY a field is considered usable instead of
+ * merely recording that a similarly named value exists. This keeps source
+ * meaning separate from target formatting and makes uncertainty inspectable.
+ *
  * The original envelope is preserved as sourceSnapshot and is never mutated.
  */
 export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): NorthwindAdaptation {
   const sourceSnapshot = structuredClone(envelope);
   const issues: NorthwindAdaptationIssue[] = [];
+  const relationships: NorthwindRelationshipEvidence[] = [];
 
-  if (envelope.customer.CustomerID !== envelope.order.CustomerID) {
+  const customerMatches = envelope.customer.CustomerID === envelope.order.CustomerID;
+  if (!customerMatches) {
     issues.push({
       field: "KUNDEN_NR",
       code: "CUSTOMER_MISMATCH",
@@ -130,6 +145,32 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       blocking: true,
     });
   }
+
+  relationships.push({
+    targetField: "KUNDEN_NR",
+    sourcePath: "order.CustomerID <-> customer.CustomerID",
+    relationship: "Order references Customer by CustomerID",
+    status: customerMatches ? "confirmed" : "conflict",
+    reason: customerMatches
+      ? "Order.CustomerID ist durch denselben Schlüssel am Customer-Objekt belegt."
+      : "Order.CustomerID und Customer.CustomerID widersprechen sich; die Kundenbeziehung ist nicht bestätigt.",
+  });
+
+  relationships.push({
+    targetField: "AUFTRAGS_NR",
+    sourcePath: "order.OrderID",
+    relationship: "Order identity",
+    status: "confirmed",
+    reason: "OrderID ist die Identität des Northwind-Auftrags; das Präfix A- ist nur reversible Zielformatierung.",
+  });
+
+  relationships.push({
+    targetField: "DATUM",
+    sourcePath: "order.OrderDate",
+    relationship: "Order creation date",
+    status: "confirmed",
+    reason: "DATUM wird ausdrücklich aus OrderDate gelesen; RequiredDate und ShippedDate werden nicht umgedeutet.",
+  });
 
   let quantity = "";
   let quantitySource: NorthwindAdaptation["evidence"]["quantitySource"] = "unmapped";
@@ -141,15 +182,36 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       message: "Der Auftrag enthält keine Order_Details; eine Menge kann nicht bestätigt werden.",
       blocking: true,
     });
+    relationships.push({
+      targetField: "MENGE",
+      sourcePath: "orderDetails[].Quantity",
+      relationship: "Order-detail quantity",
+      status: "unconfirmed",
+      reason: "Es existiert keine Order_Detail-Zeile, aus der eine Menge belegt werden könnte.",
+    });
   } else if (envelope.orderDetails.length === 1) {
     quantity = String(envelope.orderDetails[0].Quantity);
     quantitySource = "orderDetails[0].Quantity";
+    relationships.push({
+      targetField: "MENGE",
+      sourcePath: "orderDetails[0].Quantity",
+      relationship: "Single order-detail quantity",
+      status: "conditional",
+      reason: "Bei genau einer Position kann deren Quantity ohne Aggregationsannahme direkt übernommen werden.",
+    });
   } else {
     issues.push({
       field: "MENGE",
       code: "NO_CONFIRMED_SEMANTIC_MAPPING",
       message: "Mehrere Order_Details enthalten positionsbezogene Mengen; eine Summierung zu Bridge-MENGE ist fachlich nicht bestätigt.",
       blocking: true,
+    });
+    relationships.push({
+      targetField: "MENGE",
+      sourcePath: "orderDetails[].Quantity",
+      relationship: "Multiple line-item quantities",
+      status: "unconfirmed",
+      reason: "Mehrere positionsbezogene Quantity-Werte belegen keine bestätigte Aggregationsregel für das einzelne Bridge-Feld MENGE.",
     });
   }
 
@@ -158,6 +220,13 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
     code: "NO_CONFIRMED_SEMANTIC_MAPPING",
     message: "Northwind Order enthält keinen bestätigten Gegenpart zum Bridge-Statusmodell; STATUS bleibt ungefüllt.",
     blocking: true,
+  });
+  relationships.push({
+    targetField: "STATUS",
+    sourcePath: "unmapped",
+    relationship: "Bridge status semantics",
+    status: "unconfirmed",
+    reason: "Kein Northwind-Feld oder bestätigter Quellvertrag belegt die Bridge-Statuswerte OFFEN/GESCHLOSSEN/IN_BEARBEITUNG.",
   });
 
   return {
@@ -176,6 +245,7 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       quantitySource,
       dateSource: "order.OrderDate",
       statusSource: "unmapped",
+      relationships,
     },
   };
 }
