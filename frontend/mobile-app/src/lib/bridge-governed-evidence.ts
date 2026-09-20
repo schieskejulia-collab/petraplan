@@ -55,6 +55,14 @@ export type AppliedEvidence = {
   scope: "demo-only";
 };
 
+export type ReleaseImpact = {
+  impacted: boolean;
+  revokedEvidenceIds: string[];
+  matchedEvidenceIds: string[];
+  affectedConstraintIds: string[];
+  affectedFields: string[];
+};
+
 export type GovernedEvidenceEvaluation = {
   sourceSnapshotId: string;
   raw: RawRecord;
@@ -70,6 +78,7 @@ export type GovernedEvidenceEvaluation = {
   };
   appliedEvidence: AppliedEvidence[];
   ignoredEvidenceIds: string[];
+  revokedEvidenceIds: string[];
 };
 
 function evidenceMatchesSource(evidence: GovernanceEvidence, raw: RawRecord): boolean {
@@ -91,26 +100,49 @@ function appliedRecord(evidence: GovernanceEvidence): AppliedEvidence {
   };
 }
 
+export function assessReleaseImpact(
+  releaseBasis: AppliedEvidence[],
+  revokedEvidenceIds: string[],
+): ReleaseImpact {
+  const revoked = new Set(revokedEvidenceIds);
+  const matches = releaseBasis.filter(({ evidenceId }) => revoked.has(evidenceId));
+
+  return {
+    impacted: matches.length > 0,
+    revokedEvidenceIds: [...new Set(revokedEvidenceIds)].sort(),
+    matchedEvidenceIds: [...new Set(matches.map(({ evidenceId }) => evidenceId))].sort(),
+    affectedConstraintIds: [...new Set(matches.map(({ constraintId }) => constraintId))].sort(),
+    affectedFields: [...new Set(matches.map(({ field }) => field))].sort(),
+  };
+}
+
 /**
  * Demonstrates a governed re-evaluation path without mutating Source Truth.
  *
  * This is deliberately scoped to a demo proof. Evidence may resolve only the
- * exact constraint, field and source value it was reviewed for. It cannot
- * silently change unrelated constraints or rewrite the observed raw record.
+ * exact constraint, field and source value it was reviewed for. Revoked
+ * evidence is never applied. It cannot silently change unrelated constraints
+ * or rewrite the observed raw record.
  */
 export function evaluateWithGovernedEvidence(
   raw: RawRecord,
   capturedAt: string,
   evidence: GovernanceEvidence[] = [],
+  revokedEvidenceIds: string[] = [],
 ): GovernedEvidenceEvaluation {
   const source = structuredClone(raw);
   const baseEvaluation = evaluateRecord(source, capturedAt);
   const governedMapped: MappedRecord = structuredClone(baseEvaluation.mapped);
   const appliedEvidence: AppliedEvidence[] = [];
   const ignoredEvidenceIds: string[] = [];
+  const revoked = new Set(revokedEvidenceIds);
 
   const evidenceByConstraint = new Map<string, GovernanceEvidence>();
   for (const item of evidence) {
+    if (revoked.has(item.evidenceId)) {
+      ignoredEvidenceIds.push(item.evidenceId);
+      continue;
+    }
     if (item.scope !== "demo-only" || !evidenceMatchesSource(item, source)) {
       ignoredEvidenceIds.push(item.evidenceId);
       continue;
@@ -187,5 +219,6 @@ export function evaluateWithGovernedEvidence(
     },
     appliedEvidence: structuredClone(appliedEvidence),
     ignoredEvidenceIds: [...new Set(ignoredEvidenceIds)],
+    revokedEvidenceIds: [...new Set(revokedEvidenceIds)].sort(),
   };
 }
