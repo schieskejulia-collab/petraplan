@@ -34,39 +34,10 @@ export default function CasesPage() {
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
         <header className="space-y-2">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan</p>
-              <h1 className="text-3xl font-semibold">Truth Cases</h1>
-              <p className="text-sm text-muted-foreground">Nachvollziehbare Fälle von Source Truth bis Release Truth.</p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" onClick={() => setLocation("/trace")}>
-                Nachweisweg
-              </button>
-              <button type="button" className="rounded-lg border px-3 py-2 text-sm font-semibold" onClick={() => setLocation("/bridge")}>
-                Bridge öffnen
-              </button>
-            </div>
-          </div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan</p>
+          <h1 className="text-3xl font-semibold">Live Bridge</h1>
+          <p className="text-sm text-muted-foreground">Gespeicherte Fälle direkt aus Quelle, Übersetzung, Konflikt, Review und Release.</p>
         </header>
-
-        <button
-          type="button"
-          onClick={() => setLocation("/governance-proof")}
-          className="w-full rounded-2xl border bg-card p-4 text-left shadow-sm transition hover:shadow-md"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Governance Proof</p>
-              <h2 className="mt-1 text-lg font-semibold">BLOCKED → NEEDS_CONFIRMATION → RELEASED → REVOKED</h2>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                Sichtbarer Demo-Nachweis für kontrollierte Evidenz, maschinenlesbare Release-Basis und Widerruf — bei unveränderter Source Truth.
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full border px-2 py-1 text-[11px] font-semibold">PROOF</span>
-          </div>
-        </button>
 
         {loading && <p className="text-sm text-muted-foreground">Lade Fälle…</p>}
 
@@ -78,7 +49,7 @@ export default function CasesPage() {
         )}
 
         {!loading && !error && items.length === 0 && (
-          <div className="rounded-xl border p-6 text-sm text-muted-foreground">Noch keine Fälle vorhanden.</div>
+          <div className="rounded-xl border p-6 text-sm text-muted-foreground">Noch keine gespeicherten Fälle vorhanden.</div>
         )}
 
         <section className="space-y-3">
@@ -86,7 +57,7 @@ export default function CasesPage() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setLocation(`/cases/${item.id}`)}
+              onClick={() => setLocation(`/bridge/${item.id}`)}
               className="w-full rounded-2xl border bg-card p-4 text-left shadow-sm transition hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-3">
