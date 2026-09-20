@@ -42,6 +42,26 @@ export interface ReleaseGateDecision {
   exceptionIsDocumented: boolean;
 }
 
+export interface ReviewTruth {
+  session_id: string | null;
+  reviewer_id: string | null;
+  reviewer_type: string | null;
+  reviewer_authorized: boolean | null;
+  authorization_level: string | null;
+  evidence_checked: boolean;
+  evidence_reference_ids: string[];
+  criteria_checked: boolean;
+  criterion_result_ids: string[];
+  decision: string | null;
+  reason: string | null;
+  decided_at: string | null;
+  runtime_log_id: string | null;
+  resolution_id: string | null;
+  validation_result_id: string | null;
+  complete: boolean;
+  missing: string[];
+}
+
 export interface CaseListItem {
   id: string;
   created_at: string;
@@ -90,6 +110,7 @@ export interface CaseTrace {
     decisions: Array<Record<string, unknown>>;
     logs: Array<Record<string, unknown>>;
     status_history: Array<Record<string, unknown>>;
+    current: ReviewTruth | null;
   };
   release: {
     certificates: Array<Record<string, unknown>>;
