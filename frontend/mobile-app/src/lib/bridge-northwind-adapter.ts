@@ -4,6 +4,10 @@ import {
   type SchemaDriftAssessment,
   type SchemaPathRule,
 } from "./bridge-schema-drift.js";
+import {
+  observeSourceStructure,
+  type SourceStructureObservation,
+} from "./bridge-source-observation.js";
 
 export type NorthwindCustomer = {
   CustomerID: string;
@@ -72,12 +76,14 @@ export type NorthwindAdaptation = {
 export type NorthwindSafeAdaptation =
   | {
       accepted: true;
+      structureObservation: SourceStructureObservation;
       drift: SchemaDriftAssessment;
       sourceSnapshot: unknown;
       adaptation: NorthwindAdaptation;
     }
   | {
       accepted: false;
+      structureObservation: SourceStructureObservation;
       drift: SchemaDriftAssessment;
       sourceSnapshot: unknown;
       adaptation: null;
@@ -182,17 +188,19 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
 
 /**
  * Runtime gate for foreign Northwind-shaped payloads.
- * A changed/missing critical source path is treated as schema drift. The
- * adapter is not called until the runtime contract matches, so a renamed field
- * can never be silently guessed into the canonical bridge model.
+ * First the source is observed exactly as received. Only after that observation
+ * is the explicit runtime contract checked. A changed/missing critical source
+ * path is treated as schema drift and is never silently guessed.
  */
 export function adaptNorthwindOrderSafely(source: unknown): NorthwindSafeAdaptation {
   const sourceSnapshot = structuredClone(source);
+  const structureObservation = observeSourceStructure(source);
   const drift = assessSchemaDrift(source, "northwind-order-envelope-v1", northwindRuntimeSchemaContract);
 
   if (!drift.compatible) {
     return {
       accepted: false,
+      structureObservation,
       drift,
       sourceSnapshot,
       adaptation: null,
@@ -201,6 +209,7 @@ export function adaptNorthwindOrderSafely(source: unknown): NorthwindSafeAdaptat
 
   return {
     accepted: true,
+    structureObservation,
     drift,
     sourceSnapshot,
     adaptation: adaptNorthwindOrder(source as NorthwindOrderEnvelope),
