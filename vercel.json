@@ -8,6 +8,10 @@
     {
       "source": "/cases/:path*",
       "destination": "/index.html"
+    },
+    {
+      "source": "/bridge/:path*",
+      "destination": "/index.html"
     }
   ]
 }
