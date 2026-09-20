@@ -50,55 +50,24 @@ const stage0 = evaluateWithGovernedEvidence(raw, capturedAt, []);
 const stage1 = evaluateWithGovernedEvidence(raw, capturedAt, [quantityEvidence]);
 const stage2 = evaluateWithGovernedEvidence(raw, capturedAt, [quantityEvidence, statusEvidence]);
 const revokedEvidenceIds = [statusEvidence.evidenceId];
-const stage3 = evaluateWithGovernedEvidence(
-  raw,
-  capturedAt,
-  [quantityEvidence, statusEvidence],
-  revokedEvidenceIds,
-);
+const stage3 = evaluateWithGovernedEvidence(raw, capturedAt, [quantityEvidence, statusEvidence], revokedEvidenceIds);
 const revocationImpact = assessReleaseImpact(stage2.release.releaseBasis, revokedEvidenceIds);
 
-const steps = [
-  {
-    number: "01",
-    label: "BLOCKED",
-    state: stage0.state.state,
-    releaseAllowed: stage0.release.releaseAllowed,
-    detail: "STATUS ist unbestätigt und MENGE=-4 verletzt die Ausgangsregel.",
-    evidence: "Keine zusätzliche Evidenz",
-  },
-  {
-    number: "02",
-    label: "NEEDS CONFIRMATION",
-    state: stage1.state.state,
-    releaseAllowed: stage1.release.releaseAllowed,
-    detail: "Die Mengenregel ist bestätigt. Die Statusbedeutung bleibt offen.",
-    evidence: `${quantityEvidence.reviewId} · ${quantityEvidence.version}`,
-  },
-  {
-    number: "03",
-    label: "RELEASED",
-    state: stage2.state.state,
-    releaseAllowed: stage2.release.releaseAllowed,
-    detail: "Beide blockierenden Punkte sind durch passende Demo-Evidenz aufgelöst.",
-    evidence: `${statusEvidence.reviewId} · ${statusEvidence.version}`,
-  },
-  {
-    number: "04",
-    label: "REVOKED",
-    state: stage3.state.state,
-    releaseAllowed: stage3.release.releaseAllowed,
-    detail: "Die Status-Evidenz wurde widerrufen. Derselbe Datensatz fällt zurück in NEEDS_CONFIRMATION.",
-    evidence: statusEvidence.evidenceId,
-  },
-];
-
-function stateBadge(state: string, releaseAllowed: boolean) {
-  const label = releaseAllowed ? "RELEASED" : state;
+function StatusLine({ title, text }: { title: string; text: string }) {
   return (
-    <span className="rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide">
-      {label}
-    </span>
+    <div className="grid grid-cols-[112px_1fr] gap-3 py-2 text-sm">
+      <div className="font-semibold">{title}</div>
+      <div className="text-muted-foreground">{text}</div>
+    </div>
+  );
+}
+
+function ArrowNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="my-2 flex items-start gap-3 pl-3 text-sm">
+      <div className="pt-0.5 text-lg leading-none">↓</div>
+      <div className="border-l pl-3 leading-6 text-muted-foreground">{children}</div>
+    </div>
   );
 }
 
@@ -107,106 +76,110 @@ export default function GovernanceProofPage() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
-        <header className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => setLocation("/cases")}
-              className="rounded-lg border px-3 py-2 text-sm font-semibold"
-            >
-              Zurück
-            </button>
-            <span className="rounded-full border px-2.5 py-1 text-[11px] font-semibold">DEMO-ONLY</span>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan · Governance Proof</p>
-            <h1 className="text-3xl font-semibold">Kontrollierte Evidenz</h1>
-            <p className="text-sm leading-6 text-muted-foreground">
-              Sichtbarer Nachweis, wie derselbe Source-Datensatz durch bestätigte Evidenz neu bewertet wird — ohne Source Truth zu verändern.
-            </p>
-          </div>
+      <div className="mx-auto max-w-2xl px-4 py-6">
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <button type="button" onClick={() => setLocation("/cases")} className="text-sm font-semibold underline underline-offset-4">
+            ← Zurück
+          </button>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Demo-only</span>
+        </div>
+
+        <header className="mb-8 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan · Governance-Nachweis</p>
+          <h1 className="text-3xl font-semibold leading-tight">Was ändert sich – und warum?</h1>
+          <p className="text-base leading-7 text-muted-foreground">
+            Derselbe Quelldatensatz bleibt unverändert. Nur bestätigte Evidenz verändert die Bewertung.
+          </p>
         </header>
 
-        <section className="rounded-2xl border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Source Truth</p>
-              <h2 className="mt-1 text-lg font-semibold">{raw.AUFTRAGS_NR}</h2>
-            </div>
-            <span className="rounded-full border px-2.5 py-1 text-[11px] font-semibold">UNVERÄNDERT</span>
+        <section className="mb-8 border-y py-4">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <h2 className="font-semibold">Source Truth</h2>
+            <span className="text-xs font-semibold">UNVERÄNDERT</span>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-            <div><span className="text-muted-foreground">Kunde</span><div className="font-medium">{raw.KUNDEN_NR}</div></div>
-            <div><span className="text-muted-foreground">Status</span><div className="font-medium">{raw.STATUS}</div></div>
-            <div><span className="text-muted-foreground">Menge</span><div className="font-medium">{raw.MENGE}</div></div>
-            <div><span className="text-muted-foreground">Datum</span><div className="font-medium">{raw.DATUM}</div></div>
-          </div>
-          <p className="mt-4 break-all text-[11px] text-muted-foreground">Snapshot: {stage0.sourceSnapshotId}</p>
+          <p className="text-sm leading-6 text-muted-foreground">
+            Auftrag <b className="text-foreground">{raw.AUFTRAGS_NR}</b> · Kunde <b className="text-foreground">{raw.KUNDEN_NR}</b> · STATUS <b className="text-foreground">{raw.STATUS}</b> · MENGE <b className="text-foreground">{raw.MENGE}</b> · DATUM <b className="text-foreground">{raw.DATUM}</b>
+          </p>
+          <p className="mt-2 break-all text-[11px] text-muted-foreground">Snapshot {stage0.sourceSnapshotId}</p>
         </section>
 
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-xl font-semibold">Zustandsfolge</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Jede Stufe wertet dieselbe Source neu aus.</p>
-          </div>
+        <section aria-labelledby="proof-flow" className="mb-10">
+          <h2 id="proof-flow" className="mb-4 text-xl font-semibold">Aussage → Beleg → neue Entscheidung</h2>
 
-          {steps.map((step, index) => (
-            <div key={step.number} className="relative rounded-2xl border bg-card p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-bold">{step.number}</div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-semibold">{step.label}</h3>
-                    {stateBadge(step.state, step.releaseAllowed)}
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-muted-foreground">{step.detail}</p>
-                  <p className="mt-3 text-xs"><span className="text-muted-foreground">Evidenz:</span> {step.evidence}</p>
-                </div>
-              </div>
-              {index < steps.length - 1 && (
-                <div className="ml-[17px] mt-3 h-5 border-l" aria-hidden="true" />
-              )}
+          <div className="border-l-2 pl-5">
+            <div className="py-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">1 · Ausgangslage</div>
+              <div className="mt-1 text-2xl font-semibold">BLOCKED</div>
+              <StatusLine title="Warum?" text="Zwei Blocker sind offen: status.value_map und quantity.positive." />
             </div>
-          ))}
+
+            <ArrowNote>
+              <b className="text-foreground">R-DEMO-001</b> bestätigt nur den beobachteten Mengenfall <b className="text-foreground">MENGE=-4</b> über <b className="text-foreground">quantity-rule-demo-v2</b>.
+            </ArrowNote>
+
+            <div className="py-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">2 · Ein Blocker gelöst</div>
+              <div className="mt-1 text-2xl font-semibold">NEEDS_CONFIRMATION</div>
+              <StatusLine title="Offen bleibt" text="status.value_map – die Bedeutung von STATUS=UNBEKANNT ist noch nicht bestätigt." />
+            </div>
+
+            <ArrowNote>
+              <b className="text-foreground">R-DEMO-002</b> bestätigt exakt die Demo-Zuordnung <b className="text-foreground">UNBEKANNT → in_progress</b> über <b className="text-foreground">status-map-demo-v2</b>.
+            </ArrowNote>
+
+            <div className="py-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">3 · Beide Blocker gelöst</div>
+              <div className="mt-1 text-2xl font-semibold">RELEASED</div>
+              <StatusLine title="Warum?" text="Alle BLOCKING-Constraints sind erfüllt. Die Freigabe basiert auf genau zwei bestätigten Evidence-Einträgen." />
+            </div>
+
+            <ArrowNote>
+              <b className="text-foreground">Widerruf:</b> {statusEvidence.evidenceId} wird zurückgezogen.
+            </ArrowNote>
+
+            <div className="py-2">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">4 · Grundlage entfällt</div>
+              <div className="mt-1 text-2xl font-semibold">NEEDS_CONFIRMATION</div>
+              <StatusLine title="Warum?" text="status.value_map ist wieder offen. Die frühere Freigabe bleibt nicht stillschweigend bestehen." />
+            </div>
+          </div>
         </section>
 
-        <section className="rounded-2xl border bg-card p-4 shadow-sm">
-          <h2 className="text-xl font-semibold">Maschinenlesbare Release-Basis</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Der Release ist nicht nur true/false, sondern auf konkrete Evidenz zurückführbar.</p>
-          <div className="mt-4 space-y-3">
+        <section className="mb-8 border-y py-5">
+          <h2 className="text-xl font-semibold">Woran hing der Release konkret?</h2>
+          <div className="mt-3 divide-y">
             {stage2.release.releaseBasis.map((item) => (
-              <div key={item.evidenceId} className="rounded-xl border p-3 text-sm">
-                <div className="font-semibold">{item.evidenceId}</div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                  <div><span className="text-muted-foreground">Version</span><div>{item.version}</div></div>
-                  <div><span className="text-muted-foreground">Review</span><div>{item.reviewId}</div></div>
-                  <div><span className="text-muted-foreground">Constraint</span><div>{item.constraintId}</div></div>
-                  <div><span className="text-muted-foreground">Feld</span><div>{item.field}</div></div>
-                </div>
+              <div key={item.evidenceId} className="py-3 text-sm leading-6">
+                <div className="font-semibold">{item.constraintId}</div>
+                <div className="text-muted-foreground">{item.evidenceId} · {item.version} · {item.reviewId}</div>
               </div>
             ))}
           </div>
+          <p className="mt-3 text-sm leading-6">
+            Widerruf von <b>{revocationImpact.matchedEvidenceIds.join(", ")}</b> betrifft <b>{revocationImpact.affectedConstraintIds.join(", ")}</b> im Feld <b>{revocationImpact.affectedFields.join(", ")}</b>.
+          </p>
         </section>
 
-        <section className="rounded-2xl border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-semibold">Widerruf & Impact</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Welche frühere Freigabe hing an der widerrufenen Evidenz?</p>
+        <section className="space-y-3 text-sm leading-6">
+          <h2 className="text-xl font-semibold">Was ist damit bewiesen?</h2>
+          <p><b>1.</b> Die Source bleibt gleich.</p>
+          <p><b>2.</b> Ein Release entsteht erst, wenn die konkreten Blocker durch passende Evidenz aufgelöst sind.</p>
+          <p><b>3.</b> Wird eine Release-Grundlage widerrufen, fällt die Entscheidung kontrolliert zurück.</p>
+
+          <details className="pt-2 text-muted-foreground">
+            <summary className="cursor-pointer font-semibold text-foreground">Technische Details anzeigen</summary>
+            <div className="mt-3 space-y-2 text-xs leading-5">
+              <p>Stage 0: {stage0.state.state} · Release {String(stage0.release.releaseAllowed)}</p>
+              <p>Stage 1: {stage1.state.state} · Release {String(stage1.release.releaseAllowed)}</p>
+              <p>Stage 2: {stage2.state.state} · Release {String(stage2.release.releaseAllowed)}</p>
+              <p>Stage 3: {stage3.state.state} · Release {String(stage3.release.releaseAllowed)}</p>
+              <p>Revocation impact: {String(revocationImpact.impacted)}</p>
             </div>
-            {stateBadge(stage3.state.state, stage3.release.releaseAllowed)}
-          </div>
-          <div className="mt-4 space-y-2 text-sm">
-            <p><span className="text-muted-foreground">Betroffen:</span> {revocationImpact.impacted ? "Ja" : "Nein"}</p>
-            <p><span className="text-muted-foreground">Evidence:</span> {revocationImpact.matchedEvidenceIds.join(", ") || "—"}</p>
-            <p><span className="text-muted-foreground">Constraint:</span> {revocationImpact.affectedConstraintIds.join(", ") || "—"}</p>
-            <p><span className="text-muted-foreground">Feld:</span> {revocationImpact.affectedFields.join(", ") || "—"}</p>
-          </div>
-        </section>
+          </details>
 
-        <section className="rounded-2xl border border-dashed p-4 text-sm leading-6 text-muted-foreground">
-          Dieser sichtbare Nachweis verwendet ausschließlich synthetische Demo-Evidenz. Er beweist den Governance-Mechanismus, nicht reale Northwind-Fachsemantik oder einen produktiven Kundenfall.
+          <p className="pt-3 text-xs text-muted-foreground">
+            Synthetische Demo-Evidenz. Beweist den Governance-Mechanismus, nicht reale Northwind-Fachsemantik oder einen produktiven Kundenfall.
+          </p>
         </section>
       </div>
     </main>
