@@ -138,7 +138,7 @@ export default function LiveBridgePage() {
               </div>
             </div>
           )}
-          {ingestion?.source_hash && <p className="break-all text-[11px] text-muted-foreground">Source hash: {String(ingestion.source_hash)}</p>}
+          {Boolean(ingestion?.source_hash) && <p className="break-all text-[11px] text-muted-foreground">Source hash: {String(ingestion?.source_hash)}</p>}
         </section>
 
         {data.conflict.conflicts.length > 0 && (
