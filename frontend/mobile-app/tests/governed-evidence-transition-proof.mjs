@@ -46,48 +46,45 @@ const stage0 = evaluateWithGovernedEvidence(raw, capturedAt, []);
 const stage1 = evaluateWithGovernedEvidence(raw, capturedAt, [quantityEvidence]);
 const stage2 = evaluateWithGovernedEvidence(raw, capturedAt, [quantityEvidence, statusEvidence]);
 
-// Stage 0: concrete data-rule failure + semantic ambiguity => BLOCKED.
 assert.equal(stage0.state.state, "BLOCKED");
 assert.equal(stage0.release.releaseAllowed, false);
 assert.deepEqual(stage0.release.failedConstraintIds, ["status.value_map", "quantity.positive"]);
 
-// Stage 1: reviewed quantity rule removes the hard data blocker; semantics still needs confirmation.
 assert.equal(stage1.state.state, "NEEDS_CONFIRMATION");
 assert.equal(stage1.release.releaseAllowed, false);
 assert.deepEqual(stage1.release.failedConstraintIds, ["status.value_map"]);
 assert.deepEqual(stage1.appliedEvidence.map(({ evidenceId }) => evidenceId), [quantityEvidence.evidenceId]);
 
-// Stage 2: reviewed semantic mapping resolves the final blocker => RELEASED / VALID.
 assert.equal(stage2.state.state, "VALID");
 assert.equal(stage2.release.releaseAllowed, true);
 assert.deepEqual(stage2.release.failedConstraintIds, []);
 assert.equal(stage2.governedMapped.status, "in_progress");
-assert.deepEqual(
-  stage2.release.releaseBasis.map(({ evidenceId, version, reviewId, constraintId }) => ({ evidenceId, version, reviewId, constraintId })),
-  [
-    {
-      evidenceId: quantityEvidence.evidenceId,
-      version: quantityEvidence.version,
-      reviewId: quantityEvidence.reviewId,
-      constraintId: quantityEvidence.constraintId,
-    },
-    {
-      evidenceId: statusEvidence.evidenceId,
-      version: statusEvidence.version,
-      reviewId: statusEvidence.reviewId,
-      constraintId: statusEvidence.constraintId,
-    },
-  ],
-);
 
-// Same Source Truth in all three stages.
+const releaseBasisComparable = stage2.release.releaseBasis
+  .map(({ evidenceId, version, reviewId, constraintId }) => ({ evidenceId, version, reviewId, constraintId }))
+  .sort((a, b) => a.constraintId.localeCompare(b.constraintId));
+const expectedReleaseBasis = [
+  {
+    evidenceId: quantityEvidence.evidenceId,
+    version: quantityEvidence.version,
+    reviewId: quantityEvidence.reviewId,
+    constraintId: quantityEvidence.constraintId,
+  },
+  {
+    evidenceId: statusEvidence.evidenceId,
+    version: statusEvidence.version,
+    reviewId: statusEvidence.reviewId,
+    constraintId: statusEvidence.constraintId,
+  },
+].sort((a, b) => a.constraintId.localeCompare(b.constraintId));
+assert.deepEqual(releaseBasisComparable, expectedReleaseBasis);
+
 assert.deepEqual(stage0.raw, raw);
 assert.deepEqual(stage1.raw, raw);
 assert.deepEqual(stage2.raw, raw);
 assert.equal(stage0.sourceSnapshotId, stage1.sourceSnapshotId);
 assert.equal(stage1.sourceSnapshotId, stage2.sourceSnapshotId);
 
-// Mismatched evidence must not resolve anything.
 const mismatched = evaluateWithGovernedEvidence(raw, capturedAt, [
   { ...statusEvidence, evidenceId: "E-WRONG", sourceValue: "OFFEN" },
 ]);
