@@ -21,18 +21,30 @@ function validEnvelope() {
   };
 }
 
-test("matching Northwind runtime schema is accepted before adaptation", () => {
+test("matching Northwind runtime schema is observed before adaptation", () => {
   const source = validEnvelope();
   const result = adaptNorthwindOrderSafely(source);
 
   assert.equal(result.accepted, true);
+  assert.equal(result.structureObservation.policy, "observe_only");
+  assert.equal(result.structureObservation.semanticPolicy, "do_not_infer");
+  assert.equal(result.structureObservation.rootType, "object");
+  assert.ok(result.structureObservation.fields.some(({ path, observedTypes }) =>
+    path === "order.OrderID" && observedTypes.includes("number")
+  ));
+  assert.ok(result.structureObservation.fields.some(({ path, arrayItemCount }) =>
+    path === "orderDetails" && arrayItemCount === 2
+  ));
+  assert.ok(result.structureObservation.fields.some(({ path, occurrences }) =>
+    path === "orderDetails[].Quantity" && occurrences === 2
+  ));
   assert.equal(result.drift.compatible, true);
   assert.deepEqual(result.drift.issues, []);
   assert.equal(result.adaptation.raw.AUFTRAGS_NR, "A-10248");
   assert.deepEqual(result.sourceSnapshot, source);
 });
 
-test("renamed source field is schema drift and is never guessed", () => {
+test("renamed source field remains visible in observation and is never guessed", () => {
   const source = validEnvelope();
   source.order.OrderNumber = source.order.OrderID;
   delete source.order.OrderID;
@@ -43,12 +55,14 @@ test("renamed source field is schema drift and is never guessed", () => {
   assert.equal(result.accepted, false);
   assert.equal(result.adaptation, null);
   assert.equal(result.drift.compatible, false);
+  assert.ok(result.structureObservation.fields.some(({ path }) => path === "order.OrderNumber"));
+  assert.ok(!result.structureObservation.fields.some(({ path }) => path === "order.OrderID"));
   assert.ok(result.drift.issues.some(({ path, code }) => path === "order.OrderID" && code === "MISSING_PATH"));
   assert.deepEqual(result.sourceSnapshot, before);
   assert.deepEqual(source, before);
 });
 
-test("changed source type blocks adaptation instead of coercing it", () => {
+test("changed source type is observed and blocks adaptation instead of coercing it", () => {
   const source = validEnvelope();
   source.orderDetails[0].Quantity = "12";
 
@@ -56,6 +70,8 @@ test("changed source type blocks adaptation instead of coercing it", () => {
 
   assert.equal(result.accepted, false);
   assert.equal(result.adaptation, null);
+  const quantityObservation = result.structureObservation.fields.find(({ path }) => path === "orderDetails[].Quantity");
+  assert.deepEqual(quantityObservation.observedTypes, ["number", "string"]);
   assert.ok(result.drift.issues.some(({ path, code, observed }) =>
     path === "orderDetails[].Quantity" && code === "TYPE_CHANGED" && observed === "string"
   ));
