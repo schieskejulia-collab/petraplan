@@ -10,6 +10,7 @@ import {
   type IngressContext,
   type RawRecord,
   type ResponseContext,
+  type SchemaCheck,
 } from "./bridge-pipeline";
 import { deriveBridgeState } from "./bridge-state";
 
@@ -47,6 +48,72 @@ function isAlreadyCoveredByBridge(conflict: AdapterConflict, bridgeConstraints: 
   return bridgeConstraints.some(
     ({ id, passed, severity }) => id === "status.value_map" && !passed && severity === "blocking",
   );
+}
+
+function adapterExplainsUnresolvedField(conflict: AdapterConflict): boolean {
+  return (
+    conflict.field === "STATUS" && conflict.code === "NO_CONFIRMED_SEMANTIC_MAPPING"
+  ) || (
+    conflict.field === "MENGE" &&
+    (conflict.code === "NO_CONFIRMED_SEMANTIC_MAPPING" || conflict.code === "NO_ORDER_DETAILS")
+  );
+}
+
+function unresolvedAdapterFields(conflictTruth: AdapterConflict[]): Set<keyof RawRecord> {
+  return new Set(
+    conflictTruth
+      .filter(adapterExplainsUnresolvedField)
+      .map(({ field }) => field),
+  );
+}
+
+function remainingSchemaFailures(
+  schema: SchemaCheck[],
+  adapterFields: Set<keyof RawRecord>,
+): SchemaCheck[] {
+  return schema.filter(({ field, present, typeOk, formatOk }) => {
+    if (!present || !typeOk) return true;
+    if (formatOk) return false;
+    return !adapterFields.has(field);
+  });
+}
+
+function reconcileBaseConstraints(
+  baseConstraints: ConstraintResult[],
+  schemaFailures: SchemaCheck[],
+  adapterFields: Set<keyof RawRecord>,
+): ConstraintResult[] {
+  return baseConstraints
+    .filter(({ id }) => !(id === "quantity.positive" && adapterFields.has("MENGE")))
+    .map((constraint) => {
+      if (constraint.id !== "contract.schema" || schemaFailures.length > 0) return constraint;
+
+      return {
+        ...constraint,
+        passed: true,
+        comparison: {
+          ...constraint.comparison,
+          observed: "schemaFehler=0; unresolved adapter semantics handled separately",
+        },
+        evidence: "schemaFehler=0 nach Trennung von Struktur und explizit ungeklärter Adapter-Semantik",
+        resolutionProposal: "Keine Schemaauflösung nötig; ungeklärte Bedeutungen werden durch eigene Semantik-Constraints behandelt.",
+      };
+    });
+}
+
+function reconcileGatewayIssues(
+  gatewayIssues: BridgeEvaluation["gatewayIssues"],
+  schemaFailures: SchemaCheck[],
+): BridgeEvaluation["gatewayIssues"] {
+  return gatewayIssues.flatMap((issue) => {
+    if (issue.issue !== "CONTRACT_MISMATCH") return [issue];
+    if (schemaFailures.length === 0) return [];
+
+    return [{
+      ...issue,
+      message: `${schemaFailures.length} Feld${schemaFailures.length === 1 ? "" : "er"} entsprechen nicht dem bestätigten Vertrag order-v1.`,
+    }];
+  });
 }
 
 function adapterConstraint(
@@ -88,9 +155,11 @@ function adapterConstraint(
  *
  * Adapter conflicts never mutate raw. Conflicts already represented by a
  * bridge constraint are de-duplicated so blockingIssues counts causes rather
- * than layers. In particular, an unmapped STATUS is already represented by
- * status.value_map; source-only conflicts such as CUSTOMER_MISMATCH remain
- * visible as their own blocking constraints.
+ * than layers. An unmapped STATUS remains represented by status.value_map.
+ * If an adapter explicitly proves that MENGE cannot yet be derived, the empty
+ * bridge placeholder is not counted again as quantity.positive. Likewise,
+ * format failures caused only by those explicit unresolved adapter semantics
+ * do not become a second contract.schema cause.
  */
 export function evaluateRecordWithConflictTruth(
   raw: RawRecord,
@@ -100,14 +169,17 @@ export function evaluateRecordWithConflictTruth(
   conflictTruth: AdapterConflict[] = [],
 ): ConflictTruthEvaluation {
   const base = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
-  const maxSequence = base.constraints.reduce((max, { sequence }) => Math.max(max, sequence), 0);
+  const adapterFields = unresolvedAdapterFields(conflictTruth);
+  const schemaFailures = remainingSchemaFailures(base.schema, adapterFields);
+  const reconciledBaseConstraints = reconcileBaseConstraints(base.constraints, schemaFailures, adapterFields);
+  const maxSequence = reconciledBaseConstraints.reduce((max, { sequence }) => Math.max(max, sequence), 0);
   const visibleConflicts = conflictTruth.filter(
-    (conflict) => !isAlreadyCoveredByBridge(conflict, base.constraints),
+    (conflict) => !isAlreadyCoveredByBridge(conflict, reconciledBaseConstraints),
   );
   const adapterConstraints = visibleConflicts.map((conflict, index) =>
     adapterConstraint(conflict, base.contract.name, maxSequence + index + 1),
   );
-  const constraints = [...base.constraints, ...adapterConstraints].sort((a, b) => a.sequence - b.sequence);
+  const constraints = [...reconciledBaseConstraints, ...adapterConstraints].sort((a, b) => a.sequence - b.sequence);
 
   const constraintDecision = decideFromConstraints(constraints);
   const state = deriveBridgeState(constraints);
@@ -118,6 +190,7 @@ export function evaluateRecordWithConflictTruth(
   const passed = constraints.every(({ passed }) => passed);
   const releaseAllowed = constraintDecision.releaseAllowed;
   const blockingIssues = constraintDecision.blockingIssues;
+  const gatewayIssues = reconcileGatewayIssues(base.gatewayIssues, schemaFailures);
 
   const formatConstraint = ({ id, label, evidence }: ConstraintResult): string =>
     id.startsWith("adapter.")
@@ -142,6 +215,7 @@ export function evaluateRecordWithConflictTruth(
 
   return {
     ...base,
+    gatewayIssues,
     constraints,
     state,
     trace,
