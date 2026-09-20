@@ -32,6 +32,7 @@ export type ReportError = {
 };
 
 export type ConflictTruthEvaluation = BridgeEvaluation & {
+  adapterConflicts: AdapterConflict[];
   report: BridgeEvaluation["report"] & {
     errorsDetailed: ReportError[];
   };
@@ -91,6 +92,9 @@ function adapterConstraint(
  * than layers. In particular, an unmapped STATUS is already represented by
  * status.value_map; source-only conflicts such as CUSTOMER_MISMATCH remain
  * visible as their own blocking constraints.
+ *
+ * All observed adapter conflicts remain available as provenance on the final
+ * evaluation, including conflicts de-duplicated from the blocking count.
  */
 export function evaluateRecordWithConflictTruth(
   raw: RawRecord,
@@ -100,8 +104,9 @@ export function evaluateRecordWithConflictTruth(
   conflictTruth: AdapterConflict[] = [],
 ): ConflictTruthEvaluation {
   const base = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
+  const adapterConflicts = structuredClone(conflictTruth);
   const maxSequence = base.constraints.reduce((max, { sequence }) => Math.max(max, sequence), 0);
-  const visibleConflicts = conflictTruth.filter(
+  const visibleConflicts = adapterConflicts.filter(
     (conflict) => !isAlreadyCoveredByBridge(conflict, base.constraints),
   );
   const adapterConstraints = visibleConflicts.map((conflict, index) =>
@@ -132,7 +137,8 @@ export function evaluateRecordWithConflictTruth(
 
   // Conflict Truth must also be visible at field-trace level. The canonical
   // value remains untouched; only the validation state of the affected field
-  // changes to failed.
+  // changes to failed. Use visibleConflicts here so a de-duplicated STATUS
+  // conflict does not manufacture a second validation cause.
   const conflictFields = new Set(visibleConflicts.map(({ field }) => field));
   const trace = base.trace.map((step) =>
     conflictFields.has(step.sourceField)
@@ -142,6 +148,7 @@ export function evaluateRecordWithConflictTruth(
 
   return {
     ...base,
+    adapterConflicts,
     constraints,
     state,
     trace,
