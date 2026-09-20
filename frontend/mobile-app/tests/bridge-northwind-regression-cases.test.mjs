@@ -59,6 +59,43 @@ test("Northwind date role is explicit: adapter uses OrderDate, not RequiredDate 
   assert.equal(changed.evidence.dateSource, "order.OrderDate");
 });
 
+test("relationship evidence confirms CustomerID only when order and customer agree", () => {
+  const envelope = baseEnvelope();
+  const adaptation = adaptNorthwindOrder(envelope);
+  const customerEvidence = adaptation.evidence.relationships.find(
+    ({ targetField }) => targetField === "KUNDEN_NR",
+  );
+
+  assert.equal(customerEvidence?.sourcePath, "order.CustomerID <-> customer.CustomerID");
+  assert.equal(customerEvidence?.status, "confirmed");
+
+  const mismatch = baseEnvelope();
+  mismatch.order.CustomerID = "ALFKI";
+  const conflicted = adaptNorthwindOrder(mismatch);
+  const conflictEvidence = conflicted.evidence.relationships.find(
+    ({ targetField }) => targetField === "KUNDEN_NR",
+  );
+
+  assert.equal(conflictEvidence?.status, "conflict");
+  assert.ok(
+    conflicted.issues.some(
+      ({ code, field }) => code === "CUSTOMER_MISMATCH" && field === "KUNDEN_NR",
+    ),
+  );
+});
+
+test("relationship evidence separates confirmed identity/date from unconfirmed status semantics", () => {
+  const adaptation = adaptNorthwindOrder(baseEnvelope());
+  const byField = Object.fromEntries(
+    adaptation.evidence.relationships.map((entry) => [entry.targetField, entry]),
+  );
+
+  assert.equal(byField.AUFTRAGS_NR.status, "confirmed");
+  assert.equal(byField.DATUM.status, "confirmed");
+  assert.equal(byField.STATUS.status, "unconfirmed");
+  assert.equal(byField.STATUS.sourcePath, "unmapped");
+});
+
 test("decimal text with trailing zeros converts safely without changing the preserved source text", () => {
   const assessment = assessTypeConversion("32.3800", {
     sourceField: "Freight",
@@ -112,10 +149,14 @@ test("ShippedDate null is observed but must not be silently mapped to OFFEN", ()
 test("multiple Northwind order detail quantities are not silently summed into MENGE", () => {
   const envelope = baseEnvelope();
   const adaptation = adaptNorthwindOrder(envelope);
+  const quantityEvidence = adaptation.evidence.relationships.find(
+    ({ targetField }) => targetField === "MENGE",
+  );
 
   assert.deepEqual(envelope.orderDetails.map(({ Quantity }) => Quantity), [12, 10, 5]);
   assert.equal(adaptation.raw.MENGE, "");
   assert.equal(adaptation.evidence.quantitySource, "unmapped");
+  assert.equal(quantityEvidence?.status, "unconfirmed");
   assert.ok(
     adaptation.issues.some(
       ({ code, field }) => code === "NO_CONFIRMED_SEMANTIC_MAPPING" && field === "MENGE",
@@ -131,9 +172,13 @@ test("a single Northwind order detail maps its Quantity directly without aggrega
   ];
 
   const adaptation = adaptNorthwindOrder(envelope);
+  const quantityEvidence = adaptation.evidence.relationships.find(
+    ({ targetField }) => targetField === "MENGE",
+  );
 
   assert.equal(adaptation.raw.MENGE, "12");
   assert.equal(adaptation.evidence.quantitySource, "orderDetails[0].Quantity");
+  assert.equal(quantityEvidence?.status, "conditional");
   assert.equal(
     adaptation.issues.some(
       ({ code, field }) => code === "NO_CONFIRMED_SEMANTIC_MAPPING" && field === "MENGE",
