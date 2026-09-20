@@ -35,7 +35,7 @@ test("demo case 3: missing KUNDEN_NR blocks without inventing a replacement", ()
   const blockers = blockingIds(evaluation);
 
   assert.equal(evaluation.raw.KUNDEN_NR, "");
-  assert.equal(evaluation.mapped.customerId, "");
+  assert.equal(evaluation.mapped.customerId, null);
   assert.equal(evaluation.release.releaseAllowed, false);
   assert.ok(blockers.includes("contract.schema"));
   assert.ok(blockers.includes("customer.required"));
