@@ -54,19 +54,19 @@ const cases = [
     name: "plus-prefixed quantity requires contract confirmation instead of silent acceptance",
     raw: { ...demoValidRecord, MENGE: "+4" },
     state: "NEEDS_CONFIRMATION",
-    constraint: "contract.schema",
+    constraint: "contract.format",
   },
   {
     name: "exponential quantity requires contract confirmation instead of silent acceptance",
     raw: { ...demoValidRecord, MENGE: "1e3" },
     state: "NEEDS_CONFIRMATION",
-    constraint: "contract.schema",
+    constraint: "contract.format",
   },
   {
     name: "malformed order id requires contract confirmation",
     raw: { ...demoValidRecord, AUFTRAGS_NR: "10027" },
     state: "NEEDS_CONFIRMATION",
-    constraint: "contract.schema",
+    constraint: "contract.format",
   },
   {
     name: "impossible ISO month blocks release",
