@@ -23,15 +23,19 @@ function JsonValue({ value }: { value: unknown }) {
   return <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-muted/50 p-3 text-[11px] leading-relaxed">{JSON.stringify(value, null, 2)}</pre>;
 }
 
-function FieldTable({ source, target }: { source: Record<string, unknown>; target: Record<string, unknown> }) {
-  const rows = useMemo(() => {
-    const keys = [...new Set([...Object.keys(source), ...Object.keys(target)])];
-    return keys.map((key) => ({ key, source: source[key], target: target[key] }));
-  }, [source, target]);
+const BRIDGE_MAPPING_ROWS = [
+  ['KUNDEN_NR', 'customerId'],
+  ['AUFTRAGS_NR', 'orderId'],
+  ['STATUS', 'status'],
+  ['MENGE', 'quantity'],
+  ['DATUM', 'orderDate'],
+] as const;
+
+function BridgeFieldTable({ source, target }: { source: Record<string, unknown>; target: Record<string, unknown> }) {
   return (
     <div className="overflow-hidden rounded-xl border">
-      <div className="grid grid-cols-[0.9fr_1fr_1fr] bg-muted/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Feld</span><span>Quelle</span><span>Ziel</span></div>
-      {rows.map((row) => <div key={row.key} className="grid grid-cols-[0.9fr_1fr_1fr] gap-2 border-t px-3 py-2 text-xs"><span className="break-all font-medium">{row.key}</span><span className="break-all text-muted-foreground">{String(row.source ?? "—")}</span><span className="break-all">{String(row.target ?? "—")}</span></div>)}
+      <div className="grid grid-cols-[1.15fr_1fr_1fr] bg-muted/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Brücke</span><span>Quelle</span><span>Ziel</span></div>
+      {BRIDGE_MAPPING_ROWS.map(([from, to]) => <div key={from} className="grid grid-cols-[1.15fr_1fr_1fr] gap-2 border-t px-3 py-2 text-xs"><span className="break-all font-medium">{from} → {to}</span><span className="break-all text-muted-foreground">{String(source[from] ?? '—') || '—'}</span><span className="break-all">{String(target[to] ?? '—') || '—'}</span></div>)}
     </div>
   );
 }
@@ -110,6 +114,7 @@ export default function LiveBridgePage() {
   const ingestion = data.source.ingestion;
   const rawPayload = isRecord(ingestion?.raw_payload) ? ingestion.raw_payload : data.source.record;
   const extracted = data.semantic.extracted_schema;
+  const bridgeInput = isRecord(extracted?.bridge_input_raw) ? extracted.bridge_input_raw : isRecord(data.semantic.metadata?.bridge_input_raw) ? data.semantic.metadata.bridge_input_raw as Record<string, unknown> : rawPayload;
   const mappedPayload = isRecord(extracted?.mapped_payload) ? extracted.mapped_payload : isRecord(data.semantic.metadata?.mapped_payload) ? data.semantic.metadata.mapped_payload as Record<string, unknown> : {};
   const authoritative = data.validation.authoritative;
   const review = data.review.current;
@@ -125,7 +130,7 @@ export default function LiveBridgePage() {
 
         <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aktueller Zustand</p><p className="mt-1 text-xl font-semibold">{label(release ?? data.status)}</p></div><div className="text-right text-xs text-muted-foreground"><p>{data.conflict.conflicts.length} Konflikt{data.conflict.conflicts.length === 1 ? "" : "e"}</p><p>Validation: {label(authoritative?.status)}</p></div></div>{gate && <p className="mt-3 text-sm leading-relaxed">{gate.reason}</p>}</section>
 
-        <section className="mb-4 space-y-3 rounded-2xl border bg-card p-4 shadow-sm"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Übersetzung</p><h2 className="mt-1 text-lg font-semibold">Was tatsächlich verarbeitet wurde</h2></div>{Object.keys(mappedPayload).length > 0 ? <FieldTable source={rawPayload} target={mappedPayload} /> : <div className="grid gap-3 sm:grid-cols-2"><div><p className="mb-2 text-xs font-semibold text-muted-foreground">SOURCE</p><JsonValue value={rawPayload} /></div><div><p className="mb-2 text-xs font-semibold text-muted-foreground">ÜBERSETZUNG</p><JsonValue value={extracted ?? data.semantic.metadata} /></div></div>}{Boolean(ingestion?.source_hash) && <p className="break-all text-[11px] text-muted-foreground">Source hash: {String(ingestion?.source_hash)}</p>}</section>
+        <section className="mb-4 space-y-3 rounded-2xl border bg-card p-4 shadow-sm"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Übersetzung</p><h2 className="mt-1 text-lg font-semibold">Was tatsächlich verarbeitet wurde</h2></div>{Object.keys(mappedPayload).length > 0 ? <BridgeFieldTable source={bridgeInput} target={mappedPayload} /> : <div className="grid gap-3 sm:grid-cols-2"><div><p className="mb-2 text-xs font-semibold text-muted-foreground">SOURCE</p><JsonValue value={rawPayload} /></div><div><p className="mb-2 text-xs font-semibold text-muted-foreground">ÜBERSETZUNG</p><JsonValue value={extracted ?? data.semantic.metadata} /></div></div>}{Boolean(ingestion?.source_hash) && <p className="break-all text-[11px] text-muted-foreground">Source hash: {String(ingestion?.source_hash)}</p>}</section>
 
         {addressable && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address Layer · gespeicherter Snapshot</p><h2 className="mt-1 text-lg font-semibold">{String(addressable.rootAddress ?? 'Adressraum')}</h2><p className="mt-1 text-xs text-muted-foreground">Kandidaten und ihre erste Zustandshistorie wurden mit diesem Fall gespeichert.</p><div className="mt-3 space-y-3">{candidates.map((candidate) => <div key={String(candidate.id)} className="rounded-xl border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong className="break-all font-mono">{String(candidate.id)}</strong><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{String(candidate.state).toUpperCase()}</span></div><p className="mt-2">{String(candidate.sourceAddress)} → {String(candidate.proposedValue)}</p><p className="mt-1 text-muted-foreground">{String(candidate.evidence)}</p><p className="mt-2 text-muted-foreground">Impact: {Array.isArray(candidate.impactAddresses) ? candidate.impactAddresses.join(', ') : '—'}</p><details className="mt-2"><summary className="cursor-pointer font-medium">Zustandshistorie</summary><JsonValue value={candidate.stateHistory} /></details></div>)}</div></section>}
 
