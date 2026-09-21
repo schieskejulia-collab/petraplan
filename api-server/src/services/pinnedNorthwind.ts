@@ -173,6 +173,11 @@ export async function listPinnedNorthwindOrders(input: {
 
   const summaries = [] as any[];
   const stateCounts: Record<string, number> = {};
+  const evidenceCounts = {
+    structure: { CONFIRMED: 0, CONTRADICTED: 0, UNPROVEN: 0 },
+    statusValue: { CONFIRMED: 0, UNPROVEN: 0 },
+    quantityValue: { CONFIRMED: 0, UNPROVEN: 0 },
+  };
   let sourceAccepted = 0;
   let sourceBlocked = 0;
   let singleDetail = 0;
@@ -185,13 +190,22 @@ export async function listPinnedNorthwindOrders(input: {
     else if (detailCount === 1) singleDetail += 1;
     else multipleDetail += 1;
     const result = await getPinnedNorthwindOrder(order.OrderID);
-    if (!result || result.sourceSchemaGate === 'BLOCKED' || !result.evaluation) {
+    if (!result || result.sourceSchemaGate === 'BLOCKED' || !result.evaluation || !result.adaptation) {
       sourceBlocked += 1;
       continue;
     }
     sourceAccepted += 1;
     const bridgeState = result.evaluation.state.state;
     stateCounts[bridgeState] = (stateCounts[bridgeState] ?? 0) + 1;
+
+    const evidence = {
+      structure: result.adaptation.evidence.structure,
+      values: result.adaptation.evidence.values,
+    };
+    evidenceCounts.structure[evidence.structure.customerRelation.status] += 1;
+    evidenceCounts.statusValue[evidence.values.status.status] += 1;
+    evidenceCounts.quantityValue[evidence.values.quantity.status] += 1;
+
     const item = {
       orderId: order.OrderID,
       recordId: `A-${order.OrderID}`,
@@ -206,6 +220,7 @@ export async function listPinnedNorthwindOrders(input: {
       releaseAllowed: result.evaluation.release.releaseAllowed,
       blockingIssues: result.evaluation.release.blockingIssues,
       failedConstraintIds: result.evaluation.constraints.filter((constraint) => !constraint.passed && constraint.severity === 'blocking').map((constraint) => constraint.id),
+      evidence,
     };
     const haystack = `${item.recordId} ${item.customerId ?? ''} ${item.companyName}`.toLowerCase();
     if (q && !haystack.includes(q)) continue;
@@ -214,7 +229,7 @@ export async function listPinnedNorthwindOrders(input: {
   }
 
   return {
-    proof: 'external-northwind-mass-proof-v3',
+    proof: 'external-northwind-mass-proof-v4-evidence-split',
     upstream: {
       repository: NORTHWIND_UPSTREAM_REPO,
       commit: NORTHWIND_UPSTREAM_COMMIT,
@@ -230,6 +245,7 @@ export async function listPinnedNorthwindOrders(input: {
       multipleDetailOrders: multipleDetail,
       zeroDetailOrders: zeroDetail,
       stateCounts,
+      evidenceCounts,
     },
     total: summaries.length,
     offset,

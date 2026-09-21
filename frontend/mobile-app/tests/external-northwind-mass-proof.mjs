@@ -137,6 +137,7 @@ for (const order of orders) {
     upstreamOrder: structuredClone(order),
     upstreamCustomer: structuredClone(customer),
     upstreamOrderDetails: structuredClone(details),
+    adapterEvidence: safe.accepted ? structuredClone(safe.adaptation.evidence) : null,
   });
 
   if (!safe.accepted) {
@@ -146,6 +147,7 @@ for (const order of orders) {
       upstreamOrder: order,
       upstreamCustomer: customer,
       upstreamOrderDetails: details,
+      adapterEvidence: null,
       sourceSchemaGate: "BLOCKED",
       sourceSchemaIssues: safe.drift.issues,
       bridgeContractSchema: "NOT_EVALUATED",
@@ -198,10 +200,9 @@ for (const record of batch.records) {
 }
 
 // Full learning trace: one independently inspectable entry for every foreign
-// order. Source schema acceptance and Bridge contract-schema validation are
-// deliberately separate layers: the first asks whether the foreign envelope is
-// readable by the adapter; the second asks whether the adapted record satisfies
-// the confirmed order-v1 contract.
+// order. Structure evidence and value evidence are deliberately exported as
+// independent proof dimensions. A confirmed relation must not manufacture a
+// STATUS meaning or a many-detail MENGE aggregation.
 const evaluatedTraces = batch.records.map((record, index) => {
   const source = sourceByRecordId.get(record.recordId);
   assert.ok(source, `Missing source context for ${record.recordId}`);
@@ -226,6 +227,7 @@ const evaluatedTraces = batch.records.map((record, index) => {
     bridgeContractSchemaEvidence: contractSchema.evidence,
     adapterRaw: record.evaluation.raw,
     adapterConflicts: record.evaluation.adapterConflicts,
+    adapterEvidence: source.adapterEvidence,
     canonicalMapped: record.evaluation.mapped,
     bridgeState: record.state,
     releaseAllowed: record.releaseAllowed,
@@ -245,6 +247,32 @@ const allTraces = [...evaluatedTraces, ...sourceSchemaBlockedTraces].sort((a, b)
 assert.equal(allTraces.length, orders.length, "Expected exactly one trace per upstream order");
 assert.equal(new Set(allTraces.map(({ recordId }) => recordId)).size, orders.length, "Duplicate/missing order traces");
 
+const evidenceCounts = {
+  structure: { CONFIRMED: 0, CONTRADICTED: 0, UNPROVEN: 0 },
+  statusValue: { CONFIRMED: 0, UNPROVEN: 0 },
+  quantityValue: { CONFIRMED: 0, UNPROVEN: 0 },
+};
+for (const trace of evaluatedTraces) {
+  const evidence = trace.adapterEvidence;
+  assert.ok(evidence, `Missing adapter evidence for ${trace.recordId}`);
+  evidenceCounts.structure[evidence.structure.customerRelation.status] += 1;
+  evidenceCounts.statusValue[evidence.values.status.status] += 1;
+  evidenceCounts.quantityValue[evidence.values.quantity.status] += 1;
+  assert.equal(
+    evidence.structure.customerRelation.status === "CONFIRMED" && evidence.values.status.status === "CONFIRMED",
+    false,
+    `Structure confirmation manufactured STATUS meaning for ${trace.recordId}`,
+  );
+}
+
+assert.equal(evidenceCounts.structure.CONFIRMED, sourceSchemaAccepted);
+assert.equal(evidenceCounts.structure.CONTRADICTED, 0);
+assert.equal(evidenceCounts.structure.UNPROVEN, 0);
+assert.equal(evidenceCounts.statusValue.CONFIRMED, 0);
+assert.equal(evidenceCounts.statusValue.UNPROVEN, sourceSchemaAccepted);
+assert.equal(evidenceCounts.quantityValue.CONFIRMED, singleDetailOrders);
+assert.equal(evidenceCounts.quantityValue.UNPROVEN, multipleDetailOrders + zeroDetailOrders);
+
 const csvHeader = [
   "recordId",
   "customerId",
@@ -255,6 +283,12 @@ const csvHeader = [
   "freight",
   "detailCount",
   "sourceQuantities",
+  "structureCustomerRelationStatus",
+  "structureCustomerRelationReference",
+  "statusValueEvidenceStatus",
+  "statusValueEvidenceReference",
+  "quantityValueEvidenceStatus",
+  "quantityValueEvidenceReference",
   "adapterStatus",
   "adapterQuantity",
   "canonicalStatus",
@@ -270,6 +304,7 @@ const csvHeader = [
 const csvRows = allTraces.map((trace) => {
   const constraints = trace.failedConstraints ?? [];
   const conflicts = trace.adapterConflicts ?? [];
+  const evidence = trace.adapterEvidence;
   return [
     trace.recordId,
     trace.upstreamOrder?.CustomerID,
@@ -280,6 +315,12 @@ const csvRows = allTraces.map((trace) => {
     trace.upstreamOrder?.Freight,
     trace.detailCount ?? trace.upstreamOrderDetails?.length ?? 0,
     (trace.upstreamOrderDetails ?? []).map(({ Quantity }) => Quantity).join(" | "),
+    evidence?.structure?.customerRelation?.status,
+    evidence?.structure?.customerRelation?.sourceReference,
+    evidence?.values?.status?.status,
+    evidence?.values?.status?.sourceReference,
+    evidence?.values?.quantity?.status,
+    evidence?.values?.quantity?.sourceReference,
     trace.adapterRaw?.STATUS,
     trace.adapterRaw?.MENGE,
     trace.canonicalMapped?.status,
@@ -295,7 +336,8 @@ const csvRows = allTraces.map((trace) => {
 });
 
 const summary = {
-  proof: "external-northwind-mass-proof-v3",
+  proof: "external-northwind-mass-proof-v4-evidence-split",
+  invariant: "connected != same meaning",
   upstream: {
     repository: UPSTREAM_REPO,
     commit: UPSTREAM_COMMIT,
@@ -304,7 +346,8 @@ const summary = {
   layerDefinitions: {
     sourceSchemaGate: "Can the foreign Northwind envelope be read safely by the source adapter without inventing structure?",
     bridgeContractSchema: "Does the adapted five-field record satisfy the confirmed order-v1 required-field, type and format contract?",
-    semantics: "Do adapted values have a confirmed business meaning/value-map?",
+    structureEvidence: "Is a relation supported by the documented adapter/source relation and the observed concrete keys? Equal names or equal values alone are not proof.",
+    valueEvidence: "Does a concrete source value have an explicit confirmed canonical meaning? Structural confirmation never creates value meaning.",
     release: "Are all independent BLOCKING constraints satisfied?",
   },
   sourceRows: {
@@ -318,6 +361,7 @@ const summary = {
     singleDetailOrders,
     multipleDetailOrders,
   },
+  evidence: evidenceCounts,
   sourceSchemaGate: {
     accepted: sourceSchemaAccepted,
     blocked: sourceSchemaBlocked,
@@ -346,4 +390,4 @@ await Promise.all([
 
 console.log("EXTERNAL_NORTHWIND_MASS_SUMMARY");
 console.log(JSON.stringify(summary, null, 2));
-console.log(`Wrote ${allTraces.length} inspectable per-order traces (JSONL + CSV).`);
+console.log(`Wrote ${allTraces.length} inspectable per-order traces with independent structure/value evidence (JSONL + CSV).`);
