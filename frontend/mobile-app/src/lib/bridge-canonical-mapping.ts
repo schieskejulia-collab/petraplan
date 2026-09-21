@@ -2,7 +2,7 @@ import {
   assessTypeConversion,
   type ConversionAssessment,
   type ConversionPolicy,
-} from "./bridge-type-conversion";
+} from "./bridge-type-conversion.js";
 
 export type CanonicalFieldRule = {
   sourceField: string;

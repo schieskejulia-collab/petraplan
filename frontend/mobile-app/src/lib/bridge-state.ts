@@ -1,7 +1,7 @@
 import {
   blockingConstraintFailures,
   type ConstraintResult,
-} from "./bridge-constraints";
+} from "./bridge-constraints.js";
 
 export type BridgeState = "VALID" | "BLOCKED" | "NEEDS_CONFIRMATION";
 export type BridgeReactionType =

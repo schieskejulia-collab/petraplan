@@ -6,7 +6,7 @@ import type {
   RawRecord,
   SchemaCheck,
   ValidationCheck,
-} from "./bridge-pipeline";
+} from "./bridge-pipeline.js";
 
 export type ConstraintCategory = "transport" | "contract" | "semantics" | "data";
 export type ConstraintSeverity = "blocking" | "warning";

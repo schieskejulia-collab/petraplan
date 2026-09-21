@@ -3,20 +3,20 @@ import {
   decideFromConstraints,
   evaluateConstraintSet,
   type ConstraintResult,
-} from "./bridge-constraints";
+} from "./bridge-constraints.js";
 import {
   deriveBridgeState,
   type BridgeStateDecision,
-} from "./bridge-state";
+} from "./bridge-state.js";
 import {
   assessCanonicalMapping,
   type CanonicalMappingAssessment,
   type CanonicalFieldRule,
-} from "./bridge-canonical-mapping";
+} from "./bridge-canonical-mapping.js";
 import {
   buildProvenanceMetadata,
   type ProvenanceMetadata,
-} from "./bridge-provenance";
+} from "./bridge-provenance.js";
 
 export type RawRecord = {
   KUNDEN_NR: string;

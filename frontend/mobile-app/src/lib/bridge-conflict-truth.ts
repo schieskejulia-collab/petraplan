@@ -3,15 +3,15 @@ import {
   decideFromConstraints,
   type ConstraintCategory,
   type ConstraintResult,
-} from "./bridge-constraints";
+} from "./bridge-constraints.js";
 import {
   evaluateRecord,
   type BridgeEvaluation,
   type IngressContext,
   type RawRecord,
   type ResponseContext,
-} from "./bridge-pipeline";
-import { deriveBridgeState } from "./bridge-state";
+} from "./bridge-pipeline.js";
+import { deriveBridgeState } from "./bridge-state.js";
 
 export type AdapterConflictCode =
   | "NO_CONFIRMED_SEMANTIC_MAPPING"

@@ -1,4 +1,4 @@
-import type { RawRecord } from "./bridge-pipeline";
+import type { RawRecord } from "./bridge-pipeline.js";
 import {
   classifyStructureEvidence,
   classifyValueEvidence,
