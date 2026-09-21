@@ -19,93 +19,56 @@ export type ConstraintOperator =
   | "matches"
   | "schema_matches";
 
-export type ConstraintScope = {
-  contract: string;
-  field: keyof RawRecord | null;
-};
-
-export type ConstraintComparison = {
-  operator: ConstraintOperator;
-  expected: string;
-  observed: string;
-  observedType: string;
-};
-
+export type ConstraintScope = { contract: string; field: keyof RawRecord | null };
+export type ConstraintComparison = { operator: ConstraintOperator; expected: string; observed: string; observedType: string };
 export type ConstraintResult = {
-  id: string;
-  sequence: number;
-  category: ConstraintCategory;
-  field: keyof RawRecord | null;
-  scope: ConstraintScope;
-  label: string;
-  passed: boolean;
-  severity: ConstraintSeverity;
-  comparison: ConstraintComparison;
-  rule: string;
-  evidence: string;
-  safeAction: string;
-  resolutionProposal: string;
-  sourcePolicy: "preserve";
-  errorPolicy: "capture";
+  id: string; sequence: number; category: ConstraintCategory; field: keyof RawRecord | null;
+  scope: ConstraintScope; label: string; passed: boolean; severity: ConstraintSeverity;
+  comparison: ConstraintComparison; rule: string; evidence: string; safeAction: string;
+  resolutionProposal: string; sourcePolicy: "preserve"; errorPolicy: "capture";
 };
-
 export type ConstraintDecision = {
-  releaseAllowed: boolean;
-  blockingIssues: number;
-  failedConstraintIds: string[];
-  evaluatedConstraintIds: string[];
-  expression: string;
-  resolutionProposals: string[];
+  releaseAllowed: boolean; blockingIssues: number; failedConstraintIds: string[];
+  evaluatedConstraintIds: string[]; expression: string; resolutionProposals: string[];
 };
-
 export type ConstraintInput = {
-  ingress: IngressContext;
-  contract: InterfaceContract;
-  schema: SchemaCheck[];
-  raw: RawRecord;
-  mapped: MappedRecord;
-  checks: ValidationCheck[];
-  valueMap: ReadonlyArray<readonly [string, string, string]>;
+  ingress: IngressContext; contract: InterfaceContract; schema: SchemaCheck[]; raw: RawRecord;
+  mapped: MappedRecord; checks: ValidationCheck[]; valueMap: ReadonlyArray<readonly [string, string, string]>;
 };
 
-function result(
-  input: ConstraintInput,
-  value: Omit<ConstraintResult, "scope" | "sourcePolicy" | "errorPolicy">,
-): ConstraintResult {
-  return {
-    ...value,
-    scope: { contract: input.contract.name, field: value.field },
-    sourcePolicy: "preserve",
-    errorPolicy: "capture",
-  };
+function result(input: ConstraintInput, value: Omit<ConstraintResult, "scope" | "sourcePolicy" | "errorPolicy">): ConstraintResult {
+  return { ...value, scope: { contract: input.contract.name, field: value.field }, sourcePolicy: "preserve", errorPolicy: "capture" };
 }
 
 function isRealCanonicalDate(value: string | null): boolean {
   if (typeof value !== "string") return false;
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
-  const [, yearText, monthText, dayText] = match;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
+  const [, y, m, d] = match;
+  const year = Number(y), month = Number(m), day = Number(d);
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) return false;
   if (month < 1 || month > 12 || day < 1) return false;
   return day <= new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
 function canonicalQuantity(input: ConstraintInput): number | null {
-  return typeof input.mapped.quantity === "number" && Number.isFinite(input.mapped.quantity)
-    ? input.mapped.quantity
-    : null;
+  return typeof input.mapped.quantity === "number" && Number.isFinite(input.mapped.quantity) ? input.mapped.quantity : null;
+}
+
+function materiallyPresent(raw: RawRecord, field: keyof RawRecord): boolean {
+  const value = raw[field];
+  if (typeof value !== "string") return value != null;
+  const normalized = value.trim().toUpperCase();
+  return normalized !== "" && normalized !== "NULL" && normalized !== "N/A";
 }
 
 export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[] {
   const statusEntries = input.valueMap.filter(([field]) => field === "STATUS");
   const statusTargets = statusEntries.map(([, source, target]) => `${source} → ${target}`).join(", ");
   const statusSources = statusEntries.map(([, source]) => source);
-  const missingSchema = input.schema.filter(({ present }) => !present);
-  const typeSchema = input.schema.filter(({ present, typeOk }) => present && !typeOk);
-  const formatSchema = input.schema.filter(({ present, typeOk, formatOk }) => present && typeOk && !formatOk);
+  const missingSchema = input.schema.filter(({ field, present }) => !present || !materiallyPresent(input.raw, field));
+  const typeSchema = input.schema.filter(({ field, present, typeOk }) => present && materiallyPresent(input.raw, field) && !typeOk);
+  const formatSchema = input.schema.filter(({ field, present, typeOk, formatOk }) => present && materiallyPresent(input.raw, field) && typeOk && !formatOk);
   const failedSchema = input.schema.filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk);
   const dateCheckPassed = input.checks.find(({ field }) => field === "DATUM")?.ok ?? false;
   const calendarDatePassed = isRealCanonicalDate(input.mapped.orderDate);
@@ -118,8 +81,7 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
       id: "transport.received", sequence: 1, category: "transport", field: null,
       label: "Nachricht wurde sicher empfangen", passed: input.ingress.transportStatus === "received", severity: "blocking",
       comparison: { operator: "strict_equals", expected: "received", observed: input.ingress.transportStatus, observedType: typeof input.ingress.transportStatus },
-      rule: "Transportstatus muss received sein",
-      evidence: `transport=${input.ingress.transport}; status=${input.ingress.transportStatus}; messageId=${input.ingress.messageId}`,
+      rule: "Transportstatus muss received sein", evidence: `transport=${input.ingress.transport}; status=${input.ingress.transportStatus}; messageId=${input.ingress.messageId}`,
       safeAction: "Originalnachricht und Transportkontext unverändert festhalten.",
       resolutionProposal: input.ingress.transportStatus === "received" ? "Keine Transportauflösung nötig." : "Transportweg prüfen und erst nach bestätigtem Eingang erneut bewerten.",
     }),
@@ -127,16 +89,15 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
       id: "contract.version", sequence: 2, category: "contract", field: null,
       label: "Schnittstellenvertrag ist bestätigt", passed: input.ingress.contract === input.contract.name, severity: "blocking",
       comparison: { operator: "strict_equals", expected: input.contract.name, observed: input.ingress.contract, observedType: typeof input.ingress.contract },
-      rule: `Vertragsversion muss ${input.contract.name} entsprechen`,
-      evidence: `gesendet=${input.ingress.contract}; bestätigt=${input.contract.name}`,
+      rule: `Vertragsversion muss ${input.contract.name} entsprechen`, evidence: `gesendet=${input.ingress.contract}; bestätigt=${input.contract.name}`,
       safeAction: "Keine unbekannte Vertragsversion stillschweigend übernehmen.",
       resolutionProposal: input.ingress.contract === input.contract.name ? "Keine Vertragsauflösung nötig." : `Vertragsversion ${input.ingress.contract} bestätigen oder eine dokumentierte Zuordnung zu ${input.contract.name} anlegen.`,
     }),
     result(input, {
       id: "contract.completeness", sequence: 3, category: "contract", field: null,
       label: "Alle erforderlichen Contract-Werte sind vorhanden", passed: missingSchema.length === 0, severity: "blocking",
-      comparison: { operator: "schema_matches", expected: `${input.contract.name}: alle Pflichtwerte vorhanden`, observed: missingSchema.length === 0 ? "missing=0" : missingSchema.map(({ field }) => field).join(","), observedType: "contract-completeness" },
-      rule: "Pflichtwerte werden getrennt von Typ und Format geprüft",
+      comparison: { operator: "schema_matches", expected: `${input.contract.name}: alle Pflichtwerte materiell vorhanden`, observed: missingSchema.length === 0 ? "missing=0" : missingSchema.map(({ field }) => field).join(","), observedType: "contract-completeness" },
+      rule: "Leere, NULL- oder N/A-Pflichtwerte sind Vollständigkeitsfehler; Typ und Format werden davon getrennt bewertet",
       evidence: missingSchema.length === 0 ? "missing=0" : `missing=${missingSchema.length}; felder=${missingSchema.map(({ field }) => field).join(",")}`,
       safeAction: "Fehlende Pflichtwerte nicht erfinden oder durch technisch plausible Werte ersetzen.",
       resolutionProposal: missingSchema.length === 0 ? "Keine Vollständigkeitsauflösung nötig." : `Fehlende Contract-Werte (${missingSchema.map(({ field }) => field).join(", ")}) fachlich auflösen.`,
@@ -144,7 +105,7 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
     result(input, {
       id: "contract.type", sequence: 3.1, category: "contract", field: null,
       label: "Vorhandene Contract-Werte haben den erwarteten Typ", passed: typeSchema.length === 0, severity: "blocking",
-      comparison: { operator: "schema_matches", expected: `${input.contract.name}: Typen der vorhandenen Werte`, observed: typeSchema.length === 0 ? "typeFehler=0" : typeSchema.map(({ field }) => field).join(","), observedType: "contract-type" },
+      comparison: { operator: "schema_matches", expected: `${input.contract.name}: Typen materiell vorhandener Werte`, observed: typeSchema.length === 0 ? "typeFehler=0" : typeSchema.map(({ field }) => field).join(","), observedType: "contract-type" },
       rule: "Typfehler werden nur für tatsächlich vorhandene Werte bewertet",
       evidence: typeSchema.length === 0 ? "typeFehler=0" : `typeFehler=${typeSchema.length}; felder=${typeSchema.map(({ field }) => field).join(",")}`,
       safeAction: "Falsche Typen nicht stillschweigend als gültig behandeln.",
@@ -153,7 +114,7 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
     result(input, {
       id: "contract.format", sequence: 3.2, category: "contract", field: null,
       label: "Vorhandene typkorrekte Contract-Werte erfüllen das Format", passed: formatSchema.length === 0, severity: "blocking",
-      comparison: { operator: "schema_matches", expected: `${input.contract.name}: Formate der vorhandenen typkorrekten Werte`, observed: formatSchema.length === 0 ? "formatFehler=0" : formatSchema.map(({ field }) => field).join(","), observedType: "contract-format" },
+      comparison: { operator: "schema_matches", expected: `${input.contract.name}: Formate materiell vorhandener typkorrekter Werte`, observed: formatSchema.length === 0 ? "formatFehler=0" : formatSchema.map(({ field }) => field).join(","), observedType: "contract-format" },
       rule: "Format wird unabhängig von Vollständigkeit und Typ geprüft",
       evidence: formatSchema.length === 0 ? "formatFehler=0" : `formatFehler=${formatSchema.length}; felder=${formatSchema.map(({ field }) => field).join(",")}`,
       safeAction: "Formatabweichungen sichtbar halten; fehlende Werte zählen nicht zusätzlich als Formatfehler.",
@@ -233,11 +194,9 @@ export function evaluateConstraintSet(input: ConstraintInput): ConstraintResult[
 export function evaluateBridgeConstraints(evaluation: BridgeEvaluation): ConstraintResult[] {
   return evaluateConstraintSet({ ingress: evaluation.ingress, contract: evaluation.contract, schema: evaluation.schema, raw: evaluation.raw, mapped: evaluation.mapped, checks: evaluation.checks, valueMap: evaluation.valueMap });
 }
-
 export function blockingConstraintFailures(results: ConstraintResult[]): ConstraintResult[] {
   return results.filter(({ passed, severity }) => !passed && severity === "blocking").sort((a, b) => a.sequence - b.sequence);
 }
-
 export function decideFromConstraints(results: ConstraintResult[]): ConstraintDecision {
   const ordered = [...results].sort((a, b) => a.sequence - b.sequence);
   const blocking = ordered.filter(({ severity }) => severity === "blocking");
