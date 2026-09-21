@@ -38,12 +38,10 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
 /**
  * Lists cases without the previous N+1 query pattern.
  *
- * Query plan:
- * 1. records
- * 2. conflicts + release certificates in parallel
- * 3. validations + release status history in parallel
- *
- * The release-gate semantics stay unchanged; only data loading is batched.
+ * A conflicts row may also be a non-conflicting validation anchor
+ * (`conflict=false`) so that a passing Bridge evaluation remains traceable.
+ * Such anchors participate in validation selection but are not counted as
+ * user-visible conflicts.
  */
 export async function listCases(
   supabase: SupabaseClient,
@@ -66,7 +64,7 @@ export async function listCases(
     rows<any>(
       supabase
         .from('conflicts')
-        .select('id, record_id')
+        .select('id, record_id, conflict')
         .in('record_id', recordIds),
     ),
     rows<any>(
@@ -115,9 +113,9 @@ export async function listCases(
   }
 
   return records.map((record) => {
-    const recordConflicts = conflictsByRecord.get(String(record.id)) ?? [];
-    const recordValidations = recordConflicts.flatMap(
-      (conflict) => validationsByConflict.get(String(conflict.id)) ?? [],
+    const recordAnchors = conflictsByRecord.get(String(record.id)) ?? [];
+    const recordValidations = recordAnchors.flatMap(
+      (anchor) => validationsByConflict.get(String(anchor.id)) ?? [],
     );
 
     const certificate = latestCertificateByRecord.get(String(record.id)) ?? null;
@@ -141,7 +139,7 @@ export async function listCases(
 
     return {
       ...record,
-      conflict_count: recordConflicts.length,
+      conflict_count: recordAnchors.filter((item) => item.conflict === true).length,
       release_status: gate?.effectiveStatus ?? releaseStatus,
     } as CaseListItem;
   });
