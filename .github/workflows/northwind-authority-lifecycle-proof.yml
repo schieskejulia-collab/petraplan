@@ -1,0 +1,46 @@
+name: Northwind Authority Lifecycle Proof
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [northwind-authority-lifecycle-proof]
+
+jobs:
+  authority-lifecycle-proof:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Compile bridge authority proof
+        run: |
+          npx tsc src/lib/bridge-pipeline.ts src/lib/bridge-constraints.ts src/lib/bridge-state.ts src/lib/bridge-evidence.ts src/lib/bridge-type-conversion.ts src/lib/bridge-canonical-mapping.ts src/lib/bridge-provenance.ts src/lib/bridge-schema-drift.ts src/lib/bridge-source-observation.ts src/lib/bridge-northwind-adapter.ts src/lib/bridge-conflict-truth.ts src/lib/bridge-governed-evidence.ts src/lib/bridge-authority-evidence.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-authority-build
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-authority-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-authority-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-canonical-mapping";|from "./bridge-canonical-mapping.js";|' .bridge-authority-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-provenance";|from "./bridge-provenance.js";|' .bridge-authority-build/bridge-pipeline.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-authority-build/bridge-state.js
+          sed -i 's|from "./bridge-type-conversion";|from "./bridge-type-conversion.js";|' .bridge-authority-build/bridge-canonical-mapping.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-authority-build/bridge-northwind-adapter.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-authority-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-pipeline";|from "./bridge-pipeline.js";|' .bridge-authority-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-authority-build/bridge-conflict-truth.js
+          sed -i 's|from "./bridge-constraints";|from "./bridge-constraints.js";|' .bridge-authority-build/bridge-authority-evidence.js
+          sed -i 's|from "./bridge-conflict-truth";|from "./bridge-conflict-truth.js";|' .bridge-authority-build/bridge-authority-evidence.js
+          sed -i 's|from "./bridge-state";|from "./bridge-state.js";|' .bridge-authority-build/bridge-authority-evidence.js
+      - name: Run authority-backed 830-order lifecycle
+        run: node tests/northwind-authority-lifecycle-proof.mjs
+      - name: Upload lifecycle proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: northwind-authority-lifecycle-proof
+          path: |
+            frontend/mobile-app/northwind-authority-lifecycle-summary.json
+            frontend/mobile-app/northwind-authority-lifecycle-traces.jsonl
+          if-no-files-found: error
