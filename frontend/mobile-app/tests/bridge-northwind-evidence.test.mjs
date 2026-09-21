@@ -17,8 +17,12 @@ const single = adaptNorthwindOrder(envelope([
 
 assert.equal(single.evidence.structure.customerRelation.status, 'CONFIRMED');
 assert.equal(single.evidence.values.status.status, 'UNPROVEN');
+assert.equal(single.evidence.values.status.canonicalValue, null);
 assert.equal(single.evidence.values.quantity.status, 'CONFIRMED');
 assert.equal(single.evidence.values.quantity.canonicalValue, 12);
+
+// A confirmed customer relation is independent from STATUS semantics.
+assert.notEqual(single.evidence.structure.customerRelation.status, single.evidence.values.status.status);
 
 const multiple = adaptNorthwindOrder(envelope([
   { OrderID: 10248, ProductID: 11, UnitPrice: 14, Quantity: 12, Discount: 0 },
