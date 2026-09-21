@@ -47,4 +47,5 @@ jobs:
             frontend/mobile-app/external-northwind-830-traces.jsonl
             frontend/mobile-app/external-northwind-contract-diagnosis.json
             frontend/mobile-app/external-northwind-contract-diagnosis.md
+            frontend/mobile-app/external-northwind-contract-dimensions.csv
           if-no-files-found: error
