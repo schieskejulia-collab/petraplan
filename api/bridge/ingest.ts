@@ -83,6 +83,14 @@ async function persistAddressLayer(input: {
     );
     if (!stored?.id) throw new Error(`Address registration failed for ${address.address}`);
     addressIds.set(address.address, String(stored.id));
+
+    const { error: observationError } = await supabase.from('address_observations').upsert({
+      address_id: stored.id,
+      record_id: recordId,
+      snapshot_id: ingestionId,
+      observed_at: capturedAt,
+    }, { onConflict: 'record_id,address_id', ignoreDuplicates: true });
+    if (observationError) throw observationError;
   }
 
   for (const candidate of projection.candidates) {

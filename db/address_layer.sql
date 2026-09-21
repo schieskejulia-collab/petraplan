@@ -26,6 +26,24 @@ create index if not exists address_registry_parent_address_id_idx
 create index if not exists address_registry_snapshot_id_idx
   on public.address_registry (first_snapshot_id);
 
+-- A stable logical address can occur in many immutable case snapshots.
+-- This link records each observation without duplicating the address or values.
+create table if not exists public.address_observations (
+  id uuid primary key default gen_random_uuid(),
+  address_id uuid not null references public.address_registry(id),
+  record_id uuid not null references public.records(id),
+  snapshot_id uuid not null references public.ingestion_logs(id),
+  observed_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  unique (record_id, address_id)
+);
+
+create index if not exists address_observations_record_address_idx
+  on public.address_observations (record_id, address_id);
+
+create index if not exists address_observations_snapshot_id_idx
+  on public.address_observations (snapshot_id);
+
 create table if not exists public.conversion_candidates (
   id uuid primary key default gen_random_uuid(),
   candidate_key text not null,
@@ -80,12 +98,15 @@ create index if not exists candidate_state_history_candidate_changed_idx
   on public.candidate_state_history (candidate_id, changed_at);
 
 alter table public.address_registry enable row level security;
+alter table public.address_observations enable row level security;
 alter table public.conversion_candidates enable row level security;
 alter table public.impact_links enable row level security;
 alter table public.candidate_state_history enable row level security;
 
 create policy "deny direct client access to address_registry"
   on public.address_registry for all to anon, authenticated using (false) with check (false);
+create policy "deny direct client access to address_observations"
+  on public.address_observations for all to anon, authenticated using (false) with check (false);
 create policy "deny direct client access to conversion_candidates"
   on public.conversion_candidates for all to anon, authenticated using (false) with check (false);
 create policy "deny direct client access to impact_links"
@@ -95,5 +116,7 @@ create policy "deny direct client access to candidate_state_history"
 
 comment on table public.address_registry is
   'Read-only address index anchored to existing source identity and first observed snapshot; it does not hold source truth values.';
+comment on table public.address_observations is
+  'Read-only proof that a stable address was observed in one immutable case snapshot; it does not duplicate source values.';
 comment on table public.conversion_candidates is
   'Visible, non-operative semantic conversion candidates anchored to a case and snapshot.';
