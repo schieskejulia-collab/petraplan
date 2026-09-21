@@ -4,6 +4,10 @@ function normalizeAddress(value: unknown) {
   return String(value ?? '').trim().toUpperCase();
 }
 
+function fieldAddress(root: string, field: string) {
+  return `${root}#${field}`;
+}
+
 export default async function handler(req: any, res: any) {
   try {
     if (req.method !== 'GET') {
@@ -36,6 +40,46 @@ export default async function handler(req: any, res: any) {
     const canonicalAddress = `NW:A-${orderId}`;
     const blockers = result.evaluation.constraints.filter((item: any) => item.severity === 'blocking' && !item.passed);
     const customerId = String(result.envelope.customer.CustomerID);
+    const statusCandidateId = `NW:CC:A-${orderId}:STATUS-DERIVATION`;
+    const quantityCandidateId = `NW:CC:A-${orderId}:QUANTITY-AGGREGATION`;
+    const addressInventory = [
+      { address: canonicalAddress, path: 'order', observedValue: orderId, kind: 'record', candidateIds: [statusCandidateId, quantityCandidateId] },
+      { address: fieldAddress(canonicalAddress, 'OrderID'), path: 'order.OrderID', observedValue: result.envelope.order.OrderID, kind: 'source-field', candidateIds: [] },
+      { address: fieldAddress(canonicalAddress, 'CustomerID'), path: 'order.CustomerID', observedValue: result.envelope.order.CustomerID, kind: 'source-field', candidateIds: [] },
+      { address: fieldAddress(canonicalAddress, 'OrderDate'), path: 'order.OrderDate', observedValue: result.envelope.order.OrderDate, kind: 'source-field', candidateIds: [] },
+      { address: fieldAddress(canonicalAddress, 'ShippedDate'), path: 'order.ShippedDate', observedValue: result.envelope.order.ShippedDate, kind: 'source-field', candidateIds: [statusCandidateId] },
+      { address: fieldAddress(canonicalAddress, 'DetailQuantities'), path: 'orderDetails[].Quantity', observedValue: result.envelope.orderDetails.map(({ Quantity }: any) => Quantity), kind: 'source-field-collection', candidateIds: [quantityCandidateId] },
+      { address: fieldAddress(canonicalAddress, 'STATUS'), path: 'bridge.STATUS', observedValue: result.adaptation.raw.STATUS || null, kind: 'bridge-target-field', candidateIds: [statusCandidateId] },
+      { address: fieldAddress(canonicalAddress, 'MENGE'), path: 'bridge.MENGE', observedValue: result.adaptation.raw.MENGE || null, kind: 'bridge-target-field', candidateIds: [quantityCandidateId] },
+    ];
+    const candidates = [
+      {
+        id: statusCandidateId,
+        sourceAddress: fieldAddress(canonicalAddress, 'ShippedDate'),
+        sourcePath: 'order.ShippedDate',
+        observedValue: result.envelope.order.ShippedDate,
+        proposedValue: result.envelope.order.ShippedDate ? 'STATUS=GESCHLOSSEN' : 'STATUS=OFFEN',
+        conversionKind: 'derive',
+        evidence: 'ShippedDate ist als Quellwert beobachtet; eine fachlich bestätigte Northwind→Bridge-Statusregel fehlt.',
+        confirmed: false,
+        impactAddresses: [canonicalAddress, fieldAddress(canonicalAddress, 'STATUS')],
+        state: 'candidate',
+        stateHistory: [{ state: 'candidate', at: NORTHWIND_PROOF_CAPTURED_AT, by: 'system', reason: 'Beim read-only Snapshot erkannt; nicht angewendet.' }],
+      },
+      {
+        id: quantityCandidateId,
+        sourceAddress: fieldAddress(canonicalAddress, 'DetailQuantities'),
+        sourcePath: 'orderDetails[].Quantity',
+        observedValue: result.envelope.orderDetails.map(({ Quantity }: any) => Quantity),
+        proposedValue: `MENGE=${result.envelope.orderDetails.reduce((sum: number, detail: any) => sum + Number(detail.Quantity), 0)}`,
+        conversionKind: 'aggregate',
+        evidence: 'Mehrere positionsbezogene Mengen sind beobachtet; eine Summierung zu Bridge-MENGE ist fachlich nicht bestätigt.',
+        confirmed: false,
+        impactAddresses: [canonicalAddress, fieldAddress(canonicalAddress, 'MENGE')],
+        state: 'candidate',
+        stateHistory: [{ state: 'candidate', at: NORTHWIND_PROOF_CAPTURED_AT, by: 'system', reason: 'Beim read-only Snapshot erkannt; nicht angewendet.' }],
+      },
+    ];
 
     return res.status(200).json({
       address: {
@@ -63,6 +107,8 @@ export default async function handler(req: any, res: any) {
         { relation: 'customer', address: `NW:CUSTOMER:${customerId}`, status: 'known_not_yet_resolvable', label: result.envelope.customer.CompanyName },
         { relation: 'source', address: 'SOURCE:NORTHWIND-830-PINNED', status: 'known_not_yet_resolvable', label: 'Versionierter Referenz-Snapshot' },
       ],
+      addressInventory,
+      candidates,
       truth: {
         state: result.evaluation.state,
         constraints: result.evaluation.constraints,
