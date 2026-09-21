@@ -36,27 +36,26 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
 }
 
 /**
- * Lists cases without the previous N+1 query pattern.
+ * Lists production-facing cases.
  *
- * Query plan:
- * 1. records
- * 2. conflicts + release certificates in parallel
- * 3. validations + release status history in parallel
- *
- * The release-gate semantics stay unchanged; only data loading is batched.
+ * E2E fixtures remain stored for audit/test evidence but are intentionally
+ * omitted from the product case list. A conflicts row may also be a
+ * non-conflicting validation anchor (`conflict=false`); such anchors take part
+ * in validation selection but are never counted as user-visible conflicts.
  */
 export async function listCases(
   supabase: SupabaseClient,
   limit: number,
   offset: number,
 ): Promise<CaseListItem[]> {
-  const records = await rows<any>(
+  const fetched = await rows<any>(
     supabase
       .from('records')
-      .select('id, created_at, title, category, status, source_system')
+      .select('id, created_at, title, category, status, source_system, metadata')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1),
   );
+  const records = fetched.filter((record) => record?.metadata?.e2e_test !== true);
 
   if (records.length === 0) return [];
 
@@ -66,7 +65,7 @@ export async function listCases(
     rows<any>(
       supabase
         .from('conflicts')
-        .select('id, record_id')
+        .select('id, record_id, conflict')
         .in('record_id', recordIds),
     ),
     rows<any>(
@@ -114,10 +113,10 @@ export async function listCases(
     latestStatusByCertificate.set(String(status.release_certificate_id), status);
   }
 
-  return records.map((record) => {
-    const recordConflicts = conflictsByRecord.get(String(record.id)) ?? [];
-    const recordValidations = recordConflicts.flatMap(
-      (conflict) => validationsByConflict.get(String(conflict.id)) ?? [],
+  return records.map(({ metadata: _metadata, ...record }) => {
+    const recordAnchors = conflictsByRecord.get(String(record.id)) ?? [];
+    const recordValidations = recordAnchors.flatMap(
+      (anchor) => validationsByConflict.get(String(anchor.id)) ?? [],
     );
 
     const certificate = latestCertificateByRecord.get(String(record.id)) ?? null;
@@ -141,7 +140,7 @@ export async function listCases(
 
     return {
       ...record,
-      conflict_count: recordConflicts.length,
+      conflict_count: recordAnchors.filter((item) => item.conflict === true).length,
       release_status: gate?.effectiveStatus ?? releaseStatus,
     } as CaseListItem;
   });

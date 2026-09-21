@@ -44,10 +44,10 @@ export async function listCases(
 
   return Promise.all(
     records.map(async (record) => {
-      const conflicts = await rows<any>(
-        supabase.from('conflicts').select('id').eq('record_id', record.id),
+      const anchors = await rows<any>(
+        supabase.from('conflicts').select('id, conflict').eq('record_id', record.id),
       );
-      const conflictIds = conflicts.map((item) => item.id);
+      const conflictIds = anchors.map((item) => item.id);
 
       const certificate = await one<any>(
         supabase
@@ -95,7 +95,7 @@ export async function listCases(
 
       return {
         ...record,
-        conflict_count: conflicts.length,
+        conflict_count: anchors.filter((item) => item.conflict === true).length,
         release_status: gate?.effectiveStatus ?? releaseStatus,
       } as CaseListItem;
     }),
@@ -129,11 +129,14 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
   const runtime = await rows<any>(
     supabase.from('runtime_logs').select('*').eq('record_id', recordId).order('created_at'),
   );
-  const conflicts = await rows<any>(
+  const anchors = await rows<any>(
     supabase.from('conflicts').select('*').eq('record_id', recordId).order('created_at'),
   );
 
-  const conflictIds = conflicts.map((item) => item.id);
+  const conflictIds = anchors.map((item) => item.id);
+  const visibleConflicts = anchors.filter((item) => item.conflict === true);
+  const visibleConflictIds = new Set(visibleConflicts.map((item) => String(item.id)));
+
   const conflictSources = conflictIds.length
     ? await rows<any>(
         supabase.from('conflict_sources').select('*').in('conflict_id', conflictIds).order('created_at'),
@@ -255,8 +258,8 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       extracted_schema: ingestion?.extracted_schema ?? null,
     },
     conflict: {
-      conflicts,
-      sources: conflictSources,
+      conflicts: visibleConflicts,
+      sources: conflictSources.filter((item) => visibleConflictIds.has(String(item.conflict_id))),
     },
     execution: {
       operations,
