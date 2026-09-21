@@ -6,6 +6,7 @@ import {
   type IngressContext,
   type ResponseContext,
 } from '../../frontend/mobile-app/src/lib/bridge-pipeline.js';
+import { getPinnedNorthwindOrder } from '../../api-server/src/services/pinnedNorthwind.js';
 
 function authToken(req: any) {
   const header = String(req.headers?.authorization ?? '');
@@ -55,19 +56,56 @@ export default async function handler(req: any, res: any) {
     );
     if (!role) return res.status(403).json({ error: 'No active Bridge role' });
 
-    const raw = parseRawRecord(req.body?.raw_record);
     const capturedAt = typeof req.body?.captured_at === 'string' && req.body.captured_at
       ? req.body.captured_at
       : new Date().toISOString();
-    const ingressOverrides = objectOrEmpty(req.body?.ingress) as Partial<IngressContext>;
-    const responseOverrides = objectOrEmpty(req.body?.response) as Partial<ResponseContext>;
 
-    const evaluation = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
-    const hash = sourceHash(raw);
-    const sourceSystem = String(evaluation.ingress.source || 'petraplan-translator');
-    const sourceReference = String(raw.AUFTRAGS_NR || evaluation.snapshot.sourceRecord || hash.slice(0, 12));
+    let raw: any;
+    let evaluation: any;
+    let sourcePayload: unknown;
+    let sourceSystem: string;
+    let sourceReference: string;
+    let defaultTitle: string;
+    let sourceMode: 'manual' | 'northwind-proof' = 'manual';
+    let adapterMetadata: Record<string, unknown> = {};
 
+    if (req.body?.northwind_order_id != null) {
+      const orderId = Number(req.body.northwind_order_id);
+      if (!Number.isInteger(orderId)) return res.status(400).json({ error: 'Invalid northwind_order_id' });
+      const northwind = await getPinnedNorthwindOrder(orderId, capturedAt);
+      if (!northwind) return res.status(404).json({ error: 'Pinned Northwind order not found' });
+      if (!northwind.evaluation || !northwind.adaptation || northwind.sourceSchemaGate !== 'ACCEPTED') {
+        return res.status(422).json({ error: 'Northwind source schema gate blocked this order', details: northwind.sourceSchemaIssues });
+      }
+      raw = northwind.adaptation.raw;
+      evaluation = northwind.evaluation;
+      sourcePayload = northwind.envelope;
+      sourceSystem = northwind.envelope.source;
+      sourceReference = `A-${orderId}`;
+      defaultTitle = `${sourceReference} · ${northwind.envelope.customer.CompanyName}`;
+      sourceMode = 'northwind-proof';
+      adapterMetadata = {
+        source_schema_gate: northwind.sourceSchemaGate,
+        source_schema_issues: northwind.sourceSchemaIssues,
+        adapter_issues: northwind.adaptation.issues,
+        adapter_evidence: northwind.adaptation.evidence,
+        bridge_input_raw: northwind.adaptation.raw,
+      };
+    } else {
+      raw = parseRawRecord(req.body?.raw_record);
+      const ingressOverrides = objectOrEmpty(req.body?.ingress) as Partial<IngressContext>;
+      const responseOverrides = objectOrEmpty(req.body?.response) as Partial<ResponseContext>;
+      evaluation = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
+      sourcePayload = raw;
+      sourceSystem = String(evaluation.ingress.source || 'petraplan-translator');
+      sourceReference = String(raw.AUFTRAGS_NR || evaluation.snapshot.sourceRecord || sourceHash(raw).slice(0, 12));
+      defaultTitle = `Auftrag ${sourceReference}`;
+    }
+
+    const hash = sourceHash(sourcePayload);
     const extractedSchema = {
+      source_mode: sourceMode,
+      ...adapterMetadata,
       contract: evaluation.contract,
       mapped_payload: evaluation.mapped,
       schema_checks: evaluation.schema,
@@ -91,7 +129,7 @@ export default async function handler(req: any, res: any) {
         source_system: sourceSystem,
         source_reference: sourceReference,
         source_hash: hash,
-        raw_payload: raw,
+        raw_payload: sourcePayload,
         extracted_schema: extractedSchema,
         status: 'processed',
         ingested_at: capturedAt,
@@ -104,15 +142,20 @@ export default async function handler(req: any, res: any) {
         ingestion_log_id: ingestion.id,
         source_system: sourceSystem,
         source_reference: sourceReference,
-        title: String(req.body?.title || `Auftrag ${sourceReference}`),
-        description: 'Live Bridge evaluation persisted from the translator.',
+        title: String(req.body?.title || defaultTitle),
+        description: sourceMode === 'northwind-proof'
+          ? 'Pinned Northwind proof order selected and persisted through the live Bridge.'
+          : 'Live Bridge evaluation persisted from the translator.',
         category: 'order',
         type: 'bridge_translation',
         metadata: {
+          source_mode: sourceMode,
           bridge_state: evaluation.state,
           release_decision: evaluation.release,
           mapped_payload: evaluation.mapped,
+          bridge_input_raw: raw,
           provenance: evaluation.provenance,
+          ...adapterMetadata,
         },
         meaning: `Order data evaluated against ${evaluation.contract.name}.`,
         status: evaluation.release.releaseAllowed ? 'valid' : 'warning',
@@ -120,11 +163,11 @@ export default async function handler(req: any, res: any) {
     );
     if (!record) throw new Error('Case record was not created');
 
-    const blocking = evaluation.constraints.filter((item) => item.severity === 'blocking' && !item.passed);
-    const warning = evaluation.constraints.filter((item) => item.severity === 'warning' && !item.passed);
+    const blocking = evaluation.constraints.filter((item: any) => item.severity === 'blocking' && !item.passed);
+    const warning = evaluation.constraints.filter((item: any) => item.severity === 'warning' && !item.passed);
     const affectedFields = [...new Set([
-      ...evaluation.issues.filter((item) => item.severity === 'blocking').map((item) => String(item.field)),
-      ...blocking.map((item) => String(item.id)),
+      ...evaluation.issues.filter((item: any) => item.severity === 'blocking').map((item: any) => String(item.field)),
+      ...blocking.map((item: any) => String(item.field ?? item.id)),
     ])];
 
     const evaluationAnchor = await one<any>(
@@ -148,14 +191,16 @@ export default async function handler(req: any, res: any) {
         conflict_id: evaluationAnchor.id,
         action_type: 'suggest',
         action_payload: {
+          source_mode: sourceMode,
           bridge_state: evaluation.state,
           release_decision: evaluation.release,
           blockers: blocking,
           warnings: warning,
+          adapter_issues: (evaluation.adapterConflicts ?? []),
         },
         actor_type: 'system',
         actor_id: 'petraplan-live-translator',
-        reason: 'Persist the translator result without changing source values or inventing semantic mappings.',
+        reason: 'Persist the translator result without changing Source Truth or inventing semantic mappings.',
       }).select('*').single(),
     );
     if (!action) throw new Error('Resolution action was not created');
@@ -185,12 +230,15 @@ export default async function handler(req: any, res: any) {
         status: evaluation.release.releaseAllowed ? 'passed' : 'failed',
         reason: evaluation.release.reason,
         evidence: {
+          source_mode: sourceMode,
           source_hash: hash,
           source_snapshot_id: evaluation.snapshot.id,
           contract: evaluation.contract.name,
           bridge_state: evaluation.state,
           constraints: evaluation.constraints,
           mapped_payload: evaluation.mapped,
+          bridge_input_raw: raw,
+          adapter_conflicts: evaluation.adapterConflicts ?? [],
           trace: evaluation.trace,
           report: evaluation.report,
         },
@@ -202,6 +250,7 @@ export default async function handler(req: any, res: any) {
       record_id: record.id,
       ingestion_id: ingestion.id,
       validation_id: validation.id,
+      source_mode: sourceMode,
       release_allowed: evaluation.release.releaseAllowed,
       bridge_state: evaluation.state,
       open_points: evaluation.report.openPoints,
