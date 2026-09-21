@@ -12,6 +12,10 @@
     {
       "source": "/bridge/:path*",
       "destination": "/index.html"
+    },
+    {
+      "source": "/translator",
+      "destination": "/index.html"
     }
   ]
 }
