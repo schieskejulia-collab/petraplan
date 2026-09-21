@@ -36,25 +36,26 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
 }
 
 /**
- * Lists cases without the previous N+1 query pattern.
+ * Lists production-facing cases.
  *
- * A conflicts row may also be a non-conflicting validation anchor
- * (`conflict=false`) so that a passing Bridge evaluation remains traceable.
- * Such anchors participate in validation selection but are not counted as
- * user-visible conflicts.
+ * E2E fixtures remain stored for audit/test evidence but are intentionally
+ * omitted from the product case list. A conflicts row may also be a
+ * non-conflicting validation anchor (`conflict=false`); such anchors take part
+ * in validation selection but are never counted as user-visible conflicts.
  */
 export async function listCases(
   supabase: SupabaseClient,
   limit: number,
   offset: number,
 ): Promise<CaseListItem[]> {
-  const records = await rows<any>(
+  const fetched = await rows<any>(
     supabase
       .from('records')
-      .select('id, created_at, title, category, status, source_system')
+      .select('id, created_at, title, category, status, source_system, metadata')
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1),
   );
+  const records = fetched.filter((record) => record?.metadata?.e2e_test !== true);
 
   if (records.length === 0) return [];
 
@@ -112,7 +113,7 @@ export async function listCases(
     latestStatusByCertificate.set(String(status.release_certificate_id), status);
   }
 
-  return records.map((record) => {
+  return records.map(({ metadata: _metadata, ...record }) => {
     const recordAnchors = conflictsByRecord.get(String(record.id)) ?? [];
     const recordValidations = recordAnchors.flatMap(
       (anchor) => validationsByConflict.get(String(anchor.id)) ?? [],
