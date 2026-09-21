@@ -63,3 +63,40 @@ export function buildAddressableNorthwindSnapshot(input: {
     ],
   };
 }
+
+export function buildAddressLayerProjection(input: {
+  orderId: number;
+  envelope: any;
+  adaptation: any;
+  capturedAt: string;
+}) {
+  const snapshot = buildAddressableNorthwindSnapshot(input);
+  const kindBySnapshotKind: Record<string, 'object' | 'field' | 'collection' | 'bridge_field'> = {
+    record: 'object',
+    'source-field': 'field',
+    'source-field-collection': 'collection',
+    'bridge-target-field': 'bridge_field',
+  };
+
+  return {
+    rootAddress: snapshot.rootAddress,
+    addresses: snapshot.addressInventory.map((item: any) => ({
+      address: item.address,
+      parentAddress: item.address === snapshot.rootAddress ? null : snapshot.rootAddress,
+      kind: kindBySnapshotKind[item.kind] ?? 'field',
+      sourcePath: item.path,
+    })),
+    candidates: snapshot.candidates.map((item: any) => ({
+      candidateKey: item.id,
+      sourceAddress: item.sourceAddress,
+      sourcePath: item.sourcePath,
+      observedValue: item.observedValue,
+      proposedValue: item.proposedValue,
+      conversionKind: item.conversionKind,
+      evidence: item.evidence,
+      state: item.state,
+      impactAddresses: item.impactAddresses,
+      initialHistory: item.stateHistory[0],
+    })),
+  };
+}

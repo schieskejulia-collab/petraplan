@@ -7,7 +7,7 @@ import {
   type ResponseContext,
 } from '../../frontend/mobile-app/src/lib/bridge-pipeline.js';
 import { getPinnedNorthwindOrder } from '../../api-server/src/services/pinnedNorthwind.js';
-import { buildAddressableNorthwindSnapshot } from '../../api-server/src/services/addressableNorthwind.js';
+import { buildAddressableNorthwindSnapshot, buildAddressLayerProjection } from '../../api-server/src/services/addressableNorthwind.js';
 
 function authToken(req: any) {
   const header = String(req.headers?.authorization ?? '');
@@ -42,6 +42,109 @@ type RepresentationEvidenceInput = {
 
 function representationValue(value: unknown) {
   return value === undefined ? null : value;
+}
+
+async function persistAddressLayer(input: {
+  supabase: any;
+  recordId: string;
+  ingestionId: string;
+  sourceId: string;
+  projection: ReturnType<typeof buildAddressLayerProjection>;
+  capturedAt: string;
+}) {
+  const { supabase, recordId, ingestionId, sourceId, projection, capturedAt } = input;
+  const addressIds = new Map<string, string>();
+
+  for (const address of projection.addresses) {
+    const parentAddressId = address.parentAddress ? addressIds.get(address.parentAddress) ?? null : null;
+    const existing = await one<any>(
+      supabase
+        .from('address_registry')
+        .select('id')
+        .eq('source_id', sourceId)
+        .eq('address', address.address)
+        .maybeSingle(),
+    );
+    const stored = existing ?? await one<any>(
+      supabase
+        .from('address_registry')
+        .insert({
+          source_id: sourceId,
+          first_snapshot_id: ingestionId,
+          first_record_id: recordId,
+          address: address.address,
+          parent_address_id: parentAddressId,
+          kind: address.kind,
+          source_path: address.sourcePath,
+          registered_at: capturedAt,
+        })
+        .select('id')
+        .single(),
+    );
+    if (!stored?.id) throw new Error(`Address registration failed for ${address.address}`);
+    addressIds.set(address.address, String(stored.id));
+  }
+
+  for (const candidate of projection.candidates) {
+    const sourceAddressId = addressIds.get(candidate.sourceAddress);
+    if (!sourceAddressId) throw new Error(`Candidate source address missing: ${candidate.sourceAddress}`);
+    let stored = await one<any>(
+      supabase
+        .from('conversion_candidates')
+        .select('id')
+        .eq('snapshot_id', ingestionId)
+        .eq('candidate_key', candidate.candidateKey)
+        .maybeSingle(),
+    );
+    const isNew = !stored;
+    if (!stored) {
+      stored = await one<any>(
+        supabase
+          .from('conversion_candidates')
+          .insert({
+            candidate_key: candidate.candidateKey,
+            record_id: recordId,
+            snapshot_id: ingestionId,
+            source_address_id: sourceAddressId,
+            source_path: candidate.sourcePath,
+            observed_value: representationValue(candidate.observedValue),
+            proposed_value: representationValue(candidate.proposedValue),
+            conversion_kind: candidate.conversionKind,
+            evidence: candidate.evidence,
+            state: candidate.state,
+            created_at: capturedAt,
+          })
+          .select('id')
+          .single(),
+      );
+    }
+    if (!stored?.id) throw new Error(`Candidate registration failed for ${candidate.candidateKey}`);
+
+    for (const impactAddress of candidate.impactAddresses) {
+      const impactAddressId = addressIds.get(impactAddress);
+      if (!impactAddressId) throw new Error(`Candidate impact address missing: ${impactAddress}`);
+      const { error } = await supabase.from('impact_links').upsert({
+        candidate_id: stored.id,
+        address_id: impactAddressId,
+        link_type: 'impacts',
+      }, { onConflict: 'candidate_id,address_id,link_type', ignoreDuplicates: true });
+      if (error) throw error;
+    }
+
+    if (isNew) {
+      const history = candidate.initialHistory;
+      const { error } = await supabase.from('candidate_state_history').insert({
+        candidate_id: stored.id,
+        snapshot_id: ingestionId,
+        state: candidate.state,
+        changed_by: history?.by ?? 'system',
+        changed_at: history?.at ?? capturedAt,
+        reason: history?.reason ?? 'Beim read-only Snapshot erkannt; nicht angewendet.',
+        evidence_reference: candidate.sourceAddress,
+      });
+      if (error) throw error;
+    }
+  }
 }
 
 function buildRepresentationEvidence(input: {
@@ -171,6 +274,7 @@ export default async function handler(req: any, res: any) {
     let defaultTitle: string;
     let sourceMode: 'manual' | 'northwind-proof' = 'manual';
     let adapterMetadata: Record<string, unknown> = {};
+    let addressLayerProjection: ReturnType<typeof buildAddressLayerProjection> | null = null;
 
     if (req.body?.northwind_order_id != null) {
       const orderId = Number(req.body.northwind_order_id);
@@ -187,6 +291,12 @@ export default async function handler(req: any, res: any) {
       sourceReference = `A-${orderId}`;
       defaultTitle = `${sourceReference} · ${northwind.envelope.customer.CompanyName}`;
       sourceMode = 'northwind-proof';
+      addressLayerProjection = buildAddressLayerProjection({
+        orderId,
+        envelope: northwind.envelope,
+        adaptation: northwind.adaptation,
+        capturedAt,
+      });
       adapterMetadata = {
         source_schema_gate: northwind.sourceSchemaGate,
         source_schema_issues: northwind.sourceSchemaIssues,
@@ -271,6 +381,17 @@ export default async function handler(req: any, res: any) {
       }).select('*').single(),
     );
     if (!record) throw new Error('Case record was not created');
+
+    if (addressLayerProjection) {
+      await persistAddressLayer({
+        supabase,
+        recordId: record.id,
+        ingestionId: ingestion.id,
+        sourceId: sourceSystem,
+        projection: addressLayerProjection,
+        capturedAt,
+      });
+    }
 
     const representationEvidence = buildRepresentationEvidence({
       sourceMode,

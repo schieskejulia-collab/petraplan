@@ -95,6 +95,12 @@ export interface CaseTrace {
   execution: { operations: Array<Record<string, unknown>> };
   runtime: { observations: Array<Record<string, unknown>> };
   representation: { evidence: Array<Record<string, unknown>> };
+  address_layer: {
+    addresses: Array<Record<string, unknown>>;
+    candidates: Array<Record<string, unknown>>;
+    links: Array<Record<string, unknown>>;
+    history: Array<Record<string, unknown>>;
+  };
   resolution: {
     records: Array<Record<string, unknown>>;
     logs: Array<Record<string, unknown>>;

@@ -136,6 +136,45 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       .eq('record_id', recordId)
       .order('observed_at'),
   );
+  const addressCandidates = await rows<any>(
+    supabase
+      .from('conversion_candidates')
+      .select('*')
+      .eq('record_id', recordId)
+      .order('created_at'),
+  );
+  const addressCandidateIds = addressCandidates.map((item) => item.id);
+  const addressLinks = addressCandidateIds.length
+    ? await rows<any>(
+        supabase
+          .from('impact_links')
+          .select('*')
+          .in('candidate_id', addressCandidateIds)
+          .order('created_at'),
+      )
+    : [];
+  const addressIds = [...new Set([
+    ...addressCandidates.map((item) => item.source_address_id),
+    ...addressLinks.map((item) => item.address_id),
+  ])];
+  const addresses = addressIds.length
+    ? await rows<any>(
+        supabase
+          .from('address_registry')
+          .select('*')
+          .in('id', addressIds)
+          .order('address'),
+      )
+    : [];
+  const candidateHistory = addressCandidateIds.length
+    ? await rows<any>(
+        supabase
+          .from('candidate_state_history')
+          .select('*')
+          .in('candidate_id', addressCandidateIds)
+          .order('changed_at'),
+      )
+    : [];
   const anchors = await rows<any>(
     supabase.from('conflicts').select('*').eq('record_id', recordId).order('created_at'),
   );
@@ -276,6 +315,12 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     },
     representation: {
       evidence: representationEvidence,
+    },
+    address_layer: {
+      addresses,
+      candidates: addressCandidates,
+      links: addressLinks,
+      history: candidateHistory,
     },
     resolution: {
       records: resolutions,
