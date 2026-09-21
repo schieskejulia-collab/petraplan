@@ -1,4 +1,4 @@
-import { adaptNorthwindOrderOperationalSafely, type NorthwindOrderEnvelope } from '../../../frontend/mobile-app/src/lib/bridge-northwind-adapter.js';
+import { adaptNorthwindOrderSafely, type NorthwindOrderEnvelope } from '../../../frontend/mobile-app/src/lib/bridge-northwind-adapter.js';
 import { evaluateRecordWithConflictTruth } from '../../../frontend/mobile-app/src/lib/bridge-conflict-truth.js';
 import { pinnedNorthwindText } from './pinnedNorthwindData.js';
 
@@ -113,7 +113,7 @@ export async function getPinnedNorthwindOrder(orderId: number, capturedAt = NORT
   const order = dataset.orders.find((item) => Number(item.OrderID) === Number(orderId));
   if (!order) return null;
   const envelope = envelopeFor(dataset, order);
-  const safe = adaptNorthwindOrderOperationalSafely(envelope);
+  const safe = adaptNorthwindOrderSafely(envelope);
   if (!safe.accepted || !safe.adaptation) {
     return {
       orderId,
