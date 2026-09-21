@@ -1,0 +1,1 @@
+This branch intentionally proves mechanism rather than business truth. The authority-backed ShippedDate rule is test-only and scoped to the proof.
