@@ -1,10 +1,10 @@
 import { adaptNorthwindOrderOperationalSafely, type NorthwindOrderEnvelope } from '../../../frontend/mobile-app/src/lib/bridge-northwind-adapter.js';
 import { evaluateRecordWithConflictTruth } from '../../../frontend/mobile-app/src/lib/bridge-conflict-truth.js';
+import { pinnedNorthwindText } from './pinnedNorthwindData.js';
 
 export const NORTHWIND_UPSTREAM_REPO = 'neo4j-contrib/northwind-neo4j';
 export const NORTHWIND_UPSTREAM_COMMIT = '5db323116a2779434ba0c17eb2b733575bfc2a4a';
 export const NORTHWIND_PROOF_CAPTURED_AT = '2026-09-19T15:30:00.000Z';
-const RAW_BASE = `https://raw.githubusercontent.com/${NORTHWIND_UPSTREAM_REPO}/${NORTHWIND_UPSTREAM_COMMIT}/data`;
 
 type NorthwindDataset = {
   orders: any[];
@@ -15,12 +15,6 @@ type NorthwindDataset = {
 };
 
 let datasetPromise: Promise<NorthwindDataset> | null = null;
-
-async function fetchText(name: string) {
-  const response = await fetch(`${RAW_BASE}/${name}`);
-  if (!response.ok) throw new Error(`Northwind upstream download failed for ${name}: ${response.status}`);
-  return response.text();
-}
 
 function nonEmptyLines(text: string) {
   return text.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.length > 0);
@@ -84,11 +78,9 @@ function parseCustomers(text: string) {
 async function loadDataset(): Promise<NorthwindDataset> {
   if (!datasetPromise) {
     datasetPromise = (async () => {
-      const [ordersText, detailsText, customersText] = await Promise.all([
-        fetchText('orders.csv'),
-        fetchText('order-details.csv'),
-        fetchText('customers.csv'),
-      ]);
+      const ordersText = pinnedNorthwindText('orders.csv');
+      const detailsText = pinnedNorthwindText('order-details.csv');
+      const customersText = pinnedNorthwindText('customers.csv');
       const orders = parseOrders(ordersText);
       const details = parseOrderDetails(detailsText);
       const customers = parseCustomers(customersText);
