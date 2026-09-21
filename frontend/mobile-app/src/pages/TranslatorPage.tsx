@@ -31,6 +31,32 @@ function MappingTable({ source, target }: { source: Record<string, unknown>; tar
   );
 }
 
+function NorthwindSourceDetails({ detail }: { detail: NorthwindDetail }) {
+  const { order, customer, orderDetails } = detail.envelope;
+  const sourceFields = [
+    ['OrderID', order.OrderID],
+    ['CustomerID', order.CustomerID],
+    ['Firma', customer.CompanyName],
+    ['OrderDate', order.OrderDate],
+    ['ShippedDate', order.ShippedDate],
+  ] as const;
+
+  return (
+    <section className="rounded-2xl border bg-card p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Originalquelle</p>
+      <h2 className="mt-1 text-lg font-semibold">Northwind-Auftrag</h2>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        {sourceFields.map(([label, value]) => <div key={label} className="rounded-lg border p-2"><span className="text-muted-foreground">{label}</span><strong className="block break-all">{value ?? '—'}</strong></div>)}
+      </div>
+      <div className="mt-3 overflow-hidden rounded-xl border">
+        <div className="grid grid-cols-[0.8fr_1fr_1fr_0.8fr] gap-2 bg-muted/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Produkt</span><span>Menge</span><span>Preis</span><span>Rabatt</span></div>
+        {orderDetails.map((item: { OrderID: number; ProductID: number; Quantity: number; UnitPrice: number; Discount: number }) => <div key={`${item.OrderID}-${item.ProductID}`} className="grid grid-cols-[0.8fr_1fr_1fr_0.8fr] gap-2 border-t px-3 py-2 text-xs"><span>{item.ProductID}</span><strong>{item.Quantity}</strong><span>{item.UnitPrice}</span><span>{item.Discount}</span></div>)}
+      </div>
+      <p className="mt-2 text-xs text-muted-foreground">Die Quellwerte bleiben unverändert. Erst darunter wird sichtbar, wie die Bridge sie übersetzt.</p>
+    </section>
+  );
+}
+
 function StateBadge({ state }: { state: string }) {
   const label = state === 'NEEDS_CONFIRMATION' ? 'BESTÄTIGUNG NÖTIG' : state;
   return <span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{label}</span>;
@@ -52,7 +78,7 @@ export default function TranslatorPage() {
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<NorthwindDetail | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
-  const selectedDetailRef = useRef<HTMLElement | null>(null);
+  const selectedDetailRef = useRef<HTMLDivElement | null>(null);
 
   const [rawInput, setRawInput] = useState(JSON.stringify(EMPTY_RECORD, null, 2));
   const [raw, setRaw] = useState<RawRecord>(EMPTY_RECORD);
@@ -213,7 +239,11 @@ export default function TranslatorPage() {
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg border p-2"><span className="text-muted-foreground">Customer</span><strong className="block">{selected.envelope.customer.CustomerID}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">OrderDate</span><strong className="block">{selected.envelope.order.OrderDate ?? '—'}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">Details</span><strong className="block">{selected.envelope.orderDetails.length}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">Mengen</span><strong className="block">{selected.envelope.orderDetails.map((item: any) => item.Quantity).join(' | ') || '—'}</strong></div></div>
             </section>
 
-            <section ref={selectedDetailRef} className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Ziel</p><h2 className="mt-1 mb-3 text-lg font-semibold">Übersetztes Ergebnis</h2><MappingTable source={selectedRaw} target={selectedEvaluation.mapped} /><p className="mt-3 text-xs text-muted-foreground">Northwind-Regel: ShippedDate setzt STATUS; alle Order-Detail-Mengen ergeben MENGE.</p></section>
+            <div ref={selectedDetailRef}><NorthwindSourceDetails detail={selected} /></div>
+
+            <section className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Ziel</p><h2 className="mt-1 mb-3 text-lg font-semibold">Übersetztes Ergebnis</h2><MappingTable source={selectedRaw} target={selectedEvaluation.mapped} /><p className="mt-3 text-xs text-muted-foreground">Northwind-Regel: ShippedDate setzt STATUS; alle Order-Detail-Mengen ergeben MENGE.</p></section>
+
+            <section className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Prüfspur</p><h2 className="mt-1 mb-3 text-lg font-semibold">Warum dieser Auftrag {selectedEvaluation.state.state} ist</h2><div className="space-y-2">{selectedEvaluation.constraints.map((item: any) => <div key={item.id} className="rounded-lg border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong>{item.label}</strong><StateBadge state={item.passed ? 'CONFIRMED' : item.severity === 'blocking' ? 'BLOCKED' : 'HINWEIS'} /></div><p className="mt-1 text-muted-foreground">{item.evidence}</p></div>)}</div></section>
 
             {selectedBlocking.length > 0 && <section className="rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Nicht bereit</h2><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{selectedBlocking.length}</span></div><div className="mt-3 space-y-1">{selectedBlocking.map((item: any) => <p key={item.id} className="text-xs text-muted-foreground">{item.label}</p>)}</div></section>}
 
