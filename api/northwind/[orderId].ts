@@ -1,7 +1,9 @@
-import { getPinnedNorthwindOrder } from '../../api-server/src/services/pinnedNorthwind.js';
-
 export default async function handler(req: any, res: any) {
   try {
+    // Keep the detail route's initialization behavior aligned with the list
+    // route so Vercel can report module-loading failures as JSON responses.
+    const { getPinnedNorthwindOrder } = await import('../../api-server/src/services/pinnedNorthwind.js');
+
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
       return res.status(405).json({ error: 'Method not allowed' });

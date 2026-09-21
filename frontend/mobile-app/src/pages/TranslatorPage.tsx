@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { evaluateRecord, parseRawRecord, type RawRecord } from '@/lib/bridge-pipeline';
 import { bridgeAuth, currentAccessToken } from '@/lib/bridge-auth';
@@ -52,6 +52,7 @@ export default function TranslatorPage() {
   const [offset, setOffset] = useState(0);
   const [selected, setSelected] = useState<NorthwindDetail | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
+  const selectedDetailRef = useRef<HTMLElement | null>(null);
 
   const [rawInput, setRawInput] = useState(JSON.stringify(EMPTY_RECORD, null, 2));
   const [raw, setRaw] = useState<RawRecord>(EMPTY_RECORD);
@@ -78,6 +79,11 @@ export default function TranslatorPage() {
   };
 
   useEffect(() => { void loadNorthwind(0, '', ''); }, []);
+
+  useEffect(() => {
+    if (!selected) return;
+    requestAnimationFrame(() => selectedDetailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  }, [selected]);
 
   const chooseOrder = async (item: NorthwindSummary) => {
     setSelectedLoading(true);
@@ -207,7 +213,7 @@ export default function TranslatorPage() {
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg border p-2"><span className="text-muted-foreground">Customer</span><strong className="block">{selected.envelope.customer.CustomerID}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">OrderDate</span><strong className="block">{selected.envelope.order.OrderDate ?? '—'}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">Details</span><strong className="block">{selected.envelope.orderDetails.length}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">Mengen</span><strong className="block">{selected.envelope.orderDetails.map((item: any) => item.Quantity).join(' | ') || '—'}</strong></div></div>
             </section>
 
-            <section className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Ziel</p><h2 className="mt-1 mb-3 text-lg font-semibold">Übersetztes Ergebnis</h2><MappingTable source={selectedRaw} target={selectedEvaluation.mapped} /><p className="mt-3 text-xs text-muted-foreground">Northwind-Regel: ShippedDate setzt STATUS; alle Order-Detail-Mengen ergeben MENGE.</p></section>
+            <section ref={selectedDetailRef} className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Ziel</p><h2 className="mt-1 mb-3 text-lg font-semibold">Übersetztes Ergebnis</h2><MappingTable source={selectedRaw} target={selectedEvaluation.mapped} /><p className="mt-3 text-xs text-muted-foreground">Northwind-Regel: ShippedDate setzt STATUS; alle Order-Detail-Mengen ergeben MENGE.</p></section>
 
             {selectedBlocking.length > 0 && <section className="rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Nicht bereit</h2><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{selectedBlocking.length}</span></div><div className="mt-3 space-y-1">{selectedBlocking.map((item: any) => <p key={item.id} className="text-xs text-muted-foreground">{item.label}</p>)}</div></section>}
 
