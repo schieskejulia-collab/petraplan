@@ -48,6 +48,28 @@ export type EvidenceDecision = {
   };
 };
 
+export type StructuralEvidenceStatus = "CONFIRMED" | "CONTRADICTED" | "UNPROVEN";
+export type ValueEvidenceStatus = "CONFIRMED" | "UNPROVEN";
+
+export type StructureEvidenceResult = {
+  kind: "structure";
+  subject: string;
+  relatedTo: string;
+  status: StructuralEvidenceStatus;
+  sourceReference: string | null;
+  reason: string;
+};
+
+export type ValueEvidenceResult = {
+  kind: "value";
+  field: string;
+  sourceValue: unknown;
+  canonicalValue: unknown;
+  status: ValueEvidenceStatus;
+  sourceReference: string | null;
+  reason: string;
+};
+
 function isHumanStatement(evidence: EvidenceRecord): boolean {
   return evidence.kind === "human_statement";
 }
@@ -77,8 +99,7 @@ export function evaluateEvidence(
   const humanStatements = evidence.filter(isHumanStatement);
 
   const eligibleForCaseUse = authoritative.length > 0;
-  const eligibleForGlobalRule =
-    proposal.scope === "rule" && authoritativeForRule.length > 0;
+  const eligibleForGlobalRule = proposal.scope === "rule" && authoritativeForRule.length > 0;
 
   let status: EvidenceDecisionStatus = "UNRESOLVED";
   let reason = "Für die vorgeschlagene Bedeutung liegt noch kein belastbarer Beleg vor.";
@@ -109,5 +130,82 @@ export function evaluateEvidence(
       proposedBy: proposal.proposedBy,
       evidenceIds: evidence.map(({ id }) => id),
     },
+  };
+}
+
+/**
+ * Structural evidence answers only whether two source locations are linked by a
+ * documented relation. Equal names or equal values are never accepted as proof.
+ */
+export function classifyStructureEvidence(input: {
+  subject: string;
+  relatedTo: string;
+  documentedRelation: boolean;
+  subjectValue: unknown;
+  relatedValue: unknown;
+  sourceReference: string | null;
+}): StructureEvidenceResult {
+  if (!input.documentedRelation || !input.sourceReference) {
+    return {
+      kind: "structure",
+      subject: input.subject,
+      relatedTo: input.relatedTo,
+      status: "UNPROVEN",
+      sourceReference: input.sourceReference,
+      reason: "Keine dokumentierte Strukturbeziehung belegt. Namens- oder Wertähnlichkeit reicht nicht als Evidenz.",
+    };
+  }
+
+  if (!Object.is(input.subjectValue, input.relatedValue)) {
+    return {
+      kind: "structure",
+      subject: input.subject,
+      relatedTo: input.relatedTo,
+      status: "CONTRADICTED",
+      sourceReference: input.sourceReference,
+      reason: "Die dokumentierte Beziehung ist vorhanden, aber die konkreten Schlüsselwerte widersprechen ihr.",
+    };
+  }
+
+  return {
+    kind: "structure",
+    subject: input.subject,
+    relatedTo: input.relatedTo,
+    status: "CONFIRMED",
+    sourceReference: input.sourceReference,
+    reason: "Dokumentierte Strukturbeziehung vorhanden und konkrete Schlüsselwerte stimmen überein.",
+  };
+}
+
+/**
+ * Value evidence answers only whether one concrete source value has a confirmed
+ * canonical meaning. Structural confirmation never creates a value mapping.
+ */
+export function classifyValueEvidence(input: {
+  field: string;
+  sourceValue: unknown;
+  confirmedMapping: unknown | null;
+  sourceReference: string | null;
+}): ValueEvidenceResult {
+  if (input.confirmedMapping === null || !input.sourceReference) {
+    return {
+      kind: "value",
+      field: input.field,
+      sourceValue: input.sourceValue,
+      canonicalValue: null,
+      status: "UNPROVEN",
+      sourceReference: input.sourceReference,
+      reason: "Für diesen konkreten Wert liegt keine bestätigte Bedeutungszuordnung vor.",
+    };
+  }
+
+  return {
+    kind: "value",
+    field: input.field,
+    sourceValue: input.sourceValue,
+    canonicalValue: input.confirmedMapping,
+    status: "CONFIRMED",
+    sourceReference: input.sourceReference,
+    reason: "Der konkrete Quellwert besitzt eine explizit bestätigte Bedeutungszuordnung.",
   };
 }
