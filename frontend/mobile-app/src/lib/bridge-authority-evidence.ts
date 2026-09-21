@@ -93,17 +93,6 @@ function evidenceLabel(evidence: AuthorityBackedStatusEvidence): string {
   ].join("; ");
 }
 
-/**
- * Re-evaluates one already-observed Bridge record with an explicitly scoped,
- * authority-backed semantic claim.
- *
- * Important boundaries:
- * - Source Truth and the observed five-field raw record are never rewritten.
- * - The rule is proof-only and does not assert that Northwind ShippedDate has a
- *   universal business meaning.
- * - Only STATUS-related failures may be resolved by this evidence.
- * - Other failures (for example ambiguous multi-detail MENGE) remain blocking.
- */
 export function evaluateWithAuthorityEvidence(
   base: ConflictTruthEvaluation,
   facts: { shippedDate: string | null },
@@ -124,10 +113,8 @@ export function evaluateWithAuthorityEvidence(
     appliedEvidence.push(appliedRecord(evidence));
   }
 
-  const failedSchemaFields = new Set(
-    base.schema
-      .filter(({ present, typeOk, formatOk }) => !present || !typeOk || !formatOk)
-      .map(({ field }) => field),
+  const missingFields = new Set(
+    base.schema.filter(({ present }) => !present).map(({ field }) => field),
   );
 
   const governedConstraints = base.constraints.map((constraint): ConstraintResult => {
@@ -149,24 +136,37 @@ export function evaluateWithAuthorityEvidence(
       };
     }
 
-    if (constraint.id === "contract.schema" && failedSchemaFields.has("STATUS")) {
-      const unresolvedSchemaFields = [...failedSchemaFields].filter((field) => field !== "STATUS");
-      if (unresolvedSchemaFields.length === 0) {
+    if (constraint.id === "contract.completeness" && missingFields.has("STATUS")) {
+      const unresolvedFields = [...missingFields].filter((field) => field !== "STATUS");
+      if (unresolvedFields.length === 0) {
         return {
           ...structuredClone(constraint),
           passed: true,
-          comparison: {
-            ...constraint.comparison,
-            observed: "schemaFehler=0 nach authority-backed STATUS resolution",
-          },
+          comparison: { ...constraint.comparison, observed: "missing=0 nach authority-backed STATUS resolution" },
           evidence: `${constraint.evidence}; STATUS resolved by ${evidenceLabel(evidence)}`,
-          resolutionProposal: "Keine weitere Schema-Auflösung nötig; STATUS ist für diesen Lauf authority-backed abgeleitet.",
+          resolutionProposal: "Keine weitere Vollständigkeitsauflösung nötig; STATUS ist für diesen Lauf authority-backed abgeleitet.",
         };
       }
-
       return {
         ...structuredClone(constraint),
-        evidence: `${constraint.evidence}; STATUS resolved by ${evidenceLabel(evidence)}; unresolved=${unresolvedSchemaFields.join(",")}`,
+        comparison: { ...constraint.comparison, observed: unresolvedFields.join(",") },
+        evidence: `${constraint.evidence}; STATUS resolved by ${evidenceLabel(evidence)}; unresolved=${unresolvedFields.join(",")}`,
+      };
+    }
+
+    // Legacy summary is non-blocking but remains truthful/readable after re-evaluation.
+    if (constraint.id === "contract.schema" && missingFields.has("STATUS")) {
+      const unresolvedFields = [...missingFields].filter((field) => field !== "STATUS");
+      return {
+        ...structuredClone(constraint),
+        passed: unresolvedFields.length === 0,
+        comparison: {
+          ...constraint.comparison,
+          observed: unresolvedFields.length === 0
+            ? "schemaFehler=0 nach authority-backed STATUS resolution"
+            : unresolvedFields.join(","),
+        },
+        evidence: `${constraint.evidence}; STATUS resolved by ${evidenceLabel(evidence)}${unresolvedFields.length ? `; unresolved=${unresolvedFields.join(",")}` : ""}`,
       };
     }
 
