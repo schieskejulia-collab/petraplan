@@ -7,6 +7,7 @@ import {
   type ResponseContext,
 } from '../../frontend/mobile-app/src/lib/bridge-pipeline.js';
 import { getPinnedNorthwindOrder } from '../../api-server/src/services/pinnedNorthwind.js';
+import { buildAddressableNorthwindSnapshot } from '../../api-server/src/services/addressableNorthwind.js';
 
 function authToken(req: any) {
   const header = String(req.headers?.authorization ?? '');
@@ -90,6 +91,12 @@ export default async function handler(req: any, res: any) {
         adapter_issues: northwind.adaptation.issues,
         adapter_evidence: northwind.adaptation.evidence,
         bridge_input_raw: northwind.adaptation.raw,
+        addressable_snapshot: buildAddressableNorthwindSnapshot({
+          orderId,
+          envelope: northwind.envelope,
+          adaptation: northwind.adaptation,
+          capturedAt,
+        }),
       };
     } else {
       raw = parseRawRecord(req.body?.raw_record);
