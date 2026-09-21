@@ -59,6 +59,8 @@ export type NorthwindOrderEnvelope = {
   orderDetails: NorthwindOrderDetail[];
 };
 
+export type NorthwindAdapterMode = "evidence" | "operational";
+
 export type NorthwindAdaptationIssue = {
   field: keyof RawRecord;
   code: "NO_CONFIRMED_SEMANTIC_MAPPING" | "NO_ORDER_DETAILS" | "CUSTOMER_MISMATCH";
@@ -73,9 +75,9 @@ export type NorthwindAdaptation = {
   evidence: {
     customerIdSource: "order.CustomerID";
     orderIdSource: "order.OrderID";
-    quantitySource: "orderDetails[0].Quantity" | "unmapped";
+    quantitySource: "orderDetails[0].Quantity" | "orderDetails[].Quantity (sum)" | "unmapped";
     dateSource: "order.OrderDate";
-    statusSource: "unmapped";
+    statusSource: "order.ShippedDate" | "unmapped";
     structure: {
       customerRelation: StructureEvidenceResult;
     };
@@ -101,6 +103,12 @@ export type NorthwindSafeAdaptation =
       sourceSnapshot: unknown;
       adaptation: null;
     };
+
+/** Rules used by the product's normal Northwind translation path. */
+export const northwindOperationalPolicy = {
+  status: "ShippedDate != null -> GESCHLOSSEN, ShippedDate == null -> OFFEN",
+  quantity: "MENGE = sum(orderDetails[].Quantity)",
+} as const;
 
 export const northwindRuntimeSchemaContract: SchemaPathRule[] = [
   { path: "source", expectedTypes: ["string"], required: true },
@@ -128,19 +136,16 @@ function isoDateOnly(value: string | null): string {
 /**
  * Read-only source adapter for the classic Northwind order shape.
  *
- * It deliberately does NOT invent business semantics:
- * - STATUS stays empty because Northwind has no confirmed equivalent to the
- *   bridge status value map.
- * - MENGE is mapped only when exactly one Order_Detail exists. With multiple
- *   product rows, summing quantities would invent an unconfirmed meaning for
- *   the bridge's single MENGE field, so the value stays empty and is blocked.
- * - Structural evidence and value evidence remain independent. A confirmed
- *   order.CustomerID -> customer.CustomerID relation does not create STATUS or
- *   MENGE meaning by itself.
- *
- * The original envelope is preserved as sourceSnapshot and is never mutated.
+ * `evidence` mode preserves the original proof behaviour. The application
+ * uses `operational` mode, whose explicit Northwind policy maps ShippedDate to
+ * the bridge status and sums position quantities into the order quantity.
+ * Either mode preserves the original envelope and never mutates source data.
  */
-export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): NorthwindAdaptation {
+export function adaptNorthwindOrder(
+  envelope: NorthwindOrderEnvelope,
+  options: { mode?: NorthwindAdapterMode } = {},
+): NorthwindAdaptation {
+  const mode = options.mode ?? "evidence";
   const sourceSnapshot = structuredClone(envelope);
   const issues: NorthwindAdaptationIssue[] = [];
 
@@ -179,6 +184,18 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       confirmedMapping: null,
       sourceReference: null,
     });
+  } else if (mode === "operational") {
+    const totalQuantity = envelope.orderDetails.reduce((sum, detail) => sum + detail.Quantity, 0);
+    quantity = String(totalQuantity);
+    quantitySource = envelope.orderDetails.length === 1
+      ? "orderDetails[0].Quantity"
+      : "orderDetails[].Quantity (sum)";
+    quantityValueEvidence = classifyValueEvidence({
+      field: "MENGE",
+      sourceValue: envelope.orderDetails.map(({ Quantity }) => Quantity),
+      confirmedMapping: totalQuantity,
+      sourceReference: northwindOperationalPolicy.quantity,
+    });
   } else if (envelope.orderDetails.length === 1) {
     quantity = String(envelope.orderDetails[0].Quantity);
     quantitySource = "orderDetails[0].Quantity";
@@ -203,26 +220,36 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
     });
   }
 
-  issues.push({
-    field: "STATUS",
-    code: "NO_CONFIRMED_SEMANTIC_MAPPING",
-    message: "Northwind Order enthält keinen bestätigten Gegenpart zum Bridge-Statusmodell; STATUS bleibt ungefüllt.",
-    blocking: true,
-  });
+  const status = envelope.order.ShippedDate ? "GESCHLOSSEN" : "OFFEN";
+  const statusValueEvidence = mode === "operational"
+    ? classifyValueEvidence({
+        field: "STATUS",
+        sourceValue: envelope.order.ShippedDate,
+        confirmedMapping: status,
+        sourceReference: northwindOperationalPolicy.status,
+      })
+    : classifyValueEvidence({
+        field: "STATUS",
+        sourceValue: null,
+        confirmedMapping: null,
+        sourceReference: null,
+      });
 
-  const statusValueEvidence = classifyValueEvidence({
-    field: "STATUS",
-    sourceValue: null,
-    confirmedMapping: null,
-    sourceReference: null,
-  });
+  if (mode === "evidence") {
+    issues.push({
+      field: "STATUS",
+      code: "NO_CONFIRMED_SEMANTIC_MAPPING",
+      message: "Northwind Order enthält keinen bestätigten Gegenpart zum Bridge-Statusmodell; STATUS bleibt ungefüllt.",
+      blocking: true,
+    });
+  }
 
   return {
     sourceSnapshot,
     raw: {
       KUNDEN_NR: envelope.order.CustomerID ?? "",
       AUFTRAGS_NR: `A-${envelope.order.OrderID}`,
-      STATUS: "",
+      STATUS: mode === "operational" ? status : "",
       MENGE: quantity,
       DATUM: isoDateOnly(envelope.order.OrderDate),
     },
@@ -232,7 +259,7 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       orderIdSource: "order.OrderID",
       quantitySource,
       dateSource: "order.OrderDate",
-      statusSource: "unmapped",
+      statusSource: mode === "operational" ? "order.ShippedDate" : "unmapped",
       structure: {
         customerRelation,
       },
@@ -250,7 +277,10 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
  * is the explicit runtime contract checked. A changed/missing critical source
  * path is treated as schema drift and is never silently guessed.
  */
-export function adaptNorthwindOrderSafely(source: unknown): NorthwindSafeAdaptation {
+export function adaptNorthwindOrderSafely(
+  source: unknown,
+  options: { mode?: NorthwindAdapterMode } = {},
+): NorthwindSafeAdaptation {
   const sourceSnapshot = structuredClone(source);
   const structureObservation = observeSourceStructure(source);
   const drift = assessSchemaDrift(source, "northwind-order-envelope-v1", northwindRuntimeSchemaContract);
@@ -270,6 +300,14 @@ export function adaptNorthwindOrderSafely(source: unknown): NorthwindSafeAdaptat
     structureObservation,
     drift,
     sourceSnapshot,
-    adaptation: adaptNorthwindOrder(source as NorthwindOrderEnvelope),
+    adaptation: adaptNorthwindOrder(source as NorthwindOrderEnvelope, options),
   };
+}
+
+export function adaptNorthwindOrderOperational(envelope: NorthwindOrderEnvelope): NorthwindAdaptation {
+  return adaptNorthwindOrder(envelope, { mode: "operational" });
+}
+
+export function adaptNorthwindOrderOperationalSafely(source: unknown): NorthwindSafeAdaptation {
+  return adaptNorthwindOrderSafely(source, { mode: "operational" });
 }

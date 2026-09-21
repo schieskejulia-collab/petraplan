@@ -1,8 +1,4 @@
 import { getPinnedNorthwindOrder } from '../../api-server/src/services/pinnedNorthwind.js';
-import {
-  NORTHWIND_QUANTITY_TRANSFORMATION_EVIDENCE,
-  NORTHWIND_STRUCTURE_EVIDENCE_AUTHORITY,
-} from '../../api-server/src/services/northwindEvidenceAuthority.js';
 
 export default async function handler(req: any, res: any) {
   try {
@@ -20,10 +16,6 @@ export default async function handler(req: any, res: any) {
       envelope: result.envelope,
       sourceSchemaGate: result.sourceSchemaGate,
       sourceSchemaIssues: result.sourceSchemaIssues,
-      evidenceAuthority: {
-        structure: NORTHWIND_STRUCTURE_EVIDENCE_AUTHORITY,
-        quantityTransformation: NORTHWIND_QUANTITY_TRANSFORMATION_EVIDENCE,
-      },
       adaptation: {
         raw: result.adaptation.raw,
         issues: result.adaptation.issues,

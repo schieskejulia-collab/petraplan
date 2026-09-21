@@ -36,52 +36,6 @@ function StateBadge({ state }: { state: string }) {
   return <span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{label}</span>;
 }
 
-function EvidenceBadge({ status }: { status: string }) {
-  return <span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{status}</span>;
-}
-
-function NorthwindEvidence({ selected }: { selected: NorthwindDetail }) {
-  const evidence = selected.adaptation?.evidence;
-  if (!evidence) return null;
-  const relation = evidence.structure.customerRelation;
-  const statusValue = evidence.values.status;
-  const quantityValue = evidence.values.quantity;
-
-  return (
-    <section className="rounded-2xl border bg-card p-4 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence</p>
-      <h2 className="mt-1 text-lg font-semibold">Beziehung und Bedeutung getrennt</h2>
-      <p className="mt-1 text-xs text-muted-foreground">Eine bestätigte Beziehung erzeugt keine Bedeutung für andere Werte.</p>
-      <div className="mt-3 space-y-2">
-        <div className="rounded-xl border p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Struktur-Evidenz</p><strong className="text-sm">Order.CustomerID → Customer.CustomerID</strong></div>
-            <EvidenceBadge status={relation.status} />
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">{relation.reason}</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">Beleg: {relation.sourceReference ?? 'kein bestätigter Strukturbeleg'}</p>
-        </div>
-        <div className="rounded-xl border p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Wert-Evidenz</p><strong className="text-sm">STATUS</strong></div>
-            <EvidenceBadge status={statusValue.status} />
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">{statusValue.reason}</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">Zielwert: {String(statusValue.canonicalValue ?? '—')}</p>
-        </div>
-        <div className="rounded-xl border p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Wert-Evidenz</p><strong className="text-sm">MENGE</strong></div>
-            <EvidenceBadge status={quantityValue.status} />
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">{quantityValue.reason}</p>
-          <p className="mt-1 text-[10px] text-muted-foreground">Quelle: {Array.isArray(quantityValue.sourceValue) ? quantityValue.sourceValue.join(' | ') : String(quantityValue.sourceValue ?? '—')} · Ziel: {String(quantityValue.canonicalValue ?? '—')}</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
 export default function TranslatorPage() {
   const [, setLocation] = useLocation();
   const [mode, setMode] = useState<'northwind' | 'manual'>('northwind');
@@ -214,7 +168,7 @@ export default function TranslatorPage() {
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-5 pb-16">
         <header className="flex items-start justify-between gap-3">
-          <div><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan · Übersetzer</p><h1 className="mt-1 text-2xl font-semibold">Bridge steuern</h1><p className="mt-1 text-sm text-muted-foreground">Aktuelle Testdaten prüfen, einen Fall auswählen und bewusst in die Live Truth Chain übernehmen.</p></div>
+          <div><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan · Bridge</p><h1 className="mt-1 text-2xl font-semibold">Aufträge übersetzen</h1><p className="mt-1 text-sm text-muted-foreground">Quelle auswählen, Zielwerte prüfen und übernehmen.</p></div>
           <button className="rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation('/cases')}>Fälle</button>
         </header>
 
@@ -225,10 +179,9 @@ export default function TranslatorPage() {
 
         {mode === 'northwind' && <>
           <section className="rounded-2xl border bg-card p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aktueller Mass Proof</p><h2 className="mt-1 text-xl font-semibold">830 Northwind-Aufträge</h2></div>{northwind && <StateBadge state="READ ONLY SOURCE" />}</div>
+            <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Northwind</p><h2 className="mt-1 text-xl font-semibold">Aufträge</h2></div>{northwind && <StateBadge state="READ ONLY SOURCE" />}</div>
             {northwind && <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg border p-2"><strong className="block text-base">{northwind.summary.orders}</strong>Orders</div><div className="rounded-lg border p-2"><strong className="block text-base">{northwind.summary.orderDetails}</strong>Details</div><div className="rounded-lg border p-2"><strong className="block text-base">{northwind.summary.customers}</strong>Kunden</div></div>}
-            {northwind && <p className="mt-3 text-xs text-muted-foreground">{northwind.summary.stateCounts.BLOCKED ?? 0} BLOCKED · {northwind.summary.stateCounts.NEEDS_CONFIRMATION ?? 0} NEEDS_CONFIRMATION · {northwind.summary.sourceSchemaAccepted} Source-Schema akzeptiert</p>}
-            {northwind && <div className="mt-3 rounded-xl border p-3 text-xs"><p className="font-semibold">Evidence-Split im gesamten 830er Lauf</p><p className="mt-1 text-muted-foreground">Struktur bestätigt: {northwind.summary.evidenceCounts.structure.CONFIRMED} · STATUS belegt: {northwind.summary.evidenceCounts.statusValue.CONFIRMED} · STATUS unbelegt: {northwind.summary.evidenceCounts.statusValue.UNPROVEN} · MENGE belegt: {northwind.summary.evidenceCounts.quantityValue.CONFIRMED} · MENGE unbelegt: {northwind.summary.evidenceCounts.quantityValue.UNPROVEN}</p></div>}
+            {northwind && <p className="mt-3 text-xs text-muted-foreground">{northwind.summary.stateCounts.VALID ?? 0} bereit · {northwind.summary.stateCounts.BLOCKED ?? 0} blockiert · {northwind.summary.orders} insgesamt</p>}
           </section>
 
           <section className="rounded-2xl border bg-card p-4 shadow-sm">
@@ -237,7 +190,7 @@ export default function TranslatorPage() {
               <button className="rounded-lg border px-3 py-2 text-sm font-semibold" onClick={search}>Suchen</button>
             </div>
             <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-              {['', 'BLOCKED', 'NEEDS_CONFIRMATION'].map((value) => <button key={value || 'ALL'} className={`rounded-lg border px-2 py-2 ${stateFilter === value ? 'bg-muted font-semibold' : ''}`} onClick={() => { setStateFilter(value); setOffset(0); setSelected(null); void loadNorthwind(0, query, value); }}>{value || 'ALLE'}</button>)}
+              {['', 'VALID', 'BLOCKED'].map((value) => <button key={value || 'ALL'} className={`rounded-lg border px-2 py-2 ${stateFilter === value ? 'bg-muted font-semibold' : ''}`} onClick={() => { setStateFilter(value); setOffset(0); setSelected(null); void loadNorthwind(0, query, value); }}>{value === 'VALID' ? 'BEREIT' : value || 'ALLE'}</button>)}
             </div>
             {northwindLoading && <p className="mt-3 text-sm text-muted-foreground">Lade aktuelle Testdaten…</p>}
             {northwindError && <p className="mt-3 text-sm">{northwindError}</p>}
@@ -254,13 +207,11 @@ export default function TranslatorPage() {
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg border p-2"><span className="text-muted-foreground">Customer</span><strong className="block">{selected.envelope.customer.CustomerID}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">OrderDate</span><strong className="block">{selected.envelope.order.OrderDate ?? '—'}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">Details</span><strong className="block">{selected.envelope.orderDetails.length}</strong></div><div className="rounded-lg border p-2"><span className="text-muted-foreground">Mengen</span><strong className="block">{selected.envelope.orderDetails.map((item: any) => item.Quantity).join(' | ') || '—'}</strong></div></div>
             </section>
 
-            <section className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Bridge → Ziel</p><h2 className="mt-1 mb-3 text-lg font-semibold">Tatsächliche Zuordnung</h2><MappingTable source={selectedRaw} target={selectedEvaluation.mapped} /><p className="mt-3 text-xs text-muted-foreground">STATUS bleibt leer, weil Northwind keinen bestätigten Gegenpart besitzt. MENGE wird nur bei genau einem Detail direkt übernommen.</p></section>
+            <section className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Ziel</p><h2 className="mt-1 mb-3 text-lg font-semibold">Übersetztes Ergebnis</h2><MappingTable source={selectedRaw} target={selectedEvaluation.mapped} /><p className="mt-3 text-xs text-muted-foreground">Northwind-Regel: ShippedDate setzt STATUS; alle Order-Detail-Mengen ergeben MENGE.</p></section>
 
-            <NorthwindEvidence selected={selected} />
+            {selectedBlocking.length > 0 && <section className="rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Nicht bereit</h2><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{selectedBlocking.length}</span></div><div className="mt-3 space-y-1">{selectedBlocking.map((item: any) => <p key={item.id} className="text-xs text-muted-foreground">{item.label}</p>)}</div></section>}
 
-            <section className="rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Warum steht der Fall hier?</h2><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{selectedBlocking.length} Blocker</span></div><div className="mt-3 space-y-2">{selectedBlocking.map((item: any) => <div key={item.id} className="rounded-xl border p-3"><div className="flex justify-between gap-3"><strong className="text-sm">{item.label}</strong><span className="text-[10px] font-semibold">BLOCKIERT</span></div><p className="mt-1 text-xs text-muted-foreground">{item.evidence}</p></div>)}</div></section>
-
-            <section className="rounded-2xl border bg-card p-4 shadow-sm"><h2 className="text-lg font-semibold">Diesen Testfall steuerbar machen</h2><p className="mt-1 text-sm text-muted-foreground">Nur dieser ausgewählte Auftrag wird als echter Live-Fall gespeichert. Die übrigen 829 Proof-Datensätze bleiben read-only.</p>{authBox}{authMessage && <p className="mt-2 text-xs text-muted-foreground">{authMessage}</p>}{persistError && <p className="mt-2 text-sm">{persistError}</p>}<button disabled={busy} className="mt-3 w-full rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50" onClick={() => void persistNorthwind()}>{busy ? 'Übernehme…' : `A-${selected.orderId} in Live Bridge übernehmen`}</button></section>
+            <section className="rounded-2xl border bg-card p-4 shadow-sm"><h2 className="text-lg font-semibold">Auftrag übernehmen</h2><p className="mt-1 text-sm text-muted-foreground">Der ausgewählte Auftrag wird als Live-Fall gespeichert.</p>{authBox}{authMessage && <p className="mt-2 text-xs text-muted-foreground">{authMessage}</p>}{persistError && <p className="mt-2 text-sm">{persistError}</p>}<button disabled={busy} className="mt-3 w-full rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50" onClick={() => void persistNorthwind()}>{busy ? 'Übernehme…' : `A-${selected.orderId} übernehmen`}</button></section>
           </>}
         </>}
 
