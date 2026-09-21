@@ -1,0 +1,1 @@
+Scope: northwind-proof-only. This test-only authority must never be treated as universal Northwind business truth.
