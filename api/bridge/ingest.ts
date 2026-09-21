@@ -30,6 +30,108 @@ function objectOrEmpty(value: unknown): Record<string, unknown> {
     : {};
 }
 
+type RepresentationEvidenceInput = {
+  fieldAddress: string;
+  sourcePath: string;
+  rawRepresentation: unknown;
+  bridgeRepresentation: unknown;
+  displayRepresentation: unknown;
+  fidelityStatus: 'preserved' | 'changed' | 'lossy' | 'unknown';
+  assessmentNote: string;
+};
+
+function representationValue(value: unknown) {
+  return value === undefined ? null : value;
+}
+
+function buildRepresentationEvidence(input: {
+  sourceMode: 'manual' | 'northwind-proof';
+  sourcePayload: any;
+  raw: Record<string, unknown>;
+  mapped: Record<string, unknown>;
+  sourceReference: string;
+}): RepresentationEvidenceInput[] {
+  const { sourceMode, sourcePayload, raw, mapped, sourceReference } = input;
+  const root = sourceMode === 'northwind-proof' ? `NW:${sourceReference}` : `BRIDGE:${sourceReference}`;
+
+  if (sourceMode === 'northwind-proof') {
+    const order = objectOrEmpty(sourcePayload?.order);
+    const quantities = Array.isArray(sourcePayload?.orderDetails)
+      ? sourcePayload.orderDetails.map((detail: any) => detail?.Quantity ?? null)
+      : null;
+    return [
+      {
+        fieldAddress: `${root}#CustomerID`,
+        sourcePath: 'order.CustomerID',
+        rawRepresentation: order.CustomerID,
+        bridgeRepresentation: raw.KUNDEN_NR,
+        displayRepresentation: mapped.customerId,
+        fidelityStatus: 'preserved',
+        assessmentNote: 'Kundenkennung wurde unverändert von der Quelle über die Bridge in die Fallansicht übernommen.',
+      },
+      {
+        fieldAddress: `${root}#OrderID`,
+        sourcePath: 'order.OrderID',
+        rawRepresentation: order.OrderID,
+        bridgeRepresentation: raw.AUFTRAGS_NR,
+        displayRepresentation: mapped.orderId,
+        fidelityStatus: 'changed',
+        assessmentNote: 'Die numerische Quell-ID wird für den Bridge-Contract als Auftragskennung mit Präfix A- dargestellt; der Quellwert bleibt im Snapshot erhalten.',
+      },
+      {
+        fieldAddress: `${root}#STATUS`,
+        sourcePath: 'order.ShippedDate (keine bestätigte Statusregel)',
+        rawRepresentation: order.ShippedDate ?? null,
+        bridgeRepresentation: raw.STATUS,
+        displayRepresentation: mapped.status,
+        fidelityStatus: 'unknown',
+        assessmentNote: 'Es gibt keine bestätigte Regel, aus ShippedDate einen Bridge-Status abzuleiten. Die Darstellung trifft keine Bedeutungsbehauptung.',
+      },
+      {
+        fieldAddress: `${root}#MENGE`,
+        sourcePath: 'orderDetails[].Quantity (keine bestätigte Aggregationsregel)',
+        rawRepresentation: quantities,
+        bridgeRepresentation: raw.MENGE,
+        displayRepresentation: mapped.quantity,
+        fidelityStatus: 'unknown',
+        assessmentNote: 'Mehrere positionsbezogene Mengen wurden beobachtet. Eine Summe als Bridge-MENGE wird nicht dargestellt oder angewendet, solange die Regel unbestätigt ist.',
+      },
+      {
+        fieldAddress: `${root}#OrderDate`,
+        sourcePath: 'order.OrderDate',
+        rawRepresentation: order.OrderDate,
+        bridgeRepresentation: raw.DATUM,
+        displayRepresentation: mapped.orderDate,
+        fidelityStatus: 'changed',
+        assessmentNote: 'Das Quelldatum wird für den Bridge-Contract im deutschen Datumsformat dargestellt; der ursprüngliche ISO-Wert bleibt im Snapshot erhalten.',
+      },
+    ];
+  }
+
+  return [
+    ['KUNDEN_NR', 'customerId'],
+    ['AUFTRAGS_NR', 'orderId'],
+    ['STATUS', 'status'],
+    ['MENGE', 'quantity'],
+    ['DATUM', 'orderDate'],
+  ].map(([field, target]) => {
+    const rawValue = representationValue(raw[field]);
+    const displayedValue = representationValue(mapped[target]);
+    const preserved = JSON.stringify(rawValue) === JSON.stringify(displayedValue);
+    return {
+      fieldAddress: `${root}#${field}`,
+      sourcePath: field,
+      rawRepresentation: rawValue,
+      bridgeRepresentation: rawValue,
+      displayRepresentation: displayedValue,
+      fidelityStatus: preserved ? 'preserved' : 'unknown',
+      assessmentNote: preserved
+        ? 'Manuell eingegebener Wert wurde unverändert in die Fallansicht übernommen.'
+        : 'Für diesen manuellen Wert ist keine separate Darstellungsregel belegt.',
+    };
+  });
+}
+
 export default async function handler(req: any, res: any) {
   try {
     if (req.method !== 'POST') {
@@ -169,6 +271,38 @@ export default async function handler(req: any, res: any) {
       }).select('*').single(),
     );
     if (!record) throw new Error('Case record was not created');
+
+    const representationEvidence = buildRepresentationEvidence({
+      sourceMode,
+      sourcePayload,
+      raw,
+      mapped: evaluation.mapped,
+      sourceReference,
+    });
+    const { error: representationError } = await supabase.from('representation_evidence').insert(
+      representationEvidence.map((item) => ({
+        ingestion_log_id: ingestion.id,
+        record_id: record.id,
+        field_address: item.fieldAddress,
+        source_path: item.sourcePath,
+        raw_representation: representationValue(item.rawRepresentation),
+        bridge_representation: representationValue(item.bridgeRepresentation),
+        display_representation: representationValue(item.displayRepresentation),
+        representation_format: 'json',
+        fidelity_status: item.fidelityStatus,
+        assessment_note: item.assessmentNote,
+        evidence_hash: sourceHash({
+          ingestionId: ingestion.id,
+          fieldAddress: item.fieldAddress,
+          rawRepresentation: representationValue(item.rawRepresentation),
+          bridgeRepresentation: representationValue(item.bridgeRepresentation),
+          displayRepresentation: representationValue(item.displayRepresentation),
+          fidelityStatus: item.fidelityStatus,
+        }),
+        observed_at: capturedAt,
+      })),
+    );
+    if (representationError) throw representationError;
 
     const blocking = evaluation.constraints.filter((item: any) => item.severity === 'blocking' && !item.passed);
     const warning = evaluation.constraints.filter((item: any) => item.severity === 'warning' && !item.passed);

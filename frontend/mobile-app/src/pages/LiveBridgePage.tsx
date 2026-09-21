@@ -40,6 +40,19 @@ function BridgeFieldTable({ source, target }: { source: Record<string, unknown>;
   );
 }
 
+function representationLabel(value: unknown) {
+  const status = String(value ?? 'unknown').toLowerCase();
+  if (status === 'preserved') return 'ERHALTEN';
+  if (status === 'changed') return 'DARGESTELLT';
+  if (status === 'lossy') return 'BESCHÄDIGT';
+  return 'UNBEKANNT';
+}
+
+function representationValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return '—';
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
 export default function LiveBridgePage() {
   const [, params] = useRoute("/bridge/:caseId");
   const [, setLocation] = useLocation();
@@ -122,6 +135,7 @@ export default function LiveBridgePage() {
   const gate = data.release.gate;
   const addressable = isRecord(extracted?.addressable_snapshot) ? extracted.addressable_snapshot : null;
   const candidates = Array.isArray(addressable?.candidates) ? addressable.candidates.filter(isRecord) : [];
+  const representationEvidence = Array.isArray(data.representation?.evidence) ? data.representation.evidence.filter(isRecord) : [];
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -131,6 +145,8 @@ export default function LiveBridgePage() {
         <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aktueller Zustand</p><p className="mt-1 text-xl font-semibold">{label(release ?? data.status)}</p></div><div className="text-right text-xs text-muted-foreground"><p>{data.conflict.conflicts.length} Konflikt{data.conflict.conflicts.length === 1 ? "" : "e"}</p><p>Validation: {label(authoritative?.status)}</p></div></div>{gate && <p className="mt-3 text-sm leading-relaxed">{gate.reason}</p>}</section>
 
         <section className="mb-4 space-y-3 rounded-2xl border bg-card p-4 shadow-sm"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Übersetzung</p><h2 className="mt-1 text-lg font-semibold">Was tatsächlich verarbeitet wurde</h2></div>{Object.keys(mappedPayload).length > 0 ? <BridgeFieldTable source={bridgeInput} target={mappedPayload} /> : <div className="grid gap-3 sm:grid-cols-2"><div><p className="mb-2 text-xs font-semibold text-muted-foreground">SOURCE</p><JsonValue value={rawPayload} /></div><div><p className="mb-2 text-xs font-semibold text-muted-foreground">ÜBERSETZUNG</p><JsonValue value={extracted ?? data.semantic.metadata} /></div></div>}{Boolean(ingestion?.source_hash) && <p className="break-all text-[11px] text-muted-foreground">Source hash: {String(ingestion?.source_hash)}</p>}</section>
+
+        {representationEvidence.length > 0 && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Representation Evidence · gespeicherter Snapshot</p><h2 className="mt-1 text-lg font-semibold">Ist der Wert vollständig erhalten?</h2><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Quelle, Bridge und Anzeige bleiben getrennt. Eine abweichende Darstellung erzeugt keinen Bedeutungsentscheid.</p><div className="mt-3 space-y-3">{representationEvidence.map((evidence) => <div key={String(evidence.id)} className="rounded-xl border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong className="break-all">{String(evidence.field_address)}</strong><span className="shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold">{representationLabel(evidence.fidelity_status)}</span></div><div className="mt-3 grid grid-cols-3 gap-2 border-y py-2"><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Quelle</p><p className="mt-1 break-words">{representationValue(evidence.raw_representation)}</p></div><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Bridge</p><p className="mt-1 break-words">{representationValue(evidence.bridge_representation)}</p></div><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Anzeige</p><p className="mt-1 break-words">{representationValue(evidence.display_representation)}</p></div></div><p className="mt-2 leading-relaxed text-muted-foreground">{String(evidence.assessment_note)}</p></div>)}</div></section>}
 
         {addressable && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address Layer · gespeicherter Snapshot</p><h2 className="mt-1 text-lg font-semibold">{String(addressable.rootAddress ?? 'Adressraum')}</h2><p className="mt-1 text-xs text-muted-foreground">Kandidaten und ihre erste Zustandshistorie wurden mit diesem Fall gespeichert.</p><div className="mt-3 space-y-3">{candidates.map((candidate) => <div key={String(candidate.id)} className="rounded-xl border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong className="break-all font-mono">{String(candidate.id)}</strong><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{String(candidate.state).toUpperCase()}</span></div><p className="mt-2">{String(candidate.sourceAddress)} → {String(candidate.proposedValue)}</p><p className="mt-1 text-muted-foreground">{String(candidate.evidence)}</p><p className="mt-2 text-muted-foreground">Impact: {Array.isArray(candidate.impactAddresses) ? candidate.impactAddresses.join(', ') : '—'}</p><details className="mt-2"><summary className="cursor-pointer font-medium">Zustandshistorie</summary><JsonValue value={candidate.stateHistory} /></details></div>)}</div></section>}
 

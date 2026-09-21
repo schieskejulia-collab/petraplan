@@ -129,6 +129,13 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
   const runtime = await rows<any>(
     supabase.from('runtime_logs').select('*').eq('record_id', recordId).order('created_at'),
   );
+  const representationEvidence = await rows<any>(
+    supabase
+      .from('representation_evidence')
+      .select('*')
+      .eq('record_id', recordId)
+      .order('observed_at'),
+  );
   const anchors = await rows<any>(
     supabase.from('conflicts').select('*').eq('record_id', recordId).order('created_at'),
   );
@@ -266,6 +273,9 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     },
     runtime: {
       observations: runtime,
+    },
+    representation: {
+      evidence: representationEvidence,
     },
     resolution: {
       records: resolutions,

@@ -94,6 +94,7 @@ export interface CaseTrace {
   };
   execution: { operations: Array<Record<string, unknown>> };
   runtime: { observations: Array<Record<string, unknown>> };
+  representation: { evidence: Array<Record<string, unknown>> };
   resolution: {
     records: Array<Record<string, unknown>>;
     logs: Array<Record<string, unknown>>;
