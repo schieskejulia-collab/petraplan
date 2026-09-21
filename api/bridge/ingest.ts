@@ -103,7 +103,7 @@ function buildRepresentationEvidence(input: {
         bridgeRepresentation: raw.DATUM,
         displayRepresentation: mapped.orderDate,
         fidelityStatus: 'changed',
-        assessmentNote: 'Das Quelldatum wird für den Bridge-Contract im deutschen Datumsformat dargestellt; der ursprüngliche ISO-Wert bleibt im Snapshot erhalten.',
+        assessmentNote: 'Der Quellzeitstempel wird für den Bridge-Contract als ISO-Datum ohne Uhrzeit dargestellt; der ursprüngliche Wert bleibt im Snapshot erhalten.',
       },
     ];
   }
