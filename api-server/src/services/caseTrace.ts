@@ -157,15 +157,24 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     ...addressCandidates.map((item) => item.source_address_id),
     ...addressLinks.map((item) => item.address_id),
   ])];
-  const addresses = addressIds.length
-    ? await rows<any>(
-        supabase
-          .from('address_registry')
-          .select('*')
-          .in('id', addressIds)
-          .order('address'),
-      )
-    : [];
+  const addressesForRecord = await rows<any>(
+    supabase
+      .from('address_registry')
+      .select('*')
+      .eq('first_record_id', recordId)
+      .order('address'),
+  );
+  const addresses = addressesForRecord.length
+    ? addressesForRecord
+    : addressIds.length
+      ? await rows<any>(
+          supabase
+            .from('address_registry')
+            .select('*')
+            .in('id', addressIds)
+            .order('address'),
+        )
+      : [];
   const candidateHistory = addressCandidateIds.length
     ? await rows<any>(
         supabase

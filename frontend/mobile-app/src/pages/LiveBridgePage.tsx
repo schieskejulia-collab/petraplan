@@ -14,6 +14,9 @@ function label(value: unknown) {
   if (raw === "blocked") return "BLOCKIERT";
   if (raw === "revoked") return "WIDERRUFEN";
   if (raw === "exception") return "AUSNAHME";
+  if (raw === "candidate") return "KANDIDAT";
+  if (raw === "confirmed") return "BESTÄTIGT";
+  if (raw === "rejected") return "ABGELEHNT";
   if (["passed", "pass", "valid", "validated", "approved", "success"].includes(raw)) return "BESTANDEN";
   if (raw === "failed") return "FEHLGESCHLAGEN";
   return raw.toUpperCase();
