@@ -1,5 +1,3 @@
-import { listPinnedNorthwindOrders } from '../../api-server/src/services/pinnedNorthwind.js';
-
 /**
  * The browser and the detail view use the same operational adapter. Keeping
  * the list endpoint on that path prevents the overview from showing a stale
@@ -7,6 +5,11 @@ import { listPinnedNorthwindOrders } from '../../api-server/src/services/pinnedN
  */
 export default async function handler(req: any, res: any) {
   try {
+    // Load the server-only adapter inside the guarded path. If Vercel fails to
+    // initialize a native dependency or resolve a bundled module, the browser
+    // still receives a useful JSON error instead of a generic platform 500.
+    const { listPinnedNorthwindOrders } = await import('../../api-server/src/services/pinnedNorthwind.js');
+
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
       return res.status(405).json({ error: 'Method not allowed' });
@@ -21,7 +24,8 @@ export default async function handler(req: any, res: any) {
 
     return res.status(200).json(result);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown Northwind browser error';
     console.error('PetraPlan Northwind browser failed:', error);
-    return res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown Northwind browser error' });
+    return res.status(500).json({ error: `Northwind API initialization failed: ${message}` });
   }
 }
