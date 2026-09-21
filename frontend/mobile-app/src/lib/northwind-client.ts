@@ -1,3 +1,4 @@
+// Structure evidence and value evidence are intentionally independent dimensions.
 export type EvidenceStatus = 'CONFIRMED' | 'CONTRADICTED' | 'UNPROVEN';
 
 export type StructureEvidenceView = {
