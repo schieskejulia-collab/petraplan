@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { evaluateRecordWithConflictTruth } from "../.bridge-test-build/bridge-conflict-truth.js";
-import { adaptNorthwindOrderOperational } from "../.bridge-test-build/bridge-northwind-adapter.js";
+import { adaptNorthwindOrder } from "../.bridge-test-build/bridge-northwind-adapter.js";
 
 const envelope = {
   source: "Northwind sample dataset",
@@ -21,37 +21,42 @@ const envelope = {
   ],
 };
 
-test("operational Northwind adapter translates a multi-position order", () => {
+test("multi-position Northwind order preserves unconfirmed semantics as blockers", () => {
   const before = structuredClone(envelope);
-  const adaptation = adaptNorthwindOrderOperational(envelope);
+  const adaptation = adaptNorthwindOrder(envelope);
 
   assert.deepEqual(envelope, before);
-  assert.equal(adaptation.raw.STATUS, "GESCHLOSSEN");
-  assert.equal(adaptation.raw.MENGE, "27");
-  assert.equal(adaptation.evidence.statusSource, "order.ShippedDate");
-  assert.equal(adaptation.evidence.quantitySource, "orderDetails[].Quantity (sum)");
-  assert.equal(adaptation.evidence.values.status.status, "CONFIRMED");
-  assert.equal(adaptation.evidence.values.quantity.status, "CONFIRMED");
-  assert.deepEqual(adaptation.issues, []);
+  assert.equal(adaptation.raw.STATUS, "");
+  assert.equal(adaptation.raw.MENGE, "");
+  assert.equal(adaptation.evidence.statusSource, "unmapped");
+  assert.equal(adaptation.evidence.quantitySource, "unmapped");
+  assert.equal(adaptation.evidence.values.status.status, "UNPROVEN");
+  assert.equal(adaptation.evidence.values.quantity.status, "UNPROVEN");
+  assert.deepEqual(adaptation.issues.map(({ code, field }) => ({ code, field })), [
+    { code: "NO_CONFIRMED_SEMANTIC_MAPPING", field: "MENGE" },
+    { code: "NO_CONFIRMED_SEMANTIC_MAPPING", field: "STATUS" },
+  ]);
 
   const evaluation = evaluateRecordWithConflictTruth(
     adaptation.raw,
     "2026-09-21T12:00:00.000Z",
     { source: "northwind", transport: "file", interactionMode: "one_way", contract: "order-v1" },
     {},
-    [],
+    adaptation.issues,
   );
 
-  assert.equal(evaluation.mapped.status, "closed");
-  assert.equal(evaluation.mapped.quantity, 27);
-  assert.equal(evaluation.release.releaseAllowed, true);
-  assert.equal(evaluation.state.state, "VALID");
+  assert.equal(evaluation.mapped.status, null);
+  assert.equal(evaluation.mapped.quantity, null);
+  assert.equal(evaluation.release.releaseAllowed, false);
+  // The target contract requires these fields, so the unresolved semantics
+  // also keep the record fail-closed and ineligible for release.
+  assert.equal(evaluation.state.state, "BLOCKED");
 });
 
-test("operational Northwind adapter maps an unshipped order to OFFEN", () => {
+test("ShippedDate remains a source fact, not an assumed status", () => {
   const unshipped = structuredClone(envelope);
   unshipped.order.ShippedDate = null;
-  const adaptation = adaptNorthwindOrderOperational(unshipped);
-  assert.equal(adaptation.raw.STATUS, "OFFEN");
-  assert.equal(adaptation.evidence.values.status.status, "CONFIRMED");
+  const adaptation = adaptNorthwindOrder(unshipped);
+  assert.equal(adaptation.raw.STATUS, "");
+  assert.equal(adaptation.evidence.values.status.status, "UNPROVEN");
 });
