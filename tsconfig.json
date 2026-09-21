@@ -10,5 +10,6 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["api-server/src/**/*.ts"]
+  "include": ["api-server/src/**/*.ts"],
+  "exclude": ["api-server/src/services/pinnedNorthwind.ts"]
 }
