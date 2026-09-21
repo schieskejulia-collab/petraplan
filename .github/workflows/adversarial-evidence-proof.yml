@@ -1,0 +1,30 @@
+name: Adversarial Evidence Proof
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  adversarial-evidence-proof:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend/mobile-app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - name: Compile evidence classifier
+        run: npx tsc src/lib/bridge-evidence.ts --target ES2022 --module ES2022 --moduleResolution bundler --skipLibCheck --outDir .bridge-test-build
+      - name: Prove structure and value evidence stay independent
+        run: node tests/adversarial-evidence-proof.test.mjs
+      - name: Upload proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: adversarial-evidence-proof
+          path: frontend/mobile-app/adversarial-evidence-proof.json
+          if-no-files-found: error

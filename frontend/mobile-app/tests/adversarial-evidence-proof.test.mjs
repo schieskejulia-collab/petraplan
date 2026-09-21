@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
 
 import {
   classifyStructureEvidence,
   classifyValueEvidence,
-} from '../.bridge-evidence-build/bridge-evidence.js';
+} from '../.bridge-test-build/bridge-evidence.js';
 
 const documentedNorthwindRelation = classifyStructureEvidence({
   subject: 'order.CustomerID',
@@ -53,7 +54,7 @@ const confirmedStatus = classifyValueEvidence({
 assert.equal(confirmedStatus.status, 'CONFIRMED');
 assert.equal(confirmedStatus.canonicalValue, 'open');
 
-// The core invariant: structural confirmation must never manufacture value meaning.
+// Core invariant: structural confirmation must never manufacture value meaning.
 assert.equal(documentedNorthwindRelation.status, 'CONFIRMED');
 assert.equal(unprovenStatus.status, 'UNPROVEN');
 
@@ -69,4 +70,5 @@ const proof = {
   },
 };
 
+await writeFile('adversarial-evidence-proof.json', `${JSON.stringify(proof, null, 2)}\n`, 'utf8');
 console.log(JSON.stringify(proof, null, 2));

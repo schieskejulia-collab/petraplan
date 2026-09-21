@@ -1,5 +1,11 @@
 import type { RawRecord } from "./bridge-pipeline";
 import {
+  classifyStructureEvidence,
+  classifyValueEvidence,
+  type StructureEvidenceResult,
+  type ValueEvidenceResult,
+} from "./bridge-evidence.js";
+import {
   assessSchemaDrift,
   type SchemaDriftAssessment,
   type SchemaPathRule,
@@ -70,6 +76,13 @@ export type NorthwindAdaptation = {
     quantitySource: "orderDetails[0].Quantity" | "unmapped";
     dateSource: "order.OrderDate";
     statusSource: "unmapped";
+    structure: {
+      customerRelation: StructureEvidenceResult;
+    };
+    values: {
+      status: ValueEvidenceResult;
+      quantity: ValueEvidenceResult;
+    };
   };
 };
 
@@ -121,6 +134,9 @@ function isoDateOnly(value: string | null): string {
  * - MENGE is mapped only when exactly one Order_Detail exists. With multiple
  *   product rows, summing quantities would invent an unconfirmed meaning for
  *   the bridge's single MENGE field, so the value stays empty and is blocked.
+ * - Structural evidence and value evidence remain independent. A confirmed
+ *   order.CustomerID -> customer.CustomerID relation does not create STATUS or
+ *   MENGE meaning by itself.
  *
  * The original envelope is preserved as sourceSnapshot and is never mutated.
  */
@@ -128,7 +144,16 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
   const sourceSnapshot = structuredClone(envelope);
   const issues: NorthwindAdaptationIssue[] = [];
 
-  if (envelope.customer.CustomerID !== envelope.order.CustomerID) {
+  const customerRelation = classifyStructureEvidence({
+    subject: "order.CustomerID",
+    relatedTo: "customer.CustomerID",
+    documentedRelation: true,
+    subjectValue: envelope.order.CustomerID,
+    relatedValue: envelope.customer.CustomerID,
+    sourceReference: "Northwind adapter relation contract + observed matching customer row",
+  });
+
+  if (customerRelation.status === "CONTRADICTED") {
     issues.push({
       field: "KUNDEN_NR",
       code: "CUSTOMER_MISMATCH",
@@ -139,6 +164,7 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
 
   let quantity = "";
   let quantitySource: NorthwindAdaptation["evidence"]["quantitySource"] = "unmapped";
+  let quantityValueEvidence: ValueEvidenceResult;
 
   if (envelope.orderDetails.length === 0) {
     issues.push({
@@ -147,15 +173,33 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       message: "Der Auftrag enthält keine Order_Details; eine Menge kann nicht bestätigt werden.",
       blocking: true,
     });
+    quantityValueEvidence = classifyValueEvidence({
+      field: "MENGE",
+      sourceValue: null,
+      confirmedMapping: null,
+      sourceReference: null,
+    });
   } else if (envelope.orderDetails.length === 1) {
     quantity = String(envelope.orderDetails[0].Quantity);
     quantitySource = "orderDetails[0].Quantity";
+    quantityValueEvidence = classifyValueEvidence({
+      field: "MENGE",
+      sourceValue: envelope.orderDetails[0].Quantity,
+      confirmedMapping: envelope.orderDetails[0].Quantity,
+      sourceReference: "Northwind adapter rule: exactly one Order_Detail.Quantity maps directly to Bridge MENGE",
+    });
   } else {
     issues.push({
       field: "MENGE",
       code: "NO_CONFIRMED_SEMANTIC_MAPPING",
       message: "Mehrere Order_Details enthalten positionsbezogene Mengen; eine Summierung zu Bridge-MENGE ist fachlich nicht bestätigt.",
       blocking: true,
+    });
+    quantityValueEvidence = classifyValueEvidence({
+      field: "MENGE",
+      sourceValue: envelope.orderDetails.map(({ Quantity }) => Quantity),
+      confirmedMapping: null,
+      sourceReference: null,
     });
   }
 
@@ -164,6 +208,13 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
     code: "NO_CONFIRMED_SEMANTIC_MAPPING",
     message: "Northwind Order enthält keinen bestätigten Gegenpart zum Bridge-Statusmodell; STATUS bleibt ungefüllt.",
     blocking: true,
+  });
+
+  const statusValueEvidence = classifyValueEvidence({
+    field: "STATUS",
+    sourceValue: null,
+    confirmedMapping: null,
+    sourceReference: null,
   });
 
   return {
@@ -182,6 +233,13 @@ export function adaptNorthwindOrder(envelope: NorthwindOrderEnvelope): Northwind
       quantitySource,
       dateSource: "order.OrderDate",
       statusSource: "unmapped",
+      structure: {
+        customerRelation,
+      },
+      values: {
+        status: statusValueEvidence,
+        quantity: quantityValueEvidence,
+      },
     },
   };
 }
