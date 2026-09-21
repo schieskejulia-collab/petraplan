@@ -36,6 +36,52 @@ function StateBadge({ state }: { state: string }) {
   return <span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{label}</span>;
 }
 
+function EvidenceBadge({ status }: { status: string }) {
+  return <span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{status}</span>;
+}
+
+function NorthwindEvidence({ selected }: { selected: NorthwindDetail }) {
+  const evidence = selected.adaptation?.evidence;
+  if (!evidence) return null;
+  const relation = evidence.structure.customerRelation;
+  const statusValue = evidence.values.status;
+  const quantityValue = evidence.values.quantity;
+
+  return (
+    <section className="rounded-2xl border bg-card p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evidence</p>
+      <h2 className="mt-1 text-lg font-semibold">Beziehung und Bedeutung getrennt</h2>
+      <p className="mt-1 text-xs text-muted-foreground">Eine bestätigte Beziehung erzeugt keine Bedeutung für andere Werte.</p>
+      <div className="mt-3 space-y-2">
+        <div className="rounded-xl border p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Struktur-Evidenz</p><strong className="text-sm">Order.CustomerID → Customer.CustomerID</strong></div>
+            <EvidenceBadge status={relation.status} />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{relation.reason}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">Beleg: {relation.sourceReference ?? 'kein bestätigter Strukturbeleg'}</p>
+        </div>
+        <div className="rounded-xl border p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Wert-Evidenz</p><strong className="text-sm">STATUS</strong></div>
+            <EvidenceBadge status={statusValue.status} />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{statusValue.reason}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">Zielwert: {String(statusValue.canonicalValue ?? '—')}</p>
+        </div>
+        <div className="rounded-xl border p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div><p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Wert-Evidenz</p><strong className="text-sm">MENGE</strong></div>
+            <EvidenceBadge status={quantityValue.status} />
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">{quantityValue.reason}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">Quelle: {Array.isArray(quantityValue.sourceValue) ? quantityValue.sourceValue.join(' | ') : String(quantityValue.sourceValue ?? '—')} · Ziel: {String(quantityValue.canonicalValue ?? '—')}</p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function TranslatorPage() {
   const [, setLocation] = useLocation();
   const [mode, setMode] = useState<'northwind' | 'manual'>('northwind');
@@ -182,6 +228,7 @@ export default function TranslatorPage() {
             <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aktueller Mass Proof</p><h2 className="mt-1 text-xl font-semibold">830 Northwind-Aufträge</h2></div>{northwind && <StateBadge state="READ ONLY SOURCE" />}</div>
             {northwind && <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg border p-2"><strong className="block text-base">{northwind.summary.orders}</strong>Orders</div><div className="rounded-lg border p-2"><strong className="block text-base">{northwind.summary.orderDetails}</strong>Details</div><div className="rounded-lg border p-2"><strong className="block text-base">{northwind.summary.customers}</strong>Kunden</div></div>}
             {northwind && <p className="mt-3 text-xs text-muted-foreground">{northwind.summary.stateCounts.BLOCKED ?? 0} BLOCKED · {northwind.summary.stateCounts.NEEDS_CONFIRMATION ?? 0} NEEDS_CONFIRMATION · {northwind.summary.sourceSchemaAccepted} Source-Schema akzeptiert</p>}
+            {northwind && <div className="mt-3 rounded-xl border p-3 text-xs"><p className="font-semibold">Evidence-Split im gesamten 830er Lauf</p><p className="mt-1 text-muted-foreground">Struktur bestätigt: {northwind.summary.evidenceCounts.structure.CONFIRMED} · STATUS belegt: {northwind.summary.evidenceCounts.statusValue.CONFIRMED} · STATUS unbelegt: {northwind.summary.evidenceCounts.statusValue.UNPROVEN} · MENGE belegt: {northwind.summary.evidenceCounts.quantityValue.CONFIRMED} · MENGE unbelegt: {northwind.summary.evidenceCounts.quantityValue.UNPROVEN}</p></div>}
           </section>
 
           <section className="rounded-2xl border bg-card p-4 shadow-sm">
@@ -195,7 +242,7 @@ export default function TranslatorPage() {
             {northwindLoading && <p className="mt-3 text-sm text-muted-foreground">Lade aktuelle Testdaten…</p>}
             {northwindError && <p className="mt-3 text-sm">{northwindError}</p>}
             {northwind && <div className="mt-3 divide-y overflow-hidden rounded-xl border">
-              {northwind.items.map((item) => <button key={item.orderId} className="grid w-full grid-cols-[1fr_auto] gap-3 px-3 py-3 text-left" onClick={() => void chooseOrder(item)}><div><strong className="text-sm">{item.recordId} · {item.customerId}</strong><p className="mt-1 text-xs text-muted-foreground">{item.companyName} · {item.detailCount} Detail{item.detailCount === 1 ? '' : 's'}</p></div><div className="text-right"><StateBadge state={item.bridgeState} /><p className="mt-1 text-[10px] text-muted-foreground">{item.blockingIssues} Blocker</p></div></button>)}
+              {northwind.items.map((item) => <button key={item.orderId} className="grid w-full grid-cols-[1fr_auto] gap-3 px-3 py-3 text-left" onClick={() => void chooseOrder(item)}><div><strong className="text-sm">{item.recordId} · {item.customerId}</strong><p className="mt-1 text-xs text-muted-foreground">{item.companyName} · {item.detailCount} Detail{item.detailCount === 1 ? '' : 's'}</p><p className="mt-1 text-[10px] text-muted-foreground">Struktur {item.evidence.structure.customerRelation.status} · STATUS {item.evidence.values.status.status} · MENGE {item.evidence.values.quantity.status}</p></div><div className="text-right"><StateBadge state={item.bridgeState} /><p className="mt-1 text-[10px] text-muted-foreground">{item.blockingIssues} Blocker</p></div></button>)}
             </div>}
             {northwind && <div className="mt-3 flex items-center justify-between text-xs"><button className="rounded-lg border px-3 py-2 disabled:opacity-40" disabled={offset === 0} onClick={() => paginate(offset - 25)}>← zurück</button><span>{northwind.total ? `${offset + 1}–${Math.min(offset + 25, northwind.total)} von ${northwind.total}` : '0 Treffer'}</span><button className="rounded-lg border px-3 py-2 disabled:opacity-40" disabled={offset + 25 >= northwind.total} onClick={() => paginate(offset + 25)}>weiter →</button></div>}
           </section>
@@ -208,6 +255,8 @@ export default function TranslatorPage() {
             </section>
 
             <section className="rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Bridge → Ziel</p><h2 className="mt-1 mb-3 text-lg font-semibold">Tatsächliche Zuordnung</h2><MappingTable source={selectedRaw} target={selectedEvaluation.mapped} /><p className="mt-3 text-xs text-muted-foreground">STATUS bleibt leer, weil Northwind keinen bestätigten Gegenpart besitzt. MENGE wird nur bei genau einem Detail direkt übernommen.</p></section>
+
+            <NorthwindEvidence selected={selected} />
 
             <section className="rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Warum steht der Fall hier?</h2><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{selectedBlocking.length} Blocker</span></div><div className="mt-3 space-y-2">{selectedBlocking.map((item: any) => <div key={item.id} className="rounded-xl border p-3"><div className="flex justify-between gap-3"><strong className="text-sm">{item.label}</strong><span className="text-[10px] font-semibold">BLOCKIERT</span></div><p className="mt-1 text-xs text-muted-foreground">{item.evidence}</p></div>)}</div></section>
 
