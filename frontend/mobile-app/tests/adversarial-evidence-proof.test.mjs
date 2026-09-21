@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { writeFile } from 'node:fs/promises';
 
 import {
   classifyStructureEvidence,
@@ -57,7 +58,7 @@ assert.equal(confirmedStatus.canonicalValue, 'open');
 assert.equal(documentedNorthwindRelation.status, 'CONFIRMED');
 assert.equal(unprovenStatus.status, 'UNPROVEN');
 
-console.log(JSON.stringify({
+const proof = {
   proof: 'adversarial-evidence-proof-v1',
   invariant: 'connected != same meaning',
   cases: {
@@ -67,4 +68,7 @@ console.log(JSON.stringify({
     unprovenStatusMeaning: unprovenStatus,
     confirmedStatusMeaning: confirmedStatus,
   },
-}, null, 2));
+};
+
+await writeFile('adversarial-evidence-proof.json', `${JSON.stringify(proof, null, 2)}\n`, 'utf8');
+console.log(JSON.stringify(proof, null, 2));
