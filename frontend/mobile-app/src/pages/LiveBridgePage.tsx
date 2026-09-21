@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { milaApi, type CaseTrace } from "@/api/connector";
-import { bridgeAuth, currentAccessToken } from "@/lib/bridge-auth";
+import { bridgeAuth, bridgeAuthRedirectUrl, currentAccessToken } from "@/lib/bridge-auth";
 import { getBridgeDecisionAccess, submitBridgeDecision, type BridgeDecisionAccess, type BridgeDecisionAction } from "@/lib/bridge-decision-client";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -81,7 +81,7 @@ export default function LiveBridgePage() {
     if (!normalized) return setAuthMessage("E-Mail-Adresse eingeben.");
     const { error: authError } = await bridgeAuth.auth.signInWithOtp({
       email: normalized,
-      options: { emailRedirectTo: window.location.href.split("#")[0] },
+      options: { emailRedirectTo: bridgeAuthRedirectUrl() },
     });
     setAuthMessage(authError ? authError.message : "Anmeldelink wurde gesendet. Öffne ihn auf diesem Gerät.");
   };

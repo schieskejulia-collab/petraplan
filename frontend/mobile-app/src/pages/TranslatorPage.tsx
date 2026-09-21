@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
 import { evaluateRecord, parseRawRecord, type RawRecord } from '@/lib/bridge-pipeline';
-import { bridgeAuth, currentAccessToken } from '@/lib/bridge-auth';
+import { bridgeAuth, bridgeAuthRedirectUrl, currentAccessToken } from '@/lib/bridge-auth';
 import { persistPinnedNorthwindCase, persistTranslatorCase } from '@/lib/bridge-ingest-client';
 import { getNorthwindOrder, listNorthwindOrders, type NorthwindDetail, type NorthwindListResponse, type NorthwindSummary } from '@/lib/northwind-client';
 
@@ -139,7 +139,7 @@ export default function TranslatorPage() {
   const sendMagicLink = async () => {
     const normalized = email.trim();
     if (!normalized) return setAuthMessage('E-Mail-Adresse eingeben.');
-    const { error } = await bridgeAuth.auth.signInWithOtp({ email: normalized, options: { emailRedirectTo: window.location.href.split('#')[0] } });
+    const { error } = await bridgeAuth.auth.signInWithOtp({ email: normalized, options: { emailRedirectTo: bridgeAuthRedirectUrl() } });
     setAuthMessage(error ? error.message : 'Anmeldelink wurde gesendet. Öffne ihn auf diesem Gerät.');
   };
 
