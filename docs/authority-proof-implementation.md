@@ -1,0 +1,1 @@
+Implementation: bridge-authority-evidence.ts applies only scoped STATUS evidence, preserves raw Source Truth, keeps unresolved MENGE blocking, records release basis, and computes revocation impact.
