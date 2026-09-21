@@ -2,6 +2,7 @@ import { Redirect, Route, Switch } from "wouter";
 import CasesPage from "./pages/CasesPage";
 import CaseDetailPage from "./pages/CaseDetailPage";
 import LiveBridgePage from "./pages/LiveBridgePage";
+import TranslatorPage from "./pages/TranslatorPage";
 
 export default function App() {
   return (
@@ -9,8 +10,9 @@ export default function App() {
       <Route path="/" component={() => <Redirect to="/cases" />} />
       <Route path="/cases" component={CasesPage} />
       <Route path="/cases/:caseId" component={CaseDetailPage} />
+      <Route path="/translator" component={TranslatorPage} />
       <Route path="/bridge/:caseId" component={LiveBridgePage} />
-      <Route path="/bridge" component={() => <Redirect to="/cases" />} />
+      <Route path="/bridge" component={() => <Redirect to="/translator" />} />
       <Route path="/trace" component={() => <Redirect to="/cases" />} />
       <Route path="/governance-proof" component={() => <Redirect to="/cases" />} />
       <Route component={() => <Redirect to="/cases" />} />
