@@ -7,7 +7,7 @@ const LIVE_RULE = 'PetraPlan live bridge review';
 const LIVE_STRUCTURE = 'PetraPlan live bridge decision';
 const CRITERIA = ['source_truth_checked', 'translation_trace_checked', 'blockers_resolved'] as const;
 
-type Action = 'approve_review' | 'reject_review' | 'release' | 'revoke';
+type Action = 'confirm_candidate' | 'reject_candidate' | 'approve_review' | 'reject_review' | 'release' | 'revoke';
 
 type Role = {
   user_id: string;
@@ -78,13 +78,29 @@ export default async function handler(req: any, res: any) {
     const authoritative: any = trace.validation.authoritative;
     const review: any = trace.review.current;
     const releaseStatus = trace.release.effective_status;
+    const unresolvedCandidates = await many<any>(
+      supabase
+        .from('conversion_candidates')
+        .select('id')
+        .eq('record_id', recordId)
+        .eq('state', 'candidate'),
+    );
+    const unresolvedCandidateCount = unresolvedCandidates.length;
+    const validationPassing = Boolean(authoritative?.id && isPassing(authoritative.status));
+    const reviewBlockers = [
+      ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
+      ...(unresolvedCandidateCount > 0 ? [`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount === 1 ? ' ist' : 'en sind'} noch offen.`] : []),
+    ];
     const access = {
       role: role.role_name,
       can_review: role.can_review,
       can_release: role.can_release,
       can_revoke: role.can_revoke,
-      review_ready: Boolean(authoritative),
-      release_ready: Boolean(role.can_release && authoritative && isPassing(authoritative.status) && review?.complete && String(review?.decision ?? '').toLowerCase() === 'approved'),
+      review_ready: Boolean(validationPassing && unresolvedCandidateCount === 0),
+      review_rejection_ready: Boolean(authoritative?.id),
+      unresolved_candidate_count: unresolvedCandidateCount,
+      review_blockers: reviewBlockers,
+      release_ready: Boolean(role.can_release && validationPassing && unresolvedCandidateCount === 0 && review?.complete && String(review?.decision ?? '').toLowerCase() === 'approved'),
       revoke_ready: Boolean(role.can_revoke && trace.release.certificates.length > 0 && releaseStatus !== 'revoked'),
     };
 
@@ -92,15 +108,70 @@ export default async function handler(req: any, res: any) {
 
     const action = String(req.body?.action ?? '') as Action;
     const reason = String(req.body?.reason ?? '').trim();
-    if (!['approve_review', 'reject_review', 'release', 'revoke'].includes(action)) {
+    if (!['confirm_candidate', 'reject_candidate', 'approve_review', 'reject_review', 'release', 'revoke'].includes(action)) {
       return res.status(400).json({ error: 'Unsupported action' });
     }
     if (reason.length < 3) return res.status(400).json({ error: 'A reason is required' });
+
+    if (action === 'confirm_candidate' || action === 'reject_candidate') {
+      if (!role.can_review) return res.status(403).json({ error: 'Review permission required' });
+      const candidateId = String(req.body?.candidate_id ?? '');
+      if (!UUID_RE.test(candidateId)) return res.status(400).json({ error: 'candidate_id must be a UUID' });
+
+      const candidate = await one<any>(
+        supabase
+          .from('conversion_candidates')
+          .select('id, record_id, snapshot_id, state, source_path')
+          .eq('id', candidateId)
+          .eq('record_id', recordId)
+          .maybeSingle(),
+      );
+      if (!candidate) return res.status(404).json({ error: 'Candidate does not belong to this case' });
+      if (candidate.state !== 'candidate') return res.status(409).json({ error: 'Candidate has already been decided' });
+
+      const nextState = action === 'confirm_candidate' ? 'confirmed' : 'rejected';
+      const changedAt = new Date().toISOString();
+      const decided = await one<any>(
+        supabase
+          .from('conversion_candidates')
+          .update({ state: nextState })
+          .eq('id', candidateId)
+          .eq('record_id', recordId)
+          .eq('state', 'candidate')
+          .select('id')
+          .maybeSingle(),
+      );
+      if (!decided) return res.status(409).json({ error: 'Candidate has already been decided' });
+
+      const evidenceReference = String(req.body?.evidence_reference ?? '').trim() || candidate.source_path;
+      await one<any>(
+        supabase.from('candidate_state_history').insert({
+          candidate_id: candidate.id,
+          snapshot_id: candidate.snapshot_id,
+          state: nextState,
+          changed_by: user.id,
+          changed_at: changedAt,
+          reason,
+          evidence_reference: evidenceReference,
+        }).select('id').single(),
+      );
+
+      // A candidate records only a human semantic decision. It intentionally does
+      // not mutate source snapshots, mapped Bridge values, validation, or release.
+      return res.status(200).json({ trace: await getCaseTrace(supabase, recordId) });
+    }
 
     if (action === 'approve_review' || action === 'reject_review') {
       if (!role.can_review) return res.status(403).json({ error: 'Review permission required' });
       if (!authoritative?.id || !authoritative?.resolution_record_id) {
         return res.status(409).json({ error: 'No authoritative validation/resolution available for review' });
+      }
+
+      if (action === 'approve_review' && !validationPassing) {
+        return res.status(409).json({ error: 'Die maßgebliche Validierung ist nicht bestanden.' });
+      }
+      if (action === 'approve_review' && unresolvedCandidateCount > 0) {
+        return res.status(409).json({ error: `${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount === 1 ? ' ist' : 'en sind'} noch offen.` });
       }
 
       const criterionInput = req.body?.criteria ?? {};
@@ -214,6 +285,7 @@ export default async function handler(req: any, res: any) {
     if (action === 'release') {
       if (!role.can_release) return res.status(403).json({ error: 'Release permission required' });
       if (!authoritative?.id || !isPassing(authoritative.status)) return res.status(409).json({ error: 'Authoritative validation is not passing' });
+      if (unresolvedCandidateCount > 0) return res.status(409).json({ error: `${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount === 1 ? ' ist' : 'en sind'} noch offen.` });
       if (!review?.complete || String(review.decision ?? '').toLowerCase() !== 'approved' || review.reviewer_authorized !== true) {
         return res.status(409).json({ error: 'A complete authorized approval is required before release' });
       }
