@@ -50,6 +50,14 @@ function isAlreadyCoveredByBridge(conflict: AdapterConflict, bridgeConstraints: 
   );
 }
 
+function isDemoReferenceConstraint(constraint: ConstraintResult): boolean {
+  return (
+    constraint.severity === "warning" &&
+    constraint.field === "AUFTRAGS_NR" &&
+    (constraint.label.includes("Demo") || constraint.rule.includes("Demo-Referenz"))
+  );
+}
+
 function adapterConstraint(
   conflict: AdapterConflict,
   contract: string,
@@ -93,6 +101,10 @@ function adapterConstraint(
  * status.value_map; source-only conflicts such as CUSTOMER_MISMATCH remain
  * visible as their own blocking constraints.
  *
+ * Demo-only reference checks are deliberately removed for non-demo ingress.
+ * They are useful for the synthetic A-10027 fixture, but must never downgrade
+ * a real external order such as Northwind merely because its ID differs.
+ *
  * All observed adapter conflicts remain available as provenance on the final
  * evaluation, including conflicts de-duplicated from the blocking count.
  */
@@ -105,14 +117,17 @@ export function evaluateRecordWithConflictTruth(
 ): ConflictTruthEvaluation {
   const base = evaluateRecord(raw, capturedAt, ingressOverrides, responseOverrides);
   const adapterConflicts = structuredClone(conflictTruth);
-  const maxSequence = base.constraints.reduce((max, { sequence }) => Math.max(max, sequence), 0);
+  const bridgeConstraints = base.ingress.transport === "demo"
+    ? base.constraints
+    : base.constraints.filter((constraint) => !isDemoReferenceConstraint(constraint));
+  const maxSequence = bridgeConstraints.reduce((max, { sequence }) => Math.max(max, sequence), 0);
   const visibleConflicts = adapterConflicts.filter(
-    (conflict) => !isAlreadyCoveredByBridge(conflict, base.constraints),
+    (conflict) => !isAlreadyCoveredByBridge(conflict, bridgeConstraints),
   );
   const adapterConstraints = visibleConflicts.map((conflict, index) =>
     adapterConstraint(conflict, base.contract.name, maxSequence + index + 1),
   );
-  const constraints = [...base.constraints, ...adapterConstraints].sort((a, b) => a.sequence - b.sequence);
+  const constraints = [...bridgeConstraints, ...adapterConstraints].sort((a, b) => a.sequence - b.sequence);
 
   const constraintDecision = decideFromConstraints(constraints);
   const state = deriveBridgeState(constraints);
@@ -140,11 +155,15 @@ export function evaluateRecordWithConflictTruth(
   // changes to failed. Use visibleConflicts here so a de-duplicated STATUS
   // conflict does not manufacture a second validation cause.
   const conflictFields = new Set(visibleConflicts.map(({ field }) => field));
-  const trace = base.trace.map((step) =>
-    conflictFields.has(step.sourceField)
-      ? { ...step, validation: "failed" as const }
-      : step,
-  );
+  const trace = base.trace.map((step) => {
+    if (conflictFields.has(step.sourceField)) {
+      return { ...step, validation: "failed" as const };
+    }
+    if (base.ingress.transport !== "demo" && step.sourceField === "AUFTRAGS_NR") {
+      return { ...step, validation: "passed" as const };
+    }
+    return step;
+  });
 
   return {
     ...base,
