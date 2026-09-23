@@ -54,3 +54,12 @@ export async function submitBridgeDecision(input: {
   if (!res.ok) throw await parseError(res);
   return (await res.json()).trace as CaseTrace;
 }
+
+export async function revalidateBridgeCase(recordId: string, token: string): Promise<CaseTrace> {
+  const res = await fetch(`/api/cases/${encodeURIComponent(recordId)}/revalidate`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw await parseError(res);
+  return (await res.json()).trace as CaseTrace;
+}
