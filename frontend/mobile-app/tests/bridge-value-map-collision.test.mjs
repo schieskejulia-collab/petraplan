@@ -32,7 +32,10 @@ test("schema-valid status A is preserved but never assigned an unconfirmed meani
   assert.equal(statusTrace?.canonicalValue, null);
   assert.equal(statusTrace?.valueMap, "keine bestätigte Value-Map");
   assert.equal(statusTrace?.validation, "failed");
-  assert.equal(statusSemantics?.valueMeaning, "Bedeutung nicht bestätigt");
+  assert.equal(
+    statusSemantics?.valueMeaning,
+    "Bedeutung nicht bestätigt – für STATUS=A existiert keine bestätigte Value-Map.",
+  );
 
   // The semantic uncertainty is the only blocking cause in this otherwise
   // valid record; release therefore needs human/domain confirmation.

@@ -440,7 +440,7 @@ function buildSemantics(raw: RawRecord): SemanticEntry[] {
   return [
     { field: "KUNDEN_NR", fieldMeaning: "Kennung des Kunden in der Quelle", valueMeaning: raw.KUNDEN_NR ? `Kunde ${raw.KUNDEN_NR}` : "nicht bestimmt" },
     { field: "AUFTRAGS_NR", fieldMeaning: "Kennung des Auftrags in der Quelle", valueMeaning: raw.AUFTRAGS_NR ? `Auftrag ${raw.AUFTRAGS_NR}` : "nicht bestimmt" },
-    { field: "STATUS", fieldMeaning: "Zustand des Auftrags", valueMeaning: statusMap[raw.STATUS] ? `${raw.STATUS} bedeutet ${statusMap[raw.STATUS]}` : "Bedeutung nicht bestätigt" },
+    { field: "STATUS", fieldMeaning: "Zustand des Auftrags", valueMeaning: statusMap[raw.STATUS] ? `${raw.STATUS} bedeutet ${statusMap[raw.STATUS]}` : `Bedeutung nicht bestätigt – für STATUS=${raw.STATUS || "<leer>"} existiert keine bestätigte Value-Map.` },
     { field: "MENGE", fieldMeaning: "Mengenwert des Auftrags", valueMeaning: isMissing(raw.MENGE) ? "fehlender Wert" : `Quellwert ${raw.MENGE}` },
     { field: "DATUM", fieldMeaning: "Auftragsdatum", valueMeaning: `Quellformat ${raw.DATUM}` },
   ];
