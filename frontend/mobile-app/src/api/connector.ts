@@ -1,3 +1,5 @@
+import { currentAccessToken } from "../lib/bridge-auth";
+
 const BASE = "/api";
 
 export interface BusinessProfile {
@@ -150,6 +152,17 @@ async function get<T>(path: string): Promise<T> {
   return res.json();
 }
 
+async function authenticatedGet<T>(path: string): Promise<T> {
+  const token = await currentAccessToken();
+  if (!token) throw new Error("Authentication required");
+
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json();
+}
+
 export const milaApi = {
   analyze: (profile: BusinessProfile) => post<AnalysisResult>("/analyze", profile),
   aiAnalyze: (profile: BusinessProfile) => post<AnalysisResult>("/ai-analyze", profile),
@@ -173,8 +186,8 @@ export const milaApi = {
   },
 
   cases: (limit = 20, offset = 0) =>
-    get<{ items: CaseListItem[]; limit: number; offset: number }>(`/cases?limit=${limit}&offset=${offset}`),
-  caseTrace: (recordId: string) => get<CaseTrace>(`/cases/${encodeURIComponent(recordId)}`),
+    authenticatedGet<{ items: CaseListItem[]; limit: number; offset: number }>(`/cases?limit=${limit}&offset=${offset}`),
+  caseTrace: (recordId: string) => authenticatedGet<CaseTrace>(`/cases/${encodeURIComponent(recordId)}`),
 
   health: () => get<{ status: string; version?: string }>("/health"),
 };
