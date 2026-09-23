@@ -1,9 +1,31 @@
 import { createClient } from '@supabase/supabase-js';
 
+const JWT_FUTURE_RETRY_DELAYS_MS = [150, 500, 1000] as const;
+
 export function authToken(req: any): string {
   const header = String(req.headers?.authorization ?? '');
   const match = header.match(/^Bearer\s+(.+)$/i);
   return match?.[1]?.trim() || '';
+}
+
+function isJwtIssuedAtFuture(status: number, body: string): boolean {
+  if (status !== 401 && status !== 403) return false;
+  return /PGRST303/i.test(body) || /JWT issued at future/i.test(body);
+}
+
+async function retryingSupabaseFetch(input: any, init?: any): Promise<Response> {
+  let response = await fetch(input, init);
+
+  for (const delayMs of JWT_FUTURE_RETRY_DELAYS_MS) {
+    const body = await response.clone().text().catch(() => '');
+    if (!isJwtIssuedAtFuture(response.status, body)) return response;
+
+    console.warn(`PetraPlan auth: transient Supabase JWT clock-skew response, retrying in ${delayMs}ms`);
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    response = await fetch(input, init);
+  }
+
+  return response;
 }
 
 export async function requireBridgeRole(req: any, res: any) {
@@ -39,6 +61,7 @@ export async function requireBridgeRole(req: any, res: any) {
 
   const supabase = createClient(supabaseUrl, supabaseSecretKey, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: { fetch: retryingSupabaseFetch },
   });
 
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
