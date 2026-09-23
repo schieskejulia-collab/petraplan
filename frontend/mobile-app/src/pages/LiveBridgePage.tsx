@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { milaApi, type CaseTrace } from "@/api/connector";
 import { bridgeAuth, bridgeAuthRedirectUrl, currentAccessToken } from "@/lib/bridge-auth";
-import { getBridgeDecisionAccess, submitBridgeDecision, type BridgeDecisionAccess, type BridgeDecisionAction } from "@/lib/bridge-decision-client";
+import { getBridgeDecisionAccess, revalidateBridgeCase, submitBridgeDecision, type BridgeDecisionAccess, type BridgeDecisionAction } from "@/lib/bridge-decision-client";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -58,6 +58,10 @@ function representationValue(value: unknown) {
 
 function addressFragment(address: unknown) {
   return `address-${String(address).replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+}
+
+function validationPasses(value: unknown) {
+  return ['passed', 'pass', 'valid', 'validated', 'approved', 'success'].includes(String(value ?? '').toLowerCase());
 }
 
 export default function LiveBridgePage() {
@@ -129,6 +133,21 @@ export default function LiveBridgePage() {
     }
   };
 
+  const revalidate = async () => {
+    const token = await currentAccessToken();
+    if (!token) return setAuthMessage("Bitte zuerst anmelden.");
+    setBusy(true);
+    setError(null);
+    try {
+      await revalidateBridgeCase(caseId, token);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Neuvalidierung konnte nicht ausgeführt werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) return <main className="min-h-screen p-5 text-sm text-muted-foreground">Lade Live-Bridge…</main>;
   if (error && !data) return <main className="min-h-screen p-5"><button className="mb-4 rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button><div className="rounded-xl border p-4 text-sm">{error}</div></main>;
   if (!data) return null;
@@ -137,9 +156,22 @@ export default function LiveBridgePage() {
   const snapshotProcessed = ingestion?.status === 'processed';
   const rawPayload = isRecord(ingestion?.raw_payload) ? ingestion.raw_payload : data.source.record;
   const extracted = data.semantic.extracted_schema;
-  const bridgeInput = isRecord(extracted?.bridge_input_raw) ? extracted.bridge_input_raw : isRecord(data.semantic.metadata?.bridge_input_raw) ? data.semantic.metadata.bridge_input_raw as Record<string, unknown> : rawPayload;
-  const mappedPayload = isRecord(extracted?.mapped_payload) ? extracted.mapped_payload : isRecord(data.semantic.metadata?.mapped_payload) ? data.semantic.metadata.mapped_payload as Record<string, unknown> : {};
   const authoritative = data.validation.authoritative;
+  const authoritativeEvidence = isRecord(authoritative?.evidence) ? authoritative.evidence : {};
+  const bridgeInput = isRecord(authoritativeEvidence.bridge_input_raw)
+    ? authoritativeEvidence.bridge_input_raw
+    : isRecord(extracted?.bridge_input_raw)
+      ? extracted.bridge_input_raw
+      : isRecord(data.semantic.metadata?.bridge_input_raw)
+        ? data.semantic.metadata.bridge_input_raw as Record<string, unknown>
+        : rawPayload;
+  const mappedPayload = isRecord(authoritativeEvidence.mapped_payload)
+    ? authoritativeEvidence.mapped_payload
+    : isRecord(extracted?.mapped_payload)
+      ? extracted.mapped_payload
+      : isRecord(data.semantic.metadata?.mapped_payload)
+        ? data.semantic.metadata.mapped_payload as Record<string, unknown>
+        : {};
   const review = data.review.current;
   const release = data.release.effective_status;
   const gate = data.release.gate;
@@ -160,6 +192,16 @@ export default function LiveBridgePage() {
     const key = String(entry.candidate_id);
     historyByCandidateId.set(key, [...(historyByCandidateId.get(key) ?? []), entry]);
   });
+  const hasConfirmedCandidate = registeredCandidates.some((candidate) => String(candidate.state) === 'confirmed');
+  const canRevalidate = Boolean(
+    sessionReady &&
+    access?.can_review &&
+    snapshotProcessed &&
+    String(extracted?.source_mode ?? '') === 'northwind-proof' &&
+    access.unresolved_candidate_count === 0 &&
+    hasConfirmedCandidate &&
+    !validationPasses(authoritative?.status),
+  );
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -189,6 +231,7 @@ export default function LiveBridgePage() {
           {sessionReady && access && <div className="mt-4 space-y-3">
             <p className="text-xs text-muted-foreground">Berechtigung: <strong>{access.role}</strong></p>
             {access.can_review && !access.review_ready && <div className="rounded-xl border p-3"><p className="text-sm font-semibold">Review noch gesperrt</p><ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">{access.review_blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></div>}
+            {canRevalidate && <div className="rounded-xl border p-3"><p className="text-sm font-semibold">Bestätigte Fachregeln erneut prüfen</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Die Source bleibt unverändert. Ein neuer Bridge-Lauf verwendet nur die bestätigten Kandidaten als Authority Evidence und schreibt anschließend eine neue Validation.</p><button disabled={busy} className="mt-3 w-full rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50" onClick={() => void revalidate()}>Mit bestätigten Regeln neu validieren</button></div>}
             {access.can_review && access.review_ready && <div className="rounded-xl border p-3"><p className="text-sm font-semibold">Prüfung bestätigen</p><div className="mt-2 space-y-2 text-sm"><label className="flex gap-2"><input type="checkbox" checked={criteria.source_truth_checked} onChange={(e)=>setCriteria(v=>({...v,source_truth_checked:e.target.checked}))}/><span>Source Truth geprüft</span></label><label className="flex gap-2"><input type="checkbox" checked={criteria.translation_trace_checked} onChange={(e)=>setCriteria(v=>({...v,translation_trace_checked:e.target.checked}))}/><span>Übersetzung/Spur geprüft</span></label><label className="flex gap-2"><input type="checkbox" checked={criteria.blockers_resolved} onChange={(e)=>setCriteria(v=>({...v,blockers_resolved:e.target.checked}))}/><span>Blockierende Punkte geklärt</span></label></div></div>}
             <textarea className="w-full rounded-xl border bg-background p-3 text-sm" rows={3} value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="Begründung der Entscheidung" />
             {error && <p className="text-sm">{error}</p>}
