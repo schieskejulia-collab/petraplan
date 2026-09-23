@@ -14,6 +14,7 @@ function label(value: unknown) {
   if (raw === "blocked") return "BLOCKIERT";
   if (raw === "revoked") return "WIDERRUFEN";
   if (raw === "exception") return "AUSNAHME";
+  if (raw === "open") return "OFFEN";
   if (raw === "candidate") return "KANDIDAT";
   if (raw === "confirmed") return "BESTÄTIGT";
   if (raw === "rejected") return "ABGELEHNT";
@@ -24,6 +25,16 @@ function label(value: unknown) {
 
 function JsonValue({ value }: { value: unknown }) {
   return <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-xl bg-muted/50 p-3 text-[11px] leading-relaxed">{JSON.stringify(value, null, 2)}</pre>;
+}
+
+function bridgeCellValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return '—';
+  }
 }
 
 const BRIDGE_MAPPING_ROWS = [
@@ -38,7 +49,7 @@ function BridgeFieldTable({ source, target }: { source: Record<string, unknown>;
   return (
     <div className="overflow-hidden rounded-xl border">
       <div className="grid grid-cols-[1.15fr_1fr_1fr] bg-muted/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Brücke</span><span>Quelle</span><span>Ziel</span></div>
-      {BRIDGE_MAPPING_ROWS.map(([from, to]) => <div key={from} className="grid grid-cols-[1.15fr_1fr_1fr] gap-2 border-t px-3 py-2 text-xs"><span className="break-all font-medium">{from} → {to}</span><span className="break-all text-muted-foreground">{String(source[from] ?? '—') || '—'}</span><span className="break-all">{String(target[to] ?? '—') || '—'}</span></div>)}
+      {BRIDGE_MAPPING_ROWS.map(([from, to]) => <div key={from} className="grid grid-cols-[1.15fr_1fr_1fr] gap-2 border-t px-3 py-2 text-xs"><span className="break-all font-medium">{from} → {to}</span><span className="break-all text-muted-foreground">{bridgeCellValue(source[from])}</span><span className="break-all">{bridgeCellValue(target[to])}</span></div>)}
     </div>
   );
 }
@@ -175,6 +186,11 @@ export default function LiveBridgePage() {
   const review = data.review.current;
   const release = data.release.effective_status;
   const gate = data.release.gate;
+  const displayState = release !== null && release !== undefined
+    ? release
+    : validationPasses(authoritative?.status) && data.conflict.conflicts.length === 0
+      ? 'open'
+      : data.status;
   const addressable = isRecord(extracted?.addressable_snapshot) ? extracted.addressable_snapshot : null;
   const candidates = Array.isArray(addressable?.candidates) ? addressable.candidates.filter(isRecord) : [];
   const representationEvidence = Array.isArray(data.representation?.evidence) ? data.representation.evidence.filter(isRecord) : [];
@@ -213,7 +229,7 @@ export default function LiveBridgePage() {
       <div className="mx-auto max-w-3xl px-4 py-5 pb-16">
         <header className="mb-4 flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan · Live Bridge</p><h1 className="mt-1 truncate text-2xl font-semibold">{data.title}</h1><p className="mt-1 text-xs text-muted-foreground">{String(ingestion?.source_system ?? data.source.record.source_system ?? "Quelle unbekannt")} · Case {data.id.slice(0, 8)}</p></div><button className="shrink-0 rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>Zurück</button></header>
 
-        <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aktueller Zustand</p><p className="mt-1 text-xl font-semibold">{label(release ?? data.status)}</p></div><div className="text-right text-xs text-muted-foreground"><p>{data.conflict.conflicts.length} Konflikt{data.conflict.conflicts.length === 1 ? "" : "e"}</p><p>Validation: {label(authoritative?.status)}</p></div></div>{gate && <p className="mt-3 text-sm leading-relaxed">{gate.reason}</p>}</section>
+        <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aktueller Zustand</p><p className="mt-1 text-xl font-semibold">{label(displayState)}</p></div><div className="text-right text-xs text-muted-foreground"><p>{data.conflict.conflicts.length} Konflikt{data.conflict.conflicts.length === 1 ? "" : "e"}</p><p>Validation: {label(authoritative?.status)}</p></div></div>{gate && <p className="mt-3 text-sm leading-relaxed">{gate.reason}</p>}</section>
 
         <section className="mb-4 space-y-3 rounded-2xl border bg-card p-4 shadow-sm"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Übersetzung</p><h2 className="mt-1 text-lg font-semibold">Was tatsächlich verarbeitet wurde</h2></div>{Object.keys(mappedPayload).length > 0 ? <BridgeFieldTable source={bridgeInput} target={mappedPayload} /> : <div className="grid gap-3 sm:grid-cols-2"><div><p className="mb-2 text-xs font-semibold text-muted-foreground">SOURCE</p><JsonValue value={rawPayload} /></div><div><p className="mb-2 text-xs font-semibold text-muted-foreground">ÜBERSETZUNG</p><JsonValue value={extracted ?? data.semantic.metadata} /></div></div>}{Boolean(ingestion?.source_hash) && <p className="break-all text-[11px] text-muted-foreground">Source hash: {String(ingestion?.source_hash)}</p>}</section>
 
