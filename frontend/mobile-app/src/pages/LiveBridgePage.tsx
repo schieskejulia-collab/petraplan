@@ -193,11 +193,16 @@ export default function LiveBridgePage() {
     historyByCandidateId.set(key, [...(historyByCandidateId.get(key) ?? []), entry]);
   });
   const hasConfirmedCandidate = registeredCandidates.some((candidate) => String(candidate.state) === 'confirmed');
+  const isNorthwindCase = Boolean(
+    String(extracted?.source_mode ?? '') === 'northwind-proof' ||
+    String(ingestion?.source_system ?? '').includes('northwind') ||
+    registeredCandidates.some((candidate) => String(candidate.candidate_key ?? '').startsWith('NW:CC:')),
+  );
   const canRevalidate = Boolean(
     sessionReady &&
     access?.can_review &&
     snapshotProcessed &&
-    String(extracted?.source_mode ?? '') === 'northwind-proof' &&
+    isNorthwindCase &&
     access.unresolved_candidate_count === 0 &&
     hasConfirmedCandidate &&
     !validationPasses(authoritative?.status),
