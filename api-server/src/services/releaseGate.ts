@@ -37,6 +37,13 @@ export interface ReleaseCertificateRef {
 }
 
 const PASSING = new Set(['passed', 'pass', 'success', 'validated', 'valid', 'approved']);
+const PERSISTABLE_RELEASE_STATUSES = new Set<Exclude<ReleaseStatus, null>>([
+  'trusted',
+  'blocked',
+  'revoked',
+  'superseded',
+  'exception',
+]);
 
 export function hasDocumentedException(exceptionApproval?: ReleaseExceptionApproval | null): boolean {
   if (!exceptionApproval?.approved) return false;
@@ -86,14 +93,20 @@ export function selectAuthoritativeValidation<T extends ValidationRef>(
 
 export function decideReleaseGate(input: ReleaseGateInput): ReleaseGateDecision {
   const normalizedValidation = String(input.latestValidationStatus ?? 'unknown').toLowerCase();
-  const currentStatus = (input.existingReleaseStatus ?? null) as ReleaseStatus;
+  const rawCurrentStatus = String(input.existingReleaseStatus ?? '').toLowerCase();
+  const currentStatus = PERSISTABLE_RELEASE_STATUSES.has(rawCurrentStatus as Exclude<ReleaseStatus, null>)
+    ? rawCurrentStatus as Exclude<ReleaseStatus, null>
+    : null;
   const validationIsPassing = PASSING.has(normalizedValidation);
   const exceptionIsDocumented = hasDocumentedException(input.exceptionApproval);
 
   if (validationIsPassing) {
+    const effectiveStatus: ReleaseStatus = input.hasReleaseCertificate
+      ? (currentStatus === 'revoked' || currentStatus === 'superseded' ? currentStatus : 'trusted')
+      : null;
     return {
-      effectiveStatus: currentStatus ?? (input.hasReleaseCertificate ? 'trusted' : null),
-      shouldTransition: false,
+      effectiveStatus,
+      shouldTransition: currentStatus === 'blocked',
       reason: 'Latest authoritative validation is passing.',
       validationIsPassing,
       exceptionIsDocumented,
