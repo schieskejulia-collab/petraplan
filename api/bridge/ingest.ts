@@ -244,6 +244,7 @@ function buildRepresentationEvidence(input: {
 }
 
 export default async function handler(req: any, res: any) {
+  let pendingIngestion: { client: ReturnType<typeof createClient>; id: string } | null = null;
   try {
     if (req.method !== 'POST') {
       res.setHeader('Allow', 'POST');
@@ -332,6 +333,7 @@ export default async function handler(req: any, res: any) {
     const hash = sourceHash(sourcePayload);
     const extractedSchema = {
       source_mode: sourceMode,
+      source_hash_basis: 'sha256:JSON.stringify(sourcePayload)',
       ...adapterMetadata,
       contract: evaluation.contract,
       mapped_payload: evaluation.mapped,
@@ -358,11 +360,14 @@ export default async function handler(req: any, res: any) {
         source_hash: hash,
         raw_payload: sourcePayload,
         extracted_schema: extractedSchema,
-        status: 'processed',
+        // This row is only the captured source. The case, evidence, and
+        // authoritative validation are written below in separate requests.
+        status: 'pending',
         ingested_at: capturedAt,
       }).select('*').single(),
     );
     if (!ingestion) throw new Error('Ingestion row was not created');
+    pendingIngestion = { client: supabase, id: ingestion.id };
 
     const record = await one<any>(
       supabase.from('records').insert({
@@ -516,6 +521,17 @@ export default async function handler(req: any, res: any) {
     );
     if (!validation) throw new Error('Validation result was not created');
 
+    const completed = await one<any>(
+      supabase.from('ingestion_logs')
+        .update({ status: 'processed', error_message: null })
+        .eq('id', ingestion.id)
+        .eq('status', 'pending')
+        .select('id')
+        .single(),
+    );
+    if (!completed) throw new Error('Snapshot processing status could not be finalized');
+    pendingIngestion = null;
+
     return res.status(201).json({
       record_id: record.id,
       ingestion_id: ingestion.id,
@@ -528,6 +544,18 @@ export default async function handler(req: any, res: any) {
     });
   } catch (error) {
     console.error('PetraPlan translator ingestion failed:', error);
+    if (pendingIngestion) {
+      // Preserve the immutable source even when a later write fails. A partial
+      // case must never appear as a completely processed ingestion.
+      const { error: statusError } = await pendingIngestion.client.from('ingestion_logs')
+        .update({
+          status: 'error',
+          error_message: error instanceof Error ? error.message.slice(0, 1000) : 'Ingestion failed after source capture',
+        })
+        .eq('id', pendingIngestion.id)
+        .eq('status', 'pending');
+      if (statusError) console.error('Could not mark partial ingestion as failed:', statusError);
+    }
     return res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown translator ingestion error' });
   }
 }

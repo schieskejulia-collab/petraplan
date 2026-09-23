@@ -87,7 +87,9 @@ export default async function handler(req: any, res: any) {
     );
     const unresolvedCandidateCount = unresolvedCandidates.length;
     const validationPassing = Boolean(authoritative?.id && isPassing(authoritative.status));
+    const snapshotProcessed = trace.source.ingestion?.status === 'processed';
     const reviewBlockers = [
+      ...(!snapshotProcessed ? ['Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'] : []),
       ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
       ...(unresolvedCandidateCount > 0 ? [`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount === 1 ? ' ist' : 'en sind'} noch offen.`] : []),
     ];
@@ -96,11 +98,11 @@ export default async function handler(req: any, res: any) {
       can_review: role.can_review,
       can_release: role.can_release,
       can_revoke: role.can_revoke,
-      review_ready: Boolean(validationPassing && unresolvedCandidateCount === 0),
+      review_ready: Boolean(snapshotProcessed && validationPassing && unresolvedCandidateCount === 0),
       review_rejection_ready: Boolean(authoritative?.id),
       unresolved_candidate_count: unresolvedCandidateCount,
       review_blockers: reviewBlockers,
-      release_ready: Boolean(role.can_release && validationPassing && unresolvedCandidateCount === 0 && review?.complete && String(review?.decision ?? '').toLowerCase() === 'approved'),
+      release_ready: Boolean(role.can_release && snapshotProcessed && validationPassing && unresolvedCandidateCount === 0 && review?.complete && String(review?.decision ?? '').toLowerCase() === 'approved'),
       revoke_ready: Boolean(role.can_revoke && trace.release.certificates.length > 0 && releaseStatus !== 'revoked'),
     };
 
@@ -112,6 +114,11 @@ export default async function handler(req: any, res: any) {
       return res.status(400).json({ error: 'Unsupported action' });
     }
     if (reason.length < 3) return res.status(400).json({ error: 'A reason is required' });
+    // Revocation and explicit rejection remain possible to contain an unsafe
+    // case; positive decisions require a completed source capture.
+    if (!snapshotProcessed && action !== 'revoke' && action !== 'reject_review') {
+      return res.status(409).json({ error: 'Der Quell-Snapshot ist noch nicht vollständig verarbeitet.' });
+    }
 
     if (action === 'confirm_candidate' || action === 'reject_candidate') {
       if (!role.can_review) return res.status(403).json({ error: 'Review permission required' });
