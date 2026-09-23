@@ -3,6 +3,7 @@ export default async function handler(req: any, res: any) {
     // Keep the detail route's initialization behavior aligned with the list
     // route so Vercel can report module-loading failures as JSON responses.
     const { getPinnedNorthwindOrder } = await import('../../api-server/src/services/pinnedNorthwind.js');
+    const { previewNorthwindOrderV2 } = await import('../../api-server/src/services/northwindOrderV2.js');
 
     if (req.method !== 'GET') {
       res.setHeader('Allow', 'GET');
@@ -16,6 +17,7 @@ export default async function handler(req: any, res: any) {
     return res.status(200).json({
       orderId: result.orderId,
       envelope: result.envelope,
+      orderV2Preview: previewNorthwindOrderV2(result.envelope),
       sourceSchemaGate: result.sourceSchemaGate,
       sourceSchemaIssues: result.sourceSchemaIssues,
       adaptation: {
