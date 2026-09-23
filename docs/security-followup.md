@@ -1,0 +1,1 @@
+Follow-up: verify all frontend calls to `/api/cases` and `/api/cases/[recordId]` attach the current Supabase access token in the Authorization header before relying on the hardened endpoints in production.
