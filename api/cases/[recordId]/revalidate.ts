@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getCaseTrace } from '../../../api-server/src/services/caseTrace.js';
+import { reconcileReleaseGate } from '../../../api-server/src/services/releaseReconciliation.js';
 import { applyConfirmedNorthwindCandidates } from '../../../frontend/mobile-app/src/lib/bridge-confirmed-candidates.js';
 import { evaluateRecordWithConflictTruth } from '../../../frontend/mobile-app/src/lib/bridge-conflict-truth.js';
 import { parseRawRecord } from '../../../frontend/mobile-app/src/lib/bridge-pipeline.js';
@@ -167,11 +168,19 @@ export default async function handler(req: any, res: any) {
       .eq('id', authoritative.conflict_id);
     if (conflictUpdateError) throw conflictUpdateError;
 
+    const reconciliation = await reconcileReleaseGate({
+      supabase,
+      recordId,
+      actorUserId: userData.user.id,
+      triggerValidationId: validation.id,
+    });
+
     return res.status(200).json({
       trace: await getCaseTrace(supabase, recordId),
       validation_id: validation.id,
       applied_candidates: applied.applied,
       release_allowed: evaluation.release.releaseAllowed,
+      release_reconciliation: reconciliation,
     });
   } catch (error) {
     console.error('PetraPlan candidate revalidation failed:', error);
