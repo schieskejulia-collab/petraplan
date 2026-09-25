@@ -159,6 +159,28 @@ export default function LiveBridgePage() {
     }
   };
 
+  const runControlledNegativeValidation = async () => {
+    const token = await currentAccessToken();
+    if (!token) return setAuthMessage("Bitte zuerst anmelden.");
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/cases/${encodeURIComponent(caseId)}/test-negative-validation`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(String(body.error ?? `HTTP ${response.status}`));
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kontrollierter Negativtest konnte nicht ausgeführt werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (loading) return <main className="min-h-screen p-5 text-sm text-muted-foreground">Lade Live-Bridge…</main>;
   if (error && !data) return <main className="min-h-screen p-5"><button className="mb-4 rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>← Fälle</button><div className="rounded-xl border p-4 text-sm">{error}</div></main>;
   if (!data) return null;
@@ -223,6 +245,15 @@ export default function LiveBridgePage() {
     hasConfirmedCandidate &&
     !validationPasses(authoritative?.status),
   );
+  const canRunControlledNegativeTest = Boolean(
+    caseId === '9a0698ea-6714-4048-8189-1efa33e6240d' &&
+    sessionReady &&
+    access?.can_revoke &&
+    snapshotProcessed &&
+    isNorthwindCase &&
+    validationPasses(authoritative?.status) &&
+    release === 'trusted',
+  );
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -253,6 +284,7 @@ export default function LiveBridgePage() {
             <p className="text-xs text-muted-foreground">Berechtigung: <strong>{access.role}</strong></p>
             {access.can_review && !access.review_ready && <div className="rounded-xl border p-3"><p className="text-sm font-semibold">Review noch gesperrt</p><ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground">{access.review_blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}</ul></div>}
             {canRevalidate && <div className="rounded-xl border p-3"><p className="text-sm font-semibold">Bestätigte Fachregeln erneut prüfen</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Die Source bleibt unverändert. Ein neuer Bridge-Lauf verwendet nur die bestätigten Kandidaten als Authority Evidence und schreibt anschließend eine neue Validation.</p><button disabled={busy} className="mt-3 w-full rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50" onClick={() => void revalidate()}>Mit bestätigten Regeln neu validieren</button></div>}
+            {canRunControlledNegativeTest && <div className="rounded-xl border border-dashed p-3"><p className="text-sm font-semibold">Kontrollierter Post-Release-Negativtest</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Nur für A-10266: erzeugt eine spätere fehlgeschlagene authoritative Validation. Source, Snapshot, Kandidaten, Representation Evidence und Review bleiben unverändert. Das Release-Gate muss den bestehenden Release anschließend selbst widerrufen.</p><button disabled={busy} className="mt-3 w-full rounded-xl border px-4 py-3 text-sm font-semibold disabled:opacity-50" onClick={() => void runControlledNegativeValidation()}>Kontrollierten Negativtest auslösen</button></div>}
             {access.can_review && access.review_ready && <div className="rounded-xl border p-3"><p className="text-sm font-semibold">Prüfung bestätigen</p><div className="mt-2 space-y-2 text-sm"><label className="flex gap-2"><input type="checkbox" checked={criteria.source_truth_checked} onChange={(e)=>setCriteria(v=>({...v,source_truth_checked:e.target.checked}))}/><span>Source Truth geprüft</span></label><label className="flex gap-2"><input type="checkbox" checked={criteria.translation_trace_checked} onChange={(e)=>setCriteria(v=>({...v,translation_trace_checked:e.target.checked}))}/><span>Übersetzung/Spur geprüft</span></label><label className="flex gap-2"><input type="checkbox" checked={criteria.blockers_resolved} onChange={(e)=>setCriteria(v=>({...v,blockers_resolved:e.target.checked}))}/><span>Blockierende Punkte geklärt</span></label></div></div>}
             <textarea className="w-full rounded-xl border bg-background p-3 text-sm" rows={3} value={reason} onChange={(e)=>setReason(e.target.value)} placeholder="Begründung der Entscheidung" />
             {error && <p className="text-sm">{error}</p>}
