@@ -128,9 +128,11 @@ export async function reconcileReleaseGate(input: {
 
   const { error: logError } = await supabase.from('release_logs').insert({
     release_certificate_id: certificate.id,
-    event_type: 'automatic_release_gate_revoke',
+    event_type: 'revoked',
     message: 'Release automatically revoked after a later authoritative validation failed',
     details: {
+      automatic: true,
+      source: 'release_gate_reconciliation',
       record_id: recordId,
       validation_result_id: authoritative.id ?? null,
       trigger_validation_id: triggerValidationId,
