@@ -8,7 +8,8 @@
     "test": "npm run build && node --test dist/services/*.test.js",
     "test:concurrency": "node scripts/concurrency-smoke.mjs",
     "test:idempotency-runtime": "node scripts/idempotency-runtime-smoke.mjs",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test:decision-integrity": "tsc -p tsconfig.decision-tests.json && node --test .decision-test-build/tests/decision-integrity/*.test.js tests/decision-integrity/*.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -17,6 +18,7 @@
     "openai": "^5.19.1"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",

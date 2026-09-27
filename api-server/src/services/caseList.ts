@@ -133,6 +133,8 @@ export async function listCases(
     const gate = authoritativeValidation
       ? decideReleaseGate({
           latestValidationStatus: authoritativeValidation.status,
+          latestValidationId: authoritativeValidation.id,
+          certificateValidationId: certificate?.validation_result_id,
           existingReleaseStatus: releaseStatus,
           hasReleaseCertificate: Boolean(certificate),
         })

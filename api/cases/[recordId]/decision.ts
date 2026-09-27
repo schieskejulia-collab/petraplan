@@ -1,6 +1,6 @@
-import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { getCaseTrace } from '../../../api-server/src/services/caseTrace.js';
+import { releaseBasisBlockers } from '../../../api-server/src/services/releaseBasis.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIVE_RULE = 'PetraPlan live bridge review';
@@ -22,10 +22,6 @@ function isPassing(status: unknown) {
   return ['passed', 'pass', 'valid', 'validated', 'approved', 'success'].includes(String(status ?? '').toLowerCase());
 }
 
-function jsonHash(value: unknown) {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
-}
-
 function authToken(req: any) {
   const header = String(req.headers?.authorization ?? '');
   return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
@@ -43,7 +39,7 @@ async function many<T>(promise: any): Promise<T[]> {
   return (data ?? []) as T[];
 }
 
-export default async function handler(req: any, res: any) {
+export async function handleDecision(req: any, res: any, dependencies = { createClient, getCaseTrace }) {
   try {
     if (!['GET', 'POST'].includes(req.method)) {
       res.setHeader('Allow', 'GET, POST');
@@ -60,7 +56,7 @@ export default async function handler(req: any, res: any) {
     const token = authToken(req);
     if (!token) return res.status(401).json({ error: 'Authentication required' });
 
-    const supabase = createClient(supabaseUrl, supabaseSecretKey, {
+    const supabase = dependencies.createClient(supabaseUrl, supabaseSecretKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
@@ -72,7 +68,7 @@ export default async function handler(req: any, res: any) {
     );
     if (!role) return res.status(403).json({ error: 'No active Bridge decision role' });
 
-    const trace = await getCaseTrace(supabase, recordId);
+    const trace = await dependencies.getCaseTrace(supabase, recordId);
     if (!trace) return res.status(404).json({ error: 'Case not found' });
 
     const authoritative: any = trace.validation.authoritative;
@@ -93,6 +89,12 @@ export default async function handler(req: any, res: any) {
       ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
       ...(unresolvedCandidateCount > 0 ? [`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount === 1 ? ' ist' : 'en sind'} noch offen.`] : []),
     ];
+    const basisBlockers = releaseBasisBlockers({
+      validation: authoritative,
+      review,
+      snapshotId: trace.source.ingestion?.id ?? null,
+    });
+    const releaseBlockers = [...reviewBlockers, ...basisBlockers];
     const access = {
       role: role.role_name,
       can_review: role.can_review,
@@ -102,7 +104,8 @@ export default async function handler(req: any, res: any) {
       review_rejection_ready: Boolean(authoritative?.id),
       unresolved_candidate_count: unresolvedCandidateCount,
       review_blockers: reviewBlockers,
-      release_ready: Boolean(role.can_release && snapshotProcessed && validationPassing && unresolvedCandidateCount === 0 && review?.complete && String(review?.decision ?? '').toLowerCase() === 'approved'),
+      release_ready: Boolean(role.can_release && releaseBlockers.length === 0),
+      release_blockers: releaseBlockers,
       revoke_ready: Boolean(role.can_revoke && trace.release.certificates.length > 0 && releaseStatus !== 'revoked'),
     };
 
@@ -125,47 +128,20 @@ export default async function handler(req: any, res: any) {
       const candidateId = String(req.body?.candidate_id ?? '');
       if (!UUID_RE.test(candidateId)) return res.status(400).json({ error: 'candidate_id must be a UUID' });
 
-      const candidate = await one<any>(
-        supabase
-          .from('conversion_candidates')
-          .select('id, record_id, snapshot_id, state, source_path')
-          .eq('id', candidateId)
-          .eq('record_id', recordId)
-          .maybeSingle(),
-      );
-      if (!candidate) return res.status(404).json({ error: 'Candidate does not belong to this case' });
-      if (candidate.state !== 'candidate') return res.status(409).json({ error: 'Candidate has already been decided' });
-
-      const nextState = action === 'confirm_candidate' ? 'confirmed' : 'rejected';
-      const changedAt = new Date().toISOString();
-      const decided = await one<any>(
-        supabase
-          .from('conversion_candidates')
-          .update({ state: nextState })
-          .eq('id', candidateId)
-          .eq('record_id', recordId)
-          .eq('state', 'candidate')
-          .select('id')
-          .maybeSingle(),
-      );
-      if (!decided) return res.status(409).json({ error: 'Candidate has already been decided' });
-
-      const evidenceReference = String(req.body?.evidence_reference ?? '').trim() || candidate.source_path;
-      await one<any>(
-        supabase.from('candidate_state_history').insert({
-          candidate_id: candidate.id,
-          snapshot_id: candidate.snapshot_id,
-          state: nextState,
-          changed_by: user.id,
-          changed_at: changedAt,
-          reason,
-          evidence_reference: evidenceReference,
-        }).select('id').single(),
-      );
+      const { error } = await supabase.rpc('bridge_decide_candidate', {
+        p_record_id: recordId,
+        p_candidate_id: candidateId,
+        p_snapshot_id: trace.source.ingestion?.id,
+        p_actor_id: user.id,
+        p_state: action === 'confirm_candidate' ? 'confirmed' : 'rejected',
+        p_reason: reason,
+        p_evidence_reference: String(req.body?.evidence_reference ?? '').trim() || null,
+      });
+      if (error) throw error;
 
       // A candidate records only a human semantic decision. It intentionally does
       // not mutate source snapshots, mapped Bridge values, validation, or release.
-      return res.status(200).json({ trace: await getCaseTrace(supabase, recordId) });
+      return res.status(200).json({ trace: await dependencies.getCaseTrace(supabase, recordId) });
     }
 
     if (action === 'approve_review' || action === 'reject_review') {
@@ -286,7 +262,7 @@ export default async function handler(req: any, res: any) {
         details: { criteria: criterionInput, evidence_refs: evidenceRefs },
       });
 
-      return res.status(200).json({ trace: await getCaseTrace(supabase, recordId) });
+      return res.status(200).json({ trace: await dependencies.getCaseTrace(supabase, recordId) });
     }
 
     if (action === 'release') {
@@ -297,75 +273,20 @@ export default async function handler(req: any, res: any) {
         return res.status(409).json({ error: 'A complete authorized approval is required before release' });
       }
 
-      const session = await one<any>(supabase.from('review_sessions').select('*').eq('id', review.session_id).single());
-      const reviewRecord = await one<any>(supabase.from('review_records').select('*').eq('id', session?.review_record_id).single());
-      const reviewDecision = await one<any>(supabase.from('review_decisions').select('*').eq('review_session_id', review.session_id).order('created_at', { ascending: false }).limit(1).single());
-      if (!reviewRecord || !reviewDecision) return res.status(409).json({ error: 'Review references are incomplete' });
+      if (basisBlockers.length) return res.status(409).json({ error: basisBlockers.join(' ') });
 
-      const existing = trace.release.certificates.length ? trace.release.certificates[trace.release.certificates.length - 1] as any : null;
-      let certificate = existing;
-      if (!certificate) {
-        const snapshot = {
-          record_id: recordId,
-          conflict_id: authoritative.conflict_id,
-          resolution_record_id: authoritative.resolution_record_id,
-          validation_result_id: authoritative.id,
-          review_record_id: reviewRecord.id,
-          review_decision_id: reviewDecision.id,
-          source_hash: trace.source.ingestion?.source_hash ?? null,
-          certified_at: new Date().toISOString(),
-        };
-        certificate = await one<any>(
-          supabase.from('release_certificates').insert({
-            record_id: recordId,
-            conflict_id: authoritative.conflict_id,
-            resolution_record_id: authoritative.resolution_record_id,
-            validation_result_id: authoritative.id,
-            review_record_id: reviewRecord.id,
-            review_decision_id: reviewDecision.id,
-            release_status: 'trusted',
-            certified_by_type: 'human',
-            certified_by: user.id,
-            reason,
-            truth_snapshot: snapshot,
-            certificate_hash: jsonHash(snapshot),
-          }).select('*').single(),
-        );
-      }
-
-      if (releaseStatus !== 'trusted') {
-        await supabase.from('release_status_history').insert({
-          release_certificate_id: certificate.id,
-          previous_status: releaseStatus,
-          new_status: 'trusted',
-          changed_by: user.id,
-          reason,
-        });
-      }
-      await supabase.from('release_logs').insert({
-        release_certificate_id: certificate.id,
-        event_type: 'authorized_mobile_release',
-        message: 'Release confirmed in Live Bridge',
-        details: { record_id: recordId, validation_result_id: authoritative.id, review_decision_id: reviewDecision.id },
+      // The database rechecks the expected basis under a per-case lock and
+      // commits certificate + status history + logs + audit together.
+      const { error } = await supabase.rpc('bridge_release_case', {
+        p_record_id: recordId,
+        p_snapshot_id: trace.source.ingestion?.id,
+        p_validation_id: authoritative.id,
+        p_review_session_id: review.session_id,
+        p_actor_id: user.id,
+        p_reason: reason,
       });
-      if (authoritative.conflict_id) {
-        await supabase.from('conflicts').update({
-          resolution_status: 'resolved', resolved_by: user.id, resolved_at: new Date().toISOString(), resolution_note: reason,
-        }).eq('id', authoritative.conflict_id);
-      }
-      await supabase.from('bridge_decision_audit').insert({
-        record_id: recordId,
-        actor_user_id: user.id,
-        action,
-        reason,
-        validation_result_id: authoritative.id,
-        review_record_id: reviewRecord.id,
-        review_decision_id: reviewDecision.id,
-        release_certificate_id: certificate.id,
-        previous_release_status: releaseStatus,
-        new_release_status: 'trusted',
-      });
-      return res.status(200).json({ trace: await getCaseTrace(supabase, recordId) });
+      if (error) throw error;
+      return res.status(200).json({ trace: await dependencies.getCaseTrace(supabase, recordId) });
     }
 
     if (!role.can_revoke) return res.status(403).json({ error: 'Revoke permission required' });
@@ -396,9 +317,23 @@ export default async function handler(req: any, res: any) {
       previous_release_status: releaseStatus,
       new_release_status: 'revoked',
     });
-    return res.status(200).json({ trace: await getCaseTrace(supabase, recordId) });
+    return res.status(200).json({ trace: await dependencies.getCaseTrace(supabase, recordId) });
   } catch (error) {
+    const code = String((error as { code?: string })?.code ?? '');
+    const message = String((error as { message?: string })?.message ?? 'Decision could not be saved');
+    if (['PT400', 'PT403', 'PT404', 'PT409'].includes(code)) {
+      return res.status(Number(code.slice(2))).json({ error: message });
+    }
+    if (code === 'PGRST202' || code === '42883') {
+      return res.status(503).json({ error: 'Die Datenbankfunktion für sichere Entscheidungen ist noch nicht eingerichtet.' });
+    }
     console.error('PetraPlan decision API failed:', error);
     return res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown decision error' });
   }
 }
+
+export function createDecisionHandler(dependencies = { createClient, getCaseTrace }) {
+  return (req: any, res: any) => handleDecision(req, res, dependencies);
+}
+
+export default createDecisionHandler();

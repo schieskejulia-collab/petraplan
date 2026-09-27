@@ -141,3 +141,8 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Local decision-integrity test outputs
+.decision-test-build/
+frontend/mobile-app/.bridge-test-build/
+supabase/.temp/
