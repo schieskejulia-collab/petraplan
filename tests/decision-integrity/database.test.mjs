@@ -158,6 +158,6 @@ test('stale or revoked exact release basis cannot be reissued',async()=>{
  await db.query("insert into release_status_history (release_certificate_id,new_status,changed_by,reason) values ($1,'revoked',$2,'Explicit revocation')",[old,actor]);
  await fails(()=>release(),'PT409');
  assert.equal(await count('release_certificates'),1);
- const history=(await db.query('select new_status from release_status_history where release_certificate_id=$1 order by created_at desc',[old])).rows;
+ const history=(await db.query('select new_status from release_status_history where release_certificate_id=$1 order by created_at desc, id desc',[old])).rows;
  assert.equal(history[0].new_status,'revoked');
 });
