@@ -457,8 +457,13 @@ function issueMessage(check: ValidationCheck, raw: RawRecord): string {
   }
 }
 
-function buildTrace(raw: RawRecord, mapped: MappedRecord, checks: ValidationCheck[]): TraceStep[] {
-  const validationFor = (field: keyof RawRecord) => checks.some((check) => check.field === field && !check.ok) ? "failed" as const : "passed" as const;
+function buildTrace(raw: RawRecord, mapped: MappedRecord, constraints: ConstraintResult[], schema: SchemaCheck[]): TraceStep[] {
+  // Field validity follows the same blocking rules as the release decision.
+  // Demo-only warnings remain in constraints/report, never masquerade as failures.
+  const validationFor = (field: keyof RawRecord) =>
+    schema.some((check) => check.field === field && (!check.present || !check.typeOk || !check.formatOk)) ||
+    constraints.some((check) => check.field === field && check.severity === "blocking" && !check.passed)
+      ? "failed" as const : "passed" as const;
   return [
     { sourceField: "KUNDEN_NR", sourceValue: raw.KUNDEN_NR, meaning: "Kundenkennung aus der Quelle", targetField: "customerId", mapping: "KUNDEN_NR → customerId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.customerId, validation: validationFor("KUNDEN_NR") },
     { sourceField: "AUFTRAGS_NR", sourceValue: raw.AUFTRAGS_NR, meaning: "Auftragskennung aus der Quelle", targetField: "orderId", mapping: "AUFTRAGS_NR → orderId", valueMap: "nicht erforderlich", transformation: "keine", canonicalValue: mapped.orderId, validation: validationFor("AUFTRAGS_NR") },
@@ -613,7 +618,7 @@ export function evaluateRecord(
     issues,
     constraints,
     state,
-    trace: buildTrace(raw, mapped, checks),
+    trace: buildTrace(raw, mapped, constraints, schema),
     passed,
     release: {
       releaseAllowed,

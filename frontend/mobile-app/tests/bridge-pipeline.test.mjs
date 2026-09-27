@@ -247,3 +247,25 @@ test("release expression is explicit ordered AND over blocking constraints", () 
   ]);
   assert.equal(decision.releaseAllowed, false);
 });
+
+test("Northwind order trace follows active rules rather than demo reference", () => {
+  const result = evaluateRecord({ ...demoValidRecord, AUFTRAGS_NR: "A-10248", MENGE: "27", STATUS: "GESCHLOSSEN" }, capturedAt, { source: "northwind-proof", transport: "file" });
+  assert.equal(result.release.releaseAllowed, true);
+  assert.equal(result.constraints.some(c => c.id === "order.demo_reference"), false);
+  assert.equal(result.trace.every(step => step.validation === "passed"), true);
+});
+
+test("demo reference warning stays visible without marking valid mapping failed", () => {
+  const result = evaluateRecord({ ...demoValidRecord, AUFTRAGS_NR: "A-10248" }, capturedAt);
+  assert.equal(result.constraints.find(c => c.id === "order.demo_reference").passed, false);
+  assert.ok(result.report.openPoints.length > 0);
+  assert.equal(result.trace.find(step => step.sourceField === "AUFTRAGS_NR").validation, "passed");
+});
+
+test("trace still fails missing order IDs and impossible calendar dates", () => {
+  for (const [field, value] of [["AUFTRAGS_NR", ""], ["DATUM", "2026-02-30"], ["MENGE", "-1"], ["STATUS", "UNBEKANNT"]]) {
+    const result = evaluateRecord({ ...demoValidRecord, [field]: value }, capturedAt, { source: "northwind-proof" });
+    assert.equal(result.release.releaseAllowed, false, field);
+    assert.equal(result.trace.find(step => step.sourceField === field).validation, "failed", field);
+  }
+});
