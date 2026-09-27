@@ -8,7 +8,8 @@ const [record, snapshot, actor, candidate, address, conflict, resolution, valida
 before(async () => {
  await db.exec(await readFile(new URL('./schema.sql', import.meta.url), 'utf8'));
  await db.exec((await readFile(new URL('../../db/address_layer.sql', import.meta.url), 'utf8')).replace('create extension if not exists pgcrypto;', ''));
- await db.exec(await readFile(new URL('../../supabase/migrations/20260927215417_chinch64_decision_integrity.sql', import.meta.url), 'utf8'));
+ await db.exec(await readFile(new URL('../../supabase/migrations/20260927222002_chinch64_decision_integrity.sql', import.meta.url), 'utf8'));
+ await db.exec(await readFile(new URL('../../supabase/migrations/20260927222450_chinch64_existing_basis_guard.sql', import.meta.url), 'utf8'));
  await db.exec('grant all on all tables in schema public to service_role');
 });
 beforeEach(async () => {
@@ -146,21 +147,17 @@ test('re-release after a new review creates a new certificate and preserves the 
  assert.deepEqual((await db.query('select * from release_certificates where id=$1',[old.id])).rows[0],old);
  assert.equal(await count('release_certificates'),2);
 });
-
-
 test('service role can execute RPCs while browser roles remain denied',async()=>{
  await db.exec('set local role service_role');
  await decide('rejected'); await release();
  await db.exec('reset role');
  assert.equal(await count('release_certificates'),1);
 });
-
-
-test('explicit re-release after revocation never reactivates the revoked certificate',async()=>{
+test('stale or revoked exact release basis cannot be reissued',async()=>{
  await rejectCandidate(); const old=(await release()).rows[0].result.certificate_id;
  await db.query("insert into release_status_history (release_certificate_id,new_status,changed_by,reason) values ($1,'revoked',$2,'Explicit revocation')",[old,actor]);
- const next=(await release()).rows[0].result;
- assert.notEqual(next.certificate_id,old);assert.equal(next.reused,false);
+ await fails(()=>release(),'PT409');
+ assert.equal(await count('release_certificates'),1);
  const history=(await db.query('select new_status from release_status_history where release_certificate_id=$1 order by created_at desc',[old])).rows;
  assert.equal(history[0].new_status,'revoked');
 });
