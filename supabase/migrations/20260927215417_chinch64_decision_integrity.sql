@@ -219,7 +219,7 @@ begin
     (release_certificate_id, previous_status, new_status, changed_by, reason)
     values (v_certificate, null, 'trusted', p_actor_id, btrim(p_reason));
   insert into public.release_logs (release_certificate_id, event_type, message, details)
-    values (v_certificate, 'authorized_mobile_release', 'Release confirmed in Live Bridge', v_truth);
+    values (v_certificate, 'certificate_issued', 'Release confirmed in Live Bridge', v_truth);
   insert into public.bridge_decision_audit
     (record_id, actor_user_id, action, reason, validation_result_id, review_record_id,
      review_decision_id, release_certificate_id, previous_release_status, new_release_status, details)
