@@ -29,7 +29,13 @@ create table public.release_certificates (
  truth_snapshot jsonb, certificate_hash text, certified_at timestamptz default clock_timestamp()
 );
 create table public.release_status_history (id uuid primary key default gen_random_uuid(), release_certificate_id uuid references public.release_certificates, previous_status text, new_status text, changed_by uuid, reason text, created_at timestamptz default clock_timestamp());
-create table public.release_logs (id uuid primary key default gen_random_uuid(), release_certificate_id uuid references public.release_certificates, event_type text, message text, details jsonb);
+create table public.release_logs (
+ id uuid primary key default gen_random_uuid(),
+ release_certificate_id uuid references public.release_certificates,
+ event_type text check (event_type in ('gate_checked','certificate_issued','revoked','superseded','error')),
+ message text,
+ details jsonb
+);
 create table public.bridge_decision_audit (id uuid primary key default gen_random_uuid(), record_id uuid, actor_user_id uuid, action text, reason text, validation_result_id uuid, review_record_id uuid, review_decision_id uuid, release_certificate_id uuid, previous_release_status text, new_release_status text, details jsonb);
 
 grant usage on schema public to service_role;
