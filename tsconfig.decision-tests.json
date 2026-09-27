@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": ".decision-test-build"
+  },
+  "include": ["api/cases/[recordId]/decision.ts", "tests/decision-integrity/*.ts"],
+  "exclude": []
+}

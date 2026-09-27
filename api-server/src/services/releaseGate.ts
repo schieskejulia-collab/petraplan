@@ -15,6 +15,8 @@ export interface ReleaseGateInput {
   existingReleaseStatus: ReleaseStatus | string | null | undefined;
   hasReleaseCertificate: boolean;
   exceptionApproval?: ReleaseExceptionApproval | null;
+  latestValidationId?: string | null;
+  certificateValidationId?: string | null;
 }
 
 export interface ReleaseGateDecision {
@@ -99,6 +101,17 @@ export function decideReleaseGate(input: ReleaseGateInput): ReleaseGateDecision 
     : null;
   const validationIsPassing = PASSING.has(normalizedValidation);
   const exceptionIsDocumented = hasDocumentedException(input.exceptionApproval);
+
+  if (validationIsPassing && input.hasReleaseCertificate && input.latestValidationId !== undefined
+    && (!input.latestValidationId || input.latestValidationId !== input.certificateValidationId)) {
+    return {
+      effectiveStatus: currentStatus === 'revoked' ? 'revoked' : 'superseded',
+      shouldTransition: false,
+      reason: 'The current validation is not the certified validation; a new review and explicit release are required.',
+      validationIsPassing,
+      exceptionIsDocumented,
+    };
+  }
 
   if (validationIsPassing) {
     const effectiveStatus: ReleaseStatus = input.hasReleaseCertificate

@@ -94,3 +94,21 @@ test('incomplete exception approval cannot bypass the gate', () => {
   assert.equal(result.effectiveStatus, 'revoked');
   assert.equal(result.exceptionIsDocumented, false);
 });
+
+
+test('a later passing validation cannot inherit the old certificate', () => {
+  const result = decideReleaseGate({
+    latestValidationStatus: 'passed', existingReleaseStatus: 'trusted', hasReleaseCertificate: true,
+    latestValidationId: 'validation-new', certificateValidationId: 'validation-old',
+  });
+  assert.equal(result.effectiveStatus, 'superseded');
+  assert.equal(result.shouldTransition, false);
+});
+
+test('a passing revalidation never restores a revoked certificate', () => {
+  const result = decideReleaseGate({
+    latestValidationStatus: 'passed', existingReleaseStatus: 'revoked', hasReleaseCertificate: true,
+    latestValidationId: 'validation-new', certificateValidationId: 'validation-old',
+  });
+  assert.equal(result.effectiveStatus, 'revoked');
+});

@@ -12,6 +12,7 @@ export interface BridgeDecisionAccess {
   unresolved_candidate_count: number;
   review_blockers: string[];
   release_ready: boolean;
+  release_blockers?: string[];
   revoke_ready: boolean;
 }
 

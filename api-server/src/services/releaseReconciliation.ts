@@ -99,6 +99,8 @@ export async function reconcileReleaseGate(input: {
 
   const gate = decideReleaseGate({
     latestValidationStatus: authoritative.status,
+    latestValidationId: authoritative.id,
+    certificateValidationId: certificate.validation_result_id,
     existingReleaseStatus: previousStatus,
     hasReleaseCertificate: true,
   });
