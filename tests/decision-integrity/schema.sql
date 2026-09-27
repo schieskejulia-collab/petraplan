@@ -26,7 +26,8 @@ create table public.release_certificates (
  id uuid primary key default gen_random_uuid(), record_id uuid references public.records, conflict_id uuid,
  resolution_record_id uuid, validation_result_id uuid references public.validation_results, review_record_id uuid,
  review_decision_id uuid, release_status text, certified_by_type text, certified_by uuid, reason text,
- truth_snapshot jsonb, certificate_hash text, certified_at timestamptz default clock_timestamp()
+ truth_snapshot jsonb, certificate_hash text, certified_at timestamptz default clock_timestamp(),
+ unique (resolution_record_id, validation_result_id, review_record_id, review_decision_id)
 );
 create table public.release_status_history (id uuid primary key default gen_random_uuid(), release_certificate_id uuid references public.release_certificates, previous_status text, new_status text, changed_by uuid, reason text, created_at timestamptz default clock_timestamp());
 create table public.release_logs (
