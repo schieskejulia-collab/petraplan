@@ -19,6 +19,9 @@ export function buildAddressableNorthwindSnapshot(input: {
   const statusCandidateId = `NW:CC:A-${orderId}:STATUS-DERIVATION`;
   const quantityCandidateId = `NW:CC:A-${orderId}:QUANTITY-AGGREGATION`;
   const quantities = envelope.orderDetails.map(({ Quantity }: any) => Quantity);
+  const quantityEvidence = quantities.length === 1
+    ? 'Genau eine positionsbezogene Menge ist beobachtet; ihre Übernahme als Bridge-MENGE ist fachlich noch zu bestätigen.'
+    : 'Mehrere positionsbezogene Mengen sind beobachtet; eine Summierung zu Bridge-MENGE ist fachlich nicht bestätigt.';
   const created = { state: 'candidate', at: capturedAt, by: 'system', reason: 'Beim read-only Snapshot erkannt; nicht angewendet.' };
 
   return {
@@ -54,7 +57,7 @@ export function buildAddressableNorthwindSnapshot(input: {
         observedValue: quantities,
         proposedValue: `MENGE=${quantities.reduce((sum: number, value: number) => sum + Number(value), 0)}`,
         conversionKind: 'aggregate',
-        evidence: 'Mehrere positionsbezogene Mengen sind beobachtet; eine Summierung zu Bridge-MENGE ist fachlich nicht bestätigt.',
+        evidence: quantityEvidence,
         confirmed: false,
         impactAddresses: [root, fieldAddress(root, 'MENGE')],
         state: 'candidate',
