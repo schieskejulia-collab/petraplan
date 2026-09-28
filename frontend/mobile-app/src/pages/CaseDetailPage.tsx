@@ -2,6 +2,10 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useLocation, useRoute } from "wouter";
 import { milaApi, type CaseTrace } from "@/api/connector";
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function JsonBlock({ value }: { value: unknown }) {
   return (
     <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-muted/60 p-3 text-[11px] leading-relaxed">
@@ -24,11 +28,14 @@ function Stage({ title, subtitle, children }: { title: string; subtitle: string;
 
 function statusLabel(value: unknown) {
   const status = String(value ?? "open").toLowerCase();
-  if (status === "trusted") return "Vertrauenswürdig";
+  if (status === "trusted") return "Freigegeben";
   if (status === "blocked") return "Blockiert";
   if (status === "revoked") return "Widerrufen";
   if (status === "exception") return "Ausnahmefreigabe";
   if (status === "superseded") return "Ersetzt";
+  if (status === "confirmed") return "Bestätigt";
+  if (status === "candidate") return "Kandidat";
+  if (status === "rejected") return "Abgelehnt";
   if (["passed", "pass", "success", "validated", "valid", "approved"].includes(status)) return "Bestanden";
   if (status === "failed") return "Fehlgeschlagen";
   return status;
@@ -40,6 +47,62 @@ function Step({ label, value }: { label: string; value: string }) {
       <span className="text-sm text-muted-foreground">{label}</span>
       <span className="text-right text-sm font-medium">{value}</span>
     </div>
+  );
+}
+
+type ReadablePathStep = {
+  title: string;
+  fact: string;
+  relation?: string;
+  evidence?: string;
+  status: string;
+  kind: "observed" | "derived" | "candidate" | "confirmed" | "open";
+};
+
+function kindLabel(kind: ReadablePathStep["kind"]) {
+  if (kind === "observed") return "DIREKT BEOBACHTET";
+  if (kind === "derived") return "ABGELEITET";
+  if (kind === "candidate") return "KANDIDAT";
+  if (kind === "confirmed") return "BESTÄTIGT";
+  return "OFFEN / NICHT BELEGT";
+}
+
+function ReadablePath({ steps }: { steps: ReadablePathStep[] }) {
+  return (
+    <section className="rounded-2xl border bg-card p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pfadansicht</p>
+      <h2 className="mt-1 text-lg font-semibold">Zeig mir, wie PetraPlan zu dieser Verbindung kommt</h2>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+        Jeder Schritt trennt Fakt, Beziehung, Ableitung und Bestätigung. Fehlt ein Beleg, bleibt die Stelle sichtbar offen.
+      </p>
+      <div className="mt-4 space-y-2">
+        {steps.map((step, index) => (
+          <div key={`${step.title}-${index}`}>
+            <div className="rounded-xl border p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Schritt {index + 1} · {kindLabel(step.kind)}</p>
+                  <h3 className="mt-1 break-words text-sm font-semibold">{step.title}</h3>
+                </div>
+                <span className="shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold">{step.status}</span>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed">{step.fact}</p>
+              {step.relation && (
+                <div className="mt-3 rounded-lg bg-muted/50 p-2 text-xs">
+                  <span className="font-semibold">Beziehung: </span>{step.relation}
+                </div>
+              )}
+              <div className="mt-2 text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Evidence: </span>{step.evidence || "Kein eigener Beleg gespeichert."}
+              </div>
+            </div>
+            {index < steps.length - 1 && (
+              <div className="flex justify-center py-1 text-lg text-muted-foreground" aria-hidden="true">↓</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -92,6 +155,96 @@ export default function CaseDetailPage() {
   const latestResolution = data.resolution.records.at(-1);
   const latestReviewDecision = data.review.decisions.at(-1);
 
+  const traceWithClaims = data as CaseTrace & { claim_layer?: unknown };
+  const claimLayer = isRecord(traceWithClaims.claim_layer) ? traceWithClaims.claim_layer : {};
+  const claims = Array.isArray(claimLayer.claims) ? claimLayer.claims.filter(isRecord) : [];
+  const evidenceLinks = Array.isArray(claimLayer.evidence_links) ? claimLayer.evidence_links.filter(isRecord) : [];
+  const candidates = data.address_layer.candidates.filter(isRecord);
+  const confirmedCandidates = candidates.filter((candidate) => String(candidate.state).toLowerCase() === "confirmed");
+  const candidateCandidates = candidates.filter((candidate) => String(candidate.state).toLowerCase() === "candidate");
+  const ingestion = data.source.ingestion;
+  const sourceRef = String(ingestion?.source_reference ?? data.source.record.source_reference ?? data.title);
+  const sourceHash = String(ingestion?.source_hash ?? data.source.record.source_hash ?? "kein Hash gespeichert");
+
+  const readableSteps: ReadablePathStep[] = [
+    {
+      title: `Quelle: ${sourceRef}`,
+      fact: "Das ist der gespeicherte Ausgangspunkt des Falls. An dieser Stelle wird noch keine fachliche Bedeutung ergänzt.",
+      relation: "Quelle → Snapshot",
+      evidence: `Source hash: ${sourceHash}`,
+      status: String(ingestion?.status ?? "gespeichert").toUpperCase(),
+      kind: "observed",
+    },
+  ];
+
+  if (data.representation.evidence.length > 0) {
+    readableSteps.push({
+      title: "Werte wurden im ursprünglichen Snapshot beobachtet",
+      fact: `${data.representation.evidence.length} Representation-Evidence-Eintrag/Einträge zeigen, wie Werte zum Erfassungszeitpunkt dargestellt waren.`,
+      relation: "Snapshot → beobachtete Darstellung",
+      evidence: data.representation.evidence.map((item) => String(item.field_address ?? item.id ?? "Representation Evidence")).slice(0, 3).join(" · "),
+      status: "BEOBACHTET",
+      kind: "observed",
+    });
+  }
+
+  if (candidateCandidates.length > 0 || confirmedCandidates.length > 0) {
+    const visibleCandidates = [...confirmedCandidates, ...candidateCandidates];
+    readableSteps.push({
+      title: "Fachliche Zuordnung wurde als Kandidat formuliert",
+      fact: visibleCandidates.map((candidate) => `${String(candidate.candidate_key ?? candidate.id)}: ${String(candidate.observed_value ?? "?")} → ${String(candidate.proposed_value ?? "?")}`).slice(0, 3).join(" · "),
+      relation: "Beobachtung → Bedeutungskandidat",
+      evidence: visibleCandidates.map((candidate) => String(candidate.evidence ?? "Kandidat gespeichert")).slice(0, 2).join(" · "),
+      status: confirmedCandidates.length > 0 ? `${confirmedCandidates.length} BESTÄTIGT` : `${candidateCandidates.length} OFFEN`,
+      kind: confirmedCandidates.length > 0 ? "confirmed" : "candidate",
+    });
+  }
+
+  if (claims.length > 0) {
+    const supportedClaims = claims.filter((claim) => ["supported", "confirmed"].includes(String(claim.status).toLowerCase()));
+    readableSteps.push({
+      title: "Aus den Belegen wurde eine begrenzte Aussage gebildet",
+      fact: claims.map((claim) => String(claim.statement ?? "Claim ohne Text")).slice(0, 2).join(" · "),
+      relation: "Evidence → Claim",
+      evidence: `${evidenceLinks.length} gespeicherte Claim-Evidence-Verknüpfung(en)`,
+      status: supportedClaims.length > 0 ? statusLabel(supportedClaims[0].status).toUpperCase() : statusLabel(claims[0].status).toUpperCase(),
+      kind: supportedClaims.length > 0 ? "confirmed" : "derived",
+    });
+  }
+
+  if (authoritativeValidation) {
+    readableSteps.push({
+      title: "Der konkrete Fall wurde neu geprüft",
+      fact: `Die maßgebliche Validation für diesen Fall ist ${statusLabel(authoritativeValidationStatus).toLowerCase()}.`,
+      relation: "bestätigte Grundlage → Validation",
+      evidence: `Validation ${String(authoritativeValidation.id ?? "ohne ID")} · ${String(authoritativeValidation.created_at ?? "Zeit nicht gespeichert")}`,
+      status: statusLabel(authoritativeValidationStatus).toUpperCase(),
+      kind: "confirmed",
+    });
+  }
+
+  if (latestReviewDecision || data.review.current) {
+    readableSteps.push({
+      title: "Ein Mensch hat den Fall als Fall geprüft",
+      fact: "Review bestätigt nicht noch einmal den Kandidaten, sondern prüft den konkreten Fall mit seinen Belegen und Blockern.",
+      relation: "Validation → Review",
+      evidence: String(latestReviewDecision?.reason ?? data.review.current?.reason ?? "Review-Datensatz gespeichert"),
+      status: statusLabel(latestReviewDecision?.decision ?? latestReviewDecision?.status ?? data.review.current?.decision ?? "offen").toUpperCase(),
+      kind: "confirmed",
+    });
+  }
+
+  readableSteps.push({
+    title: "Release ist die separate Freigabe des Falls",
+    fact: releaseStatus === "trusted"
+      ? "Der Fall ist auf Basis der gespeicherten Prüf- und Review-Kette freigegeben."
+      : "Der Fall ist noch nicht als vertrauenswürdiger Release freigegeben.",
+    relation: "Review → Release",
+    evidence: latestCertificate ? `Zertifikat ${String(latestCertificate.id ?? "")} · Hash ${String(latestCertificate.certificate_hash ?? "nicht gespeichert")}` : "Kein Release-Zertifikat gespeichert.",
+    status: statusLabel(releaseStatus).toUpperCase(),
+    kind: releaseStatus === "trusted" ? "confirmed" : "open",
+  });
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-6 pb-12">
@@ -105,10 +258,12 @@ export default function CaseDetailPage() {
           <p className="text-sm text-muted-foreground">{data.category} · Case {data.id.slice(0, 8)}</p>
         </header>
 
+        <ReadablePath steps={readableSteps} />
+
         <section className="rounded-2xl border bg-card p-4 shadow-sm">
           <div className="mb-3">
-            <h2 className="font-semibold">Aktuell gültiger Pfad</h2>
-            <p className="mt-1 text-xs text-muted-foreground">Die derzeit maßgebliche Truth-Chain. Frühere Prüfungen bleiben darunter als Historie erhalten.</p>
+            <h2 className="font-semibold">Technische Kurzspur</h2>
+            <p className="mt-1 text-xs text-muted-foreground">Die kompakte Truth-Chain bleibt erhalten; die Pfadansicht darüber erklärt, warum die Schritte zusammengehören.</p>
           </div>
           <div>
             <Step label="Source" value="Original erhalten" />
