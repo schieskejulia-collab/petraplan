@@ -84,6 +84,12 @@ export async function handleDecision(req: any, res: any, dependencies = { create
     const unresolvedCandidateCount = unresolvedCandidates.length;
     const validationPassing = Boolean(authoritative?.id && isPassing(authoritative.status));
     const snapshotProcessed = trace.source.ingestion?.status === 'processed';
+    const reviewAlreadyCompleteForValidation = Boolean(
+      review?.complete &&
+      authoritative?.id &&
+      String(review.validation_result_id ?? '') === String(authoritative.id),
+    );
+    const releaseAlreadyTrusted = releaseStatus === 'trusted';
     const reviewBlockers = [
       ...(!snapshotProcessed ? ['Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'] : []),
       ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
@@ -100,11 +106,17 @@ export async function handleDecision(req: any, res: any, dependencies = { create
       can_review: role.can_review,
       can_release: role.can_release,
       can_revoke: role.can_revoke,
-      review_ready: Boolean(snapshotProcessed && validationPassing && unresolvedCandidateCount === 0),
-      review_rejection_ready: Boolean(authoritative?.id),
+      review_ready: Boolean(
+        !releaseAlreadyTrusted &&
+        !reviewAlreadyCompleteForValidation &&
+        snapshotProcessed &&
+        validationPassing &&
+        unresolvedCandidateCount === 0
+      ),
+      review_rejection_ready: Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
       unresolved_candidate_count: unresolvedCandidateCount,
       review_blockers: reviewBlockers,
-      release_ready: Boolean(role.can_release && releaseBlockers.length === 0),
+      release_ready: Boolean(!releaseAlreadyTrusted && role.can_release && releaseBlockers.length === 0),
       release_blockers: releaseBlockers,
       revoke_ready: Boolean(role.can_revoke && trace.release.certificates.length > 0 && releaseStatus !== 'revoked'),
     };
@@ -148,6 +160,12 @@ export async function handleDecision(req: any, res: any, dependencies = { create
       if (!role.can_review) return res.status(403).json({ error: 'Review permission required' });
       if (!authoritative?.id || !authoritative?.resolution_record_id) {
         return res.status(409).json({ error: 'No authoritative validation/resolution available for review' });
+      }
+      if (releaseAlreadyTrusted) {
+        return res.status(409).json({ error: 'Der Fall ist bereits freigegeben. Für dieselbe Grundlage ist kein weiteres Review nötig.' });
+      }
+      if (reviewAlreadyCompleteForValidation) {
+        return res.status(409).json({ error: 'Für diese maßgebliche Validierung ist das Review bereits abgeschlossen.' });
       }
 
       if (action === 'approve_review' && !validationPassing) {
@@ -267,6 +285,7 @@ export async function handleDecision(req: any, res: any, dependencies = { create
 
     if (action === 'release') {
       if (!role.can_release) return res.status(403).json({ error: 'Release permission required' });
+      if (releaseAlreadyTrusted) return res.status(409).json({ error: 'Der Fall ist bereits freigegeben.' });
       if (!authoritative?.id || !isPassing(authoritative.status)) return res.status(409).json({ error: 'Authoritative validation is not passing' });
       if (unresolvedCandidateCount > 0) return res.status(409).json({ error: `${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount === 1 ? ' ist' : 'en sind'} noch offen.` });
       if (!review?.complete || String(review.decision ?? '').toLowerCase() !== 'approved' || review.reviewer_authorized !== true) {
