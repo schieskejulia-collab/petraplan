@@ -55,6 +55,59 @@ function BridgeFieldTable({ source, target }: { source: Record<string, unknown>;
   );
 }
 
+function NorthwindSourceContext({ payload }: { payload: Record<string, unknown> }) {
+  const order = isRecord(payload.order) ? payload.order : null;
+  const customer = isRecord(payload.customer) ? payload.customer : null;
+  const details = Array.isArray(payload.orderDetails) ? payload.orderDetails.filter(isRecord) : [];
+  if (!order || details.length === 0) return null;
+
+  const orderId = bridgeCellValue(order.OrderID);
+  const customerId = bridgeCellValue(order.CustomerID);
+  const sourceFields = [
+    ['OrderID', order.OrderID],
+    ['CustomerID', order.CustomerID],
+    ['OrderDate', order.OrderDate],
+    ['RequiredDate', order.RequiredDate],
+    ['ShippedDate', order.ShippedDate],
+    ['ShipVia', order.ShipVia],
+    ['Freight', order.Freight],
+  ] as const;
+
+  return (
+    <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quellkontext · unveränderter Snapshot</p>
+      <h2 className="mt-1 text-lg font-semibold">Wo liegt der Fall – und was steht dort wirklich?</h2>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Hier siehst du den gespeicherten Northwind-Ausschnitt vor Bridge-Regeln, Kandidaten und Entscheidungen. Nebeneinander anzeigen bedeutet noch keine fachliche Bedeutung.</p>
+
+      <div className="mt-3 overflow-hidden rounded-xl border">
+        <div className="bg-muted/60 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">orders · Kopfzeile</div>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2 p-3 text-xs">
+          {sourceFields.map(([name, value]) => <div key={name} className="min-w-0"><p className="text-[10px] font-semibold uppercase text-muted-foreground">{name}</p><p className="mt-1 break-all font-medium">{bridgeCellValue(value)}</p></div>)}
+          {customer && <div className="min-w-0"><p className="text-[10px] font-semibold uppercase text-muted-foreground">CompanyName</p><p className="mt-1 break-all font-medium">{bridgeCellValue(customer.CompanyName)}</p></div>}
+        </div>
+      </div>
+
+      <div className="mt-3 overflow-x-auto rounded-xl border">
+        <div className="min-w-[560px]">
+          <div className="grid grid-cols-[0.7fr_0.8fr_0.8fr_1fr_0.8fr] gap-2 bg-muted/60 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><span>Zeile</span><span>ProductID</span><span>Quantity</span><span>UnitPrice</span><span>Discount</span></div>
+          {details.map((detail, index) => <div key={`${String(detail.OrderID ?? orderId)}-${String(detail.ProductID ?? index)}-${index}`} className="grid grid-cols-[0.7fr_0.8fr_0.8fr_1fr_0.8fr] gap-2 border-t px-3 py-2 text-xs"><span>#{index + 1}</span><span>{bridgeCellValue(detail.ProductID)}</span><strong>{bridgeCellValue(detail.Quantity)}</strong><span>{bridgeCellValue(detail.UnitPrice)}</span><span>{bridgeCellValue(detail.Discount)}</span></div>)}
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border p-3 text-xs">
+        <p className="font-semibold">Sichtbare Beziehungen im Snapshot</p>
+        <div className="mt-2 space-y-1 text-muted-foreground">
+          <p><span className="font-medium text-foreground">Order {orderId}</span> trägt <span className="font-medium text-foreground">CustomerID {customerId}</span>{customer ? ` und verweist damit auf den sichtbaren Kunden ${bridgeCellValue(customer.CompanyName)}` : ''}.</p>
+          <p>Die {details.length} sichtbaren Position{details.length === 1 ? '' : 'en'} tragen dieselbe OrderID und gehören technisch zu diesem Auftrag.</p>
+          <p>Die Mengen stehen positionsweise in <span className="font-mono text-foreground">orderDetails[].Quantity</span>. Daraus folgt noch nicht, welche fachliche Kopf-MENGE gelten darf.</p>
+        </div>
+      </div>
+
+      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">Source Truth bleibt unverändert. Diese Ansicht zeigt Kontext und technische Beziehungen; sie bestätigt weder STATUS noch MENGE und erzeugt keine Rule.</p>
+    </section>
+  );
+}
+
 function representationLabel(value: unknown) {
   const status = String(value ?? 'unknown').toLowerCase();
   if (status === 'preserved') return 'ERHALTEN';
@@ -289,6 +342,8 @@ export default function LiveBridgePage() {
         <header className="mb-4 flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">PetraPlan · Live Bridge</p><h1 className="mt-1 truncate text-2xl font-semibold">{data.title}</h1><p className="mt-1 text-xs text-muted-foreground">{String(ingestion?.source_system ?? data.source.record.source_system ?? "Quelle unbekannt")} · Case {data.id.slice(0, 8)}</p></div><button className="shrink-0 rounded-lg border px-3 py-2 text-sm" onClick={() => setLocation("/cases")}>Zurück</button></header>
 
         <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Aktueller Zustand</p><p className="mt-1 text-xl font-semibold">{label(displayState)}</p></div><div className="text-right text-xs text-muted-foreground"><p>{data.conflict.conflicts.length} Konflikt{data.conflict.conflicts.length === 1 ? "" : "e"}</p><p>Validation: {label(authoritative?.status)}</p></div></div>{gate && <p className="mt-3 text-sm leading-relaxed">{gate.reason}</p>}</section>
+
+        {isNorthwindCase && <NorthwindSourceContext payload={rawPayload} />}
 
         <section className="mb-4 space-y-3 rounded-2xl border bg-card p-4 shadow-sm"><div><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quelle → Übersetzung</p><h2 className="mt-1 text-lg font-semibold">Was tatsächlich verarbeitet wurde</h2></div>{Object.keys(mappedPayload).length > 0 ? <BridgeFieldTable source={bridgeInput} target={mappedPayload} /> : <div className="grid gap-3 sm:grid-cols-2"><div><p className="mb-2 text-xs font-semibold text-muted-foreground">SOURCE</p><JsonValue value={rawPayload} /></div><div><p className="mb-2 text-xs font-semibold text-muted-foreground">ÜBERSETZUNG</p><JsonValue value={extracted ?? data.semantic.metadata} /></div></div>}{Boolean(ingestion?.source_hash) && <p className="break-all text-[11px] text-muted-foreground">Source hash: {String(ingestion?.source_hash)}</p>}</section>
 
