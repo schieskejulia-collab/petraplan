@@ -1,5 +1,6 @@
 -- Align release idempotency with the live certificate uniqueness contract.
 -- An existing certificate for the exact validation/review basis is immutable.
+-- Revocation/supersession is terminal and must not depend on timestamp/UUID ordering.
 
 create or replace function public.bridge_release_case(
   p_record_id uuid, p_snapshot_id uuid, p_validation_id uuid,
@@ -76,6 +77,14 @@ begin
       and review_decision_id = v_decision.id
     order by certified_at desc, id desc limit 1;
   if v_existing.id is not null then
+    if exists (
+      select 1 from public.release_status_history
+      where release_certificate_id = v_existing.id
+        and lower(coalesce(new_status, '')) in ('revoked', 'superseded')
+    ) then
+      raise sqlstate 'PT409' using message = 'This release basis is stale, revoked, or not bound to the current source snapshot; create a new validation and review';
+    end if;
+
     select new_status into v_previous from public.release_status_history
       where release_certificate_id = v_existing.id order by created_at desc, id desc limit 1;
     v_previous := coalesce(v_previous, v_existing.release_status);
