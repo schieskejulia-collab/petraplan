@@ -131,13 +131,28 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
   const runtime = await rows<any>(
     supabase.from('runtime_logs').select('*').eq('record_id', recordId).order('created_at'),
   );
-  const representationEvidence = await rows<any>(
+  const rawRepresentationEvidence = await rows<any>(
     supabase
       .from('representation_evidence')
       .select('*')
       .eq('record_id', recordId)
       .order('observed_at'),
   );
+  const representationEvidence = rawRepresentationEvidence.map((item) => {
+    const raw = item.raw_representation;
+    const misleadingSingleQuantityNote =
+      String(item.field_address ?? '').endsWith('#MENGE') &&
+      Array.isArray(raw) &&
+      raw.length === 1 &&
+      String(item.assessment_note ?? '').includes('Mehrere positionsbezogene Mengen');
+
+    if (!misleadingSingleQuantityNote) return item;
+
+    return {
+      ...item,
+      assessment_note: `Historischer Originalbefund: Die damals gespeicherte Bewertung sprach von mehreren positionsbezogenen Mengen. In diesem Snapshot ist jedoch genau eine Menge (${String(raw[0])}) sichtbar. Die fachlich bestätigte aktuelle Einordnung steht im Kandidaten-/Claim-Bereich oben; der historische Datensatz selbst wurde nicht verändert.`,
+    };
+  });
   const addressCandidates = await rows<any>(
     supabase
       .from('conversion_candidates')
