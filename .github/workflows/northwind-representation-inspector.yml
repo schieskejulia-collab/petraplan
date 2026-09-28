@@ -1,0 +1,27 @@
+name: Northwind Representation Inspector
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'frontend/mobile-app/tests/northwind-representation-inspector.mjs'
+      - '.github/workflows/northwind-representation-inspector.yml'
+      - 'api-server/src/services/representationInspector.ts'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run read-only inspector against pinned 830-case proof
+        run: node frontend/mobile-app/tests/northwind-representation-inspector.mjs
+      - name: Upload inspector report
+        uses: actions/upload-artifact@v4
+        with:
+          name: northwind-representation-inspector
+          path: |
+            artifacts/northwind-representation-inspector.json
+            artifacts/northwind-representation-inspector.md
