@@ -1,7 +1,7 @@
 import { Redirect, Route, Switch } from "wouter";
 import CasesPage from "./pages/CasesPage";
 import CaseDetailPage from "./pages/CaseDetailPage";
-import LiveBridgePage from "./pages/LiveBridgePage";
+import ReadableLiveBridgePage from "./pages/ReadableLiveBridgePage";
 import TranslatorPage from "./pages/TranslatorPage";
 import SourcesPage from "./pages/SourcesPage";
 import AddressPage from "./pages/AddressPage";
@@ -15,7 +15,7 @@ export default function App() {
       <Route path="/translator" component={TranslatorPage} />
       <Route path="/address" component={AddressPage} />
       <Route path="/sources" component={SourcesPage} />
-      <Route path="/bridge/:caseId" component={LiveBridgePage} />
+      <Route path="/bridge/:caseId" component={ReadableLiveBridgePage} />
       <Route path="/bridge" component={() => <Redirect to="/translator" />} />
       <Route path="/trace" component={() => <Redirect to="/cases" />} />
       <Route path="/governance-proof" component={() => <Redirect to="/cases" />} />
