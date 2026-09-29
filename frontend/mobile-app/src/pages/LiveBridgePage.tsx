@@ -3,6 +3,28 @@ import { useLocation, useRoute } from "wouter";
 import { milaApi, type CaseTrace } from "@/api/connector";
 import { bridgeAuth, bridgeAuthRedirectUrl, currentAccessToken } from "@/lib/bridge-auth";
 import { getBridgeDecisionAccess, revalidateBridgeCase, submitBridgeDecision, type BridgeDecisionAccess, type BridgeDecisionAction } from "@/lib/bridge-decision-client";
+import { createExplicitClaim, type ExplicitClaimType } from "@/lib/bridge-claim-client";
+
+const CLAIM_TYPE_OPTIONS: ExplicitClaimType[] = [
+  'SOURCE',
+  'STRUCTURE',
+  'REPRESENTATION',
+  'SEMANTIC',
+  'SEMANTIC_MAPPING',
+  'MAPPING',
+  'AGGREGATION',
+  'CONTEXT',
+  'BEHAVIOR',
+  'VALIDATION',
+  'DECISION',
+  'AUTHORIZATION',
+];
+
+type ClaimDraftState = {
+  statement: string;
+  claimType: '' | ExplicitClaimType;
+  subjectAddress: string;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -21,6 +43,7 @@ function label(value: unknown) {
   if (raw === "rejected") return "ABGELEHNT";
   if (["passed", "pass", "valid", "validated", "approved", "success"].includes(raw)) return "BESTANDEN";
   if (raw === "failed") return "FEHLGESCHLAGEN";
+  if (raw === "unproven") return "NICHT BELEGT";
   return raw.toUpperCase();
 }
 
@@ -143,6 +166,12 @@ function candidateEvidenceText(candidate: Record<string, unknown>) {
   return String(candidate.evidence ?? 'Kein Befund gespeichert.');
 }
 
+function claimCandidateId(claim: Record<string, unknown>) {
+  if (claim.candidate_id) return String(claim.candidate_id);
+  const scope = isRecord(claim.scope_payload) ? claim.scope_payload : null;
+  return scope?.candidate_id ? String(scope.candidate_id) : '';
+}
+
 export default function LiveBridgePage() {
   const [, params] = useRoute("/bridge/:caseId");
   const [, setLocation] = useLocation();
@@ -156,6 +185,7 @@ export default function LiveBridgePage() {
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [candidateReasons, setCandidateReasons] = useState<Record<string, string>>({});
+  const [claimDrafts, setClaimDrafts] = useState<Record<string, ClaimDraftState>>({});
   const [busy, setBusy] = useState(false);
   const [criteria, setCriteria] = useState({ source_truth_checked: false, translation_trace_checked: false, blockers_resolved: false });
 
@@ -207,6 +237,35 @@ export default function LiveBridgePage() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Entscheidung konnte nicht gespeichert werden.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitClaim = async (candidateId: string, fallbackSubjectAddress: string) => {
+    const token = await currentAccessToken();
+    if (!token) return setAuthMessage("Bitte zuerst anmelden.");
+    const draft = claimDrafts[candidateId] ?? { statement: '', claimType: '', subjectAddress: fallbackSubjectAddress };
+    const subjectAddress = draft.subjectAddress || fallbackSubjectAddress;
+    if (!draft.claimType) return setError('Bitte zuerst einen Claim-Typ auswählen.');
+    if (!subjectAddress) return setError('Für den Claim ist keine zulässige Adresse verfügbar.');
+    if (draft.statement.trim().length < 8) return setError('Die Claim-Aussage muss mindestens 8 Zeichen lang sein.');
+
+    setBusy(true);
+    setError(null);
+    try {
+      await createExplicitClaim({
+        recordId: caseId,
+        token,
+        candidate_id: candidateId,
+        subject_address: subjectAddress,
+        statement: draft.statement.trim(),
+        claim_type: draft.claimType,
+      });
+      setClaimDrafts((value) => ({ ...value, [candidateId]: { statement: '', claimType: '', subjectAddress } }));
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Claim konnte nicht angelegt werden.');
     } finally {
       setBusy(false);
     }
@@ -355,13 +414,26 @@ export default function LiveBridgePage() {
 
         {representationEvidence.length > 0 && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Representation Evidence · ursprünglicher Snapshot</p><h2 className="mt-1 text-lg font-semibold">Wertdarstellung zum Zeitpunkt der Erfassung</h2><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Dieser unveränderte historische Befund zeigt den Stand bei der Erfassung, vor späteren Kandidatenentscheidungen. Die aktuell verarbeiteten Werte stehen oben; ihre Grundlage ist die maßgebliche Validierung.</p><div className="mt-3 space-y-3">{representationEvidence.map((evidence) => <div key={String(evidence.id)} className="rounded-xl border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong className="break-all">{String(evidence.field_address)}</strong><span className="shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold">{representationLabel(evidence.fidelity_status)}</span></div><div className="mt-3 grid grid-cols-3 gap-2 border-y py-2"><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Quelle</p><p className="mt-1 break-words">{representationValue(evidence.raw_representation)}</p></div><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Bridge</p><p className="mt-1 break-words">{representationValue(evidence.bridge_representation)}</p></div><div><p className="text-[10px] font-semibold uppercase text-muted-foreground">Anzeige</p><p className="mt-1 break-words">{representationValue(evidence.display_representation)}</p></div></div><p className="mt-2 leading-relaxed text-muted-foreground">{String(evidence.assessment_note)}</p></div>)}</div></section>}
 
-        {registeredCandidates.length > 0 && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Adressschicht · gespeicherter Snapshot</p><h2 className="mt-1 text-lg font-semibold">Auflösbare Kandidaten</h2><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Die Kandidatenentscheidung beantwortet nur die fachliche Frage „Darf diese Regel für diesen Scope gelten?“. Sie verändert die Source nicht und ist noch keine Fallfreigabe.</p><div className="mt-3 space-y-3">{registeredCandidates.map((candidate) => { const candidateId = String(candidate.id); const source = addressById.get(String(candidate.source_address_id)); const impacts = (linksByCandidateId.get(candidateId) ?? []).map((link) => addressById.get(String(link.address_id))).filter(isRecord); const history = historyByCandidateId.get(candidateId) ?? []; const open = String(candidate.state) === 'candidate'; const singleQuantity = isSingleQuantityCandidate(candidate); return <div key={candidateId} className="rounded-xl border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong className="break-all font-mono">{String(candidate.candidate_key)}</strong><span className="shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold">{label(candidate.state)}</span></div><p className="mt-2">{representationValue(candidate.observed_value)} → {representationValue(candidate.proposed_value)}</p><p className="mt-1 leading-relaxed text-muted-foreground"><span className="font-semibold">Einordnung: </span>{candidateEvidenceText(candidate)}</p>{singleQuantity && String(candidate.evidence ?? '').includes('Mehrere positionsbezogene Mengen') && <details className="mt-2"><summary className="cursor-pointer text-muted-foreground">Gespeicherten historischen Originaltext anzeigen</summary><p className="mt-2 rounded-lg bg-muted/40 p-2 text-muted-foreground">{String(candidate.evidence)}</p></details>}{source && <p className="mt-2"><span className="text-muted-foreground">Quelle: </span><a className="break-all underline" href={`#${addressFragment(source.address)}`}>{String(source.address)}</a></p>}<p className="mt-2 text-muted-foreground">Auswirkungen: {impacts.length ? impacts.map((address, index) => <span key={String(address.id)}>{index > 0 && ', '}<a className="break-all underline" href={`#${addressFragment(address.address)}`}>{String(address.address)}</a></span>) : '—'}</p>{open && snapshotProcessed && sessionReady && access?.can_review && <div className="mt-3 space-y-2 border-t pt-3"><textarea className="w-full rounded-lg border bg-background p-2 text-xs" rows={2} value={candidateReasons[candidateId] ?? ''} onChange={(e) => setCandidateReasons((value) => ({ ...value, [candidateId]: e.target.value }))} placeholder="Begründung der Fachentscheidung"/><div className="grid gap-2 sm:grid-cols-2"><button disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50" onClick={() => void act('confirm_candidate', candidateId)}>Kandidat bestätigen</button><button disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50" onClick={() => void act('reject_candidate', candidateId)}>Kandidat ablehnen</button></div></div>}<details className="mt-2"><summary className="cursor-pointer font-medium">Zustandshistorie ({history.length})</summary><div className="mt-2 space-y-2">{history.map((entry) => <div key={String(entry.id)} className="rounded-lg bg-muted/50 p-2"><strong>{label(entry.state)}</strong><span className="text-muted-foreground"> · {String(entry.changed_by)} · {String(entry.changed_at)}</span><p className="mt-1 text-muted-foreground">{String(entry.reason)}</p></div>)}</div></details></div>; })}</div><details className="mt-4"><summary className="cursor-pointer text-sm font-semibold">{registeredAddresses.length} registrierte Adressen</summary><div className="mt-2 space-y-2">{registeredAddresses.map((address) => <div key={String(address.id)} id={addressFragment(address.address)} className="rounded-lg border p-2 text-xs"><strong className="break-all font-mono">{String(address.address)}</strong><p className="mt-1 text-muted-foreground">{String(address.kind)} · {String(address.source_path)}</p></div>)}</div></details></section>}
+        {registeredCandidates.length > 0 && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Adressschicht · gespeicherter Snapshot</p><h2 className="mt-1 text-lg font-semibold">Auflösbare Kandidaten</h2><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Die Kandidatenentscheidung beantwortet nur die fachliche Frage „Darf diese Regel für diesen Scope gelten?“. Sie verändert die Source nicht und ist noch keine Fallfreigabe.</p><div className="mt-3 space-y-3">{registeredCandidates.map((candidate) => {
+          const candidateId = String(candidate.id);
+          const source = addressById.get(String(candidate.source_address_id));
+          const impacts = (linksByCandidateId.get(candidateId) ?? []).map((link) => addressById.get(String(link.address_id))).filter(isRecord);
+          const history = historyByCandidateId.get(candidateId) ?? [];
+          const open = String(candidate.state) === 'candidate';
+          const confirmed = String(candidate.state) === 'confirmed';
+          const singleQuantity = isSingleQuantityCandidate(candidate);
+          const existingClaim = claims.find((claim) => claimCandidateId(claim) === candidateId);
+          const subjectAddressOptions = Array.from(new Map([source, ...impacts].filter(isRecord).map((item) => [String(item.address), item])).values());
+          const fallbackSubjectAddress = String((impacts[0] ?? source)?.address ?? '');
+          const draft = claimDrafts[candidateId] ?? { statement: '', claimType: '', subjectAddress: fallbackSubjectAddress };
+          return <div key={candidateId} className="rounded-xl border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong className="break-all font-mono">{String(candidate.candidate_key)}</strong><span className="shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold">{label(candidate.state)}</span></div><p className="mt-2">{representationValue(candidate.observed_value)} → {representationValue(candidate.proposed_value)}</p><p className="mt-1 leading-relaxed text-muted-foreground"><span className="font-semibold">Einordnung: </span>{candidateEvidenceText(candidate)}</p>{singleQuantity && String(candidate.evidence ?? '').includes('Mehrere positionsbezogene Mengen') && <details className="mt-2"><summary className="cursor-pointer text-muted-foreground">Gespeicherten historischen Originaltext anzeigen</summary><p className="mt-2 rounded-lg bg-muted/40 p-2 text-muted-foreground">{String(candidate.evidence)}</p></details>}{source && <p className="mt-2"><span className="text-muted-foreground">Quelle: </span><a className="break-all underline" href={`#${addressFragment(source.address)}`}>{String(source.address)}</a></p>}<p className="mt-2 text-muted-foreground">Auswirkungen: {impacts.length ? impacts.map((address, index) => <span key={String(address.id)}>{index > 0 && ', '}<a className="break-all underline" href={`#${addressFragment(address.address)}`}>{String(address.address)}</a></span>) : '—'}</p>{open && snapshotProcessed && sessionReady && access?.can_review && <div className="mt-3 space-y-2 border-t pt-3"><textarea className="w-full rounded-lg border bg-background p-2 text-xs" rows={2} value={candidateReasons[candidateId] ?? ''} onChange={(e) => setCandidateReasons((value) => ({ ...value, [candidateId]: e.target.value }))} placeholder="Begründung der Fachentscheidung"/><div className="grid gap-2 sm:grid-cols-2"><button disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50" onClick={() => void act('confirm_candidate', candidateId)}>Kandidat bestätigen</button><button disabled={busy} className="rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50" onClick={() => void act('reject_candidate', candidateId)}>Kandidat ablehnen</button></div></div>}{confirmed && existingClaim && <div className="mt-3 rounded-lg border bg-muted/30 p-3"><p className="font-semibold">Expliziter Claim vorhanden · {label(existingClaim.status)}</p><p className="mt-1 leading-relaxed text-muted-foreground">{String(existingClaim.statement ?? 'Claim ohne gespeicherten Aussage-Text.')}</p><p className="mt-2 text-[10px] text-muted-foreground">Candidate-Bestätigung und Claim bleiben getrennte Schritte.</p></div>}{confirmed && !existingClaim && sessionReady && access?.can_review && <div className="mt-3 space-y-2 border-t pt-3"><div><p className="font-semibold">Expliziten Claim anlegen</p><p className="mt-1 leading-relaxed text-muted-foreground">Der bestätigte Candidate wird nicht automatisch zur fachlichen Wahrheit. Der neue Claim startet als NICHT BELEGT und gilt nur für diesen Fall (CASE_ONLY). Rule, Validation, Review und Release bleiben unverändert.</p></div><label className="block"><span className="text-[10px] font-semibold uppercase text-muted-foreground">Claim-Typ</span><select className="mt-1 w-full rounded-lg border bg-background p-2 text-xs" value={draft.claimType} onChange={(e) => setClaimDrafts((value) => ({ ...value, [candidateId]: { ...draft, claimType: e.target.value as '' | ExplicitClaimType } }))}><option value="">Typ auswählen</option>{CLAIM_TYPE_OPTIONS.map((type) => <option key={type} value={type}>{type}</option>)}</select></label><label className="block"><span className="text-[10px] font-semibold uppercase text-muted-foreground">Gegenstand / Adresse</span><select className="mt-1 w-full rounded-lg border bg-background p-2 text-xs" value={draft.subjectAddress || fallbackSubjectAddress} onChange={(e) => setClaimDrafts((value) => ({ ...value, [candidateId]: { ...draft, subjectAddress: e.target.value } }))}>{subjectAddressOptions.map((address) => <option key={String(address.id)} value={String(address.address)}>{String(address.address)}</option>)}</select></label><label className="block"><span className="text-[10px] font-semibold uppercase text-muted-foreground">Fachliche Aussage</span><textarea className="mt-1 w-full rounded-lg border bg-background p-2 text-xs" rows={3} value={draft.statement} onChange={(e) => setClaimDrafts((value) => ({ ...value, [candidateId]: { ...draft, statement: e.target.value } }))} placeholder="Was darf für genau diesen Fall behauptet werden?"/></label><button disabled={busy || !draft.claimType || draft.statement.trim().length < 8 || !fallbackSubjectAddress} className="w-full rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-50" onClick={() => void submitClaim(candidateId, fallbackSubjectAddress)}>Claim als UNPROVEN / CASE_ONLY anlegen</button></div>}<details className="mt-2"><summary className="cursor-pointer font-medium">Zustandshistorie ({history.length})</summary><div className="mt-2 space-y-2">{history.map((entry) => <div key={String(entry.id)} className="rounded-lg bg-muted/50 p-2"><strong>{label(entry.state)}</strong><span className="text-muted-foreground"> · {String(entry.changed_by)} · {String(entry.changed_at)}</span><p className="mt-1 text-muted-foreground">{String(entry.reason)}</p></div>)}</div></details></div>;
+        })}</div><details className="mt-4"><summary className="cursor-pointer text-sm font-semibold">{registeredAddresses.length} registrierte Adressen</summary><div className="mt-2 space-y-2">{registeredAddresses.map((address) => <div key={String(address.id)} id={addressFragment(address.address)} className="rounded-lg border p-2 text-xs"><strong className="break-all font-mono">{String(address.address)}</strong><p className="mt-1 text-muted-foreground">{String(address.kind)} · {String(address.source_path)}</p></div>)}</div></details></section>}
 
         {registeredCandidates.length === 0 && addressable && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Address Layer · gespeicherter Snapshot</p><h2 className="mt-1 text-lg font-semibold">{String(addressable.rootAddress ?? 'Adressraum')}</h2><p className="mt-1 text-xs text-muted-foreground">Kandidaten und ihre erste Zustandshistorie wurden mit diesem Fall gespeichert.</p><div className="mt-3 space-y-3">{candidates.map((candidate) => <div key={String(candidate.id)} className="rounded-xl border p-3 text-xs"><div className="flex items-start justify-between gap-2"><strong className="break-all font-mono">{String(candidate.id)}</strong><span className="rounded-full border px-2 py-1 text-[10px] font-semibold">{String(candidate.state).toUpperCase()}</span></div><p className="mt-2">{String(candidate.sourceAddress)} → {String(candidate.proposedValue)}</p><p className="mt-1 text-muted-foreground"><span className="font-semibold">Ursprünglicher Befund: </span>{String(candidate.evidence)}</p><p className="mt-2 text-muted-foreground">Impact: {Array.isArray(candidate.impactAddresses) ? candidate.impactAddresses.join(', ') : '—'}</p><details className="mt-2"><summary className="cursor-pointer font-medium">Zustandshistorie</summary><JsonValue value={candidate.stateHistory} /></details></div>)}</div></section>}
 
         {data.conflict.conflicts.length > 0 && <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><div className="mb-3 flex items-center justify-between"><h2 className="text-lg font-semibold">Offene Punkte</h2><span className="rounded-full border px-2 py-1 text-[11px] font-semibold">{data.conflict.conflicts.length}</span></div><div className="space-y-2">{data.conflict.conflicts.map((conflict, index) => <div key={String(conflict.id ?? index)} className="rounded-xl border p-3"><p className="text-sm font-semibold">{String(conflict.title ?? conflict.conflict_type ?? conflict.type ?? `Konflikt ${index + 1}`)}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{String(conflict.description ?? conflict.reason ?? conflict.message ?? "Kein Beschreibungstext gespeichert.")}</p></div>)}</div></section>}
 
-        <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Entscheidungslogik</p><h2 className="mt-1 text-lg font-semibold">Warum wird fachlich zweimal bestätigt?</h2><div className="mt-3 space-y-3 text-sm"><div className="rounded-xl border p-3"><strong>1 · Kandidat bestätigen</strong><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Hier wird nur die fachliche Bedeutung oder Regel bestätigt, zum Beispiel „die einzige beobachtete Menge 24 darf in diesem Fall als MENGE 24 verwendet werden“. Die Source bleibt unverändert.</p></div><div className="rounded-xl border p-3"><strong>2 · Neuvalidierung und Review</strong><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Danach wird der konkrete Fall mit den bestätigten Regeln neu geprüft. Das Review bestätigt nicht die Regel noch einmal, sondern dass Source Truth, Übersetzung, Evidence und Blocker für genau diesen Fall zusammenpassen.</p></div><div className="rounded-xl border p-3"><strong>3 · Release</strong><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Erst die separate Freigabe macht den geprüften Fall freigegeben. Eine Kandidatenbestätigung ist keine Freigabe, und ein Review ist ebenfalls noch kein Release.</p></div></div></section>
+        <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm"><p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Entscheidungslogik</p><h2 className="mt-1 text-lg font-semibold">Warum sind Candidate, Claim, Review und Release getrennt?</h2><div className="mt-3 space-y-3 text-sm"><div className="rounded-xl border p-3"><strong>1 · Kandidat bestätigen</strong><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Hier wird nur entschieden, ob der konkrete Candidate als Grundlage weiterverwendet werden darf. Die tatsächlichen Werte stehen im jeweiligen Candidate — dieser Erklärungstext enthält bewusst keine fremden Beispielwerte. Die Source bleibt unverändert.</p></div><div className="rounded-xl border p-3"><strong>2 · Expliziten Claim anlegen</strong><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Aus einem bestätigten Candidate kann ein Mensch eine konkrete, fallbezogene Aussage formulieren. Sie startet als NICHT BELEGT / CASE_ONLY und wird mit Quelladresse, Snapshot, Candidate-Evidence und menschlicher Bestätigung verknüpft.</p></div><div className="rounded-xl border p-3"><strong>3 · Neuvalidierung und Review</strong><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Erst Rule, Authority und die anschließende Prüfung dürfen entscheiden, ob die Aussage für den vorgesehenen Scope tragfähig ist. Das Review prüft danach den aktuellen konkreten Fallzustand.</p></div><div className="rounded-xl border p-3"><strong>4 · Release</strong><p className="mt-1 text-xs leading-relaxed text-muted-foreground">Erst die separate Freigabe macht das geprüfte Ergebnis verwendbar. Candidate, Claim, Assessment und Review sind jeweils noch kein Release.</p></div></div></section>
 
         <section className="rounded-2xl border bg-card p-4 shadow-sm">
           <h2 className="text-lg font-semibold">Entscheidung</h2>
