@@ -155,10 +155,6 @@ export interface CaseTrace {
     effective_status: ReleaseStatus;
     gate: ReleaseGateDecision | null;
   };
-  claim_layer?: {
-    claims: Array<Record<string, unknown>>;
-    evidence_links: Array<Record<string, unknown>>;
-  };
   rdf_prov?: RdfProvReadModel;
 }
 
