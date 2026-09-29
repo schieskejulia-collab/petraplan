@@ -1,4 +1,5 @@
 import { getCaseTrace } from '../../api-server/src/services/caseTrace.js';
+import { buildRdfProvReadModel } from '../../api-server/src/services/rdfProvReadModel.js';
 import { requireBridgeRole } from '../_lib/auth.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -55,10 +56,27 @@ export default async function handler(req: any, res: any) {
     if (!trace) return res.status(404).json({ error: 'Case not found' });
 
     const claimLayer = await loadClaimLayer(ctx.supabase, recordId);
+    const ingestion = trace.source.ingestion as Record<string, unknown> | null;
+    const rdfProv = buildRdfProvReadModel({
+      recordId,
+      snapshot: ingestion
+        ? {
+            id: String(ingestion.id ?? ''),
+            sourceSystem: String(ingestion.source_system ?? ''),
+            observedAt: String(ingestion.ingested_at ?? ''),
+          }
+        : null,
+      addresses: trace.address_layer.addresses,
+      candidates: trace.address_layer.candidates,
+      impactLinks: trace.address_layer.links,
+      claims: claimLayer.claims,
+      claimEvidenceLinks: claimLayer.evidence_links,
+    });
 
     return res.status(200).json({
       ...trace,
       claim_layer: claimLayer,
+      rdf_prov: rdfProv,
     });
   } catch (error) {
     console.error('PetraPlan /api/cases/:recordId failed:', error);
