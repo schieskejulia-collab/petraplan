@@ -60,7 +60,7 @@ function literal(value: unknown): RdfObject {
  * Important boundaries:
  * - this function does not create new source facts;
  * - technical/address relations stay technical relations;
- * - claims remain claims and keep their status/scope;
+ * - candidates remain candidates and claims remain claims;
  * - provenance describes origin/influence, not truth;
  * - no candidate, validation, review or release state is changed.
  */
@@ -109,32 +109,81 @@ export function buildRdfProvReadModel(input: RdfProvInput): RdfProvReadModel {
   }
 
   // Candidates are possible interpretations, not asserted semantic truth.
+  // Their provenance is nevertheless projectable from already persisted candidate metadata.
   const candidateById = new Map(candidates.map((c) => [String(c.id ?? ''), c]));
   for (const candidate of candidates) {
     const candidateId = String(candidate.id ?? '');
     if (!candidateId) continue;
     const candidateResource = `pp:candidate:${candidateId}`;
+    const candidateBasis = `conversion_candidates:${candidateId}`;
 
     statements.push({
       subject: candidateResource,
       predicate: 'rdf:type',
       object: resource('pp:ClaimCandidate'),
-      evidence_basis: `conversion_candidates:${candidateId}`,
+      evidence_basis: candidateBasis,
     });
     statements.push({
       subject: candidateResource,
       predicate: 'pp:state',
       object: literal(candidate.state ?? 'candidate'),
-      evidence_basis: `conversion_candidates:${candidateId}`,
+      evidence_basis: candidateBasis,
     });
 
     const sourceAddress = addressById.get(String(candidate.source_address_id ?? ''));
     if (sourceAddress?.address) {
+      const sourceAddressValue = String(sourceAddress.address);
       statements.push({
         subject: candidateResource,
         predicate: 'pp:observedAtAddress',
-        object: resource(String(sourceAddress.address)),
-        evidence_basis: `conversion_candidates:${candidateId}`,
+        object: resource(sourceAddressValue),
+        evidence_basis: candidateBasis,
+      });
+      prov.push({
+        subject: candidateResource,
+        predicate: 'prov:wasDerivedFrom',
+        object: sourceAddressValue,
+        evidence_basis: candidateBasis,
+      });
+    }
+
+    const candidateSnapshotId = String(candidate.snapshot_id ?? input.snapshot?.id ?? '');
+    if (candidateSnapshotId) {
+      prov.push({
+        subject: candidateResource,
+        predicate: 'prov:wasDerivedFrom',
+        object: `pp:snapshot:${candidateSnapshotId}`,
+        evidence_basis: candidateBasis,
+      });
+    }
+
+    const conversionKind = String(candidate.conversion_kind ?? 'candidate-detection');
+    prov.push({
+      subject: candidateResource,
+      predicate: 'prov:wasGeneratedBy',
+      object: `pp:activity:${conversionKind}`,
+      evidence_basis: candidateBasis,
+    });
+
+    if (candidate.evidence) {
+      const candidateEvidenceResource = `pp:evidence:candidate:${candidateId}`;
+      statements.push({
+        subject: candidateEvidenceResource,
+        predicate: 'rdf:type',
+        object: resource('pp:CandidateEvidence'),
+        evidence_basis: candidateBasis,
+      });
+      statements.push({
+        subject: candidateEvidenceResource,
+        predicate: 'pp:evidenceText',
+        object: literal(candidate.evidence),
+        evidence_basis: candidateBasis,
+      });
+      prov.push({
+        subject: candidateResource,
+        predicate: 'prov:wasInfluencedBy',
+        object: candidateEvidenceResource,
+        evidence_basis: candidateBasis,
       });
     }
   }
@@ -268,7 +317,7 @@ export function buildRdfProvReadModel(input: RdfProvInput): RdfProvReadModel {
     guard_rails: [
       'RDF projection is a read model, not a new truth layer.',
       'Technical relations do not imply business semantics.',
-      'Claims remain claims and are not promoted to source truth.',
+      'Candidates remain candidates; claims remain claims.',
       'PROV-O-shaped links describe origin/influence, not correctness.',
       'No candidate, validation, review or release state is mutated.',
     ],

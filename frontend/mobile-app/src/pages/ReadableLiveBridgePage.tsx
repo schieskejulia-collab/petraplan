@@ -97,6 +97,7 @@ export default function ReadableLiveBridgePage() {
     const confirmedCandidates = candidates.filter((item) => String(item.state).toLowerCase() === "confirmed");
     const openCandidates = candidates.filter((item) => String(item.state).toLowerCase() === "candidate");
     const rejectedCandidates = candidates.filter((item) => String(item.state).toLowerCase() === "rejected");
+    const candidateEvidence = candidates.filter((item) => Boolean(item.evidence));
 
     const claimLayer = data.claim_layer ?? { claims: [], evidence_links: [] };
     const claims = Array.isArray(claimLayer.claims) ? claimLayer.claims.filter(isRecord) : [];
@@ -115,6 +116,18 @@ export default function ReadableLiveBridgePage() {
     const rdfStatementCount = data.rdf_prov?.rdf.statements.length ?? 0;
     const provLinkCount = data.rdf_prov?.prov.links.length ?? 0;
 
+    const evidenceText = evidenceLinks.length
+      ? `${evidenceLinks.length} Claim↔Evidence-Verknüpfung(en) zeigen, worauf gespeicherte Claims beruhen.`
+      : candidateEvidence.length
+        ? `${candidateEvidence.length} Candidate-Evidence-Befund(e) sind gespeichert. Sie belegen die beobachtete Grundlage des Kandidaten, aber noch keinen autorisierten fachlichen Claim.`
+        : "Weder Candidate-Evidence noch eine Claim↔Evidence-Verknüpfung ist gespeichert.";
+
+    const evidenceStatus = evidenceLinks.length
+      ? "CLAIM-EVIDENCE"
+      : candidateEvidence.length
+        ? "CANDIDATE-EVIDENCE"
+        : "NICHT BELEGT";
+
     return {
       sourceRef,
       sourceSystem,
@@ -130,14 +143,15 @@ export default function ReadableLiveBridgePage() {
       candidateStatus: openCandidates.length ? "OFFEN" : confirmedCandidates.length ? "BESTÄTIGT" : candidates.length ? "GEPRÜFT" : "KEIN KANDIDAT",
       claimText: claims.length
         ? `${claims.length} fachliche Aussage(n), davon ${confirmedClaims.length} gestützt oder bestätigt.`
-        : "Für diesen Fall ist noch kein Claim gespeichert.",
-      claimStatus: claims.length ? (confirmedClaims.length === claims.length ? "BESTÄTIGT" : "TEILWEISE OFFEN") : "NICHT BELEGT",
-      evidenceText: evidenceLinks.length
-        ? `${evidenceLinks.length} Evidence-Verknüpfung(en) zeigen, worauf gespeicherte Claims beruhen.`
-        : "Für die Claims ist keine Evidence-Verknüpfung gespeichert.",
+        : "Für diesen Fall ist noch kein expliziter Claim gespeichert.",
+      claimStatus: claims.length ? (confirmedClaims.length === claims.length ? "BESTÄTIGT" : "TEILWEISE OFFEN") : "NICHT AUTORISIERT",
+      evidenceText,
+      evidenceStatus,
       scopeText: claims.length
         ? `${scopedClaims.length} von ${claims.length} Claim(s) haben einen expliziten Scope; ${ruleBackedClaims.length} verweisen auf eine gespeicherte Rule.`
-        : "Ohne Claim gibt es hier auch keinen Claim-Scope zu autorisieren.",
+        : candidates.length
+          ? "Die Kandidaten haben beobachtete Herkunft und Candidate-Evidence, aber noch keinen expliziten Claim mit autorisiertem Scope oder gespeicherter Rule."
+          : "Ohne Claim oder Kandidat gibt es hier keinen Claim-Scope zu autorisieren.",
       validationText: validation
         ? `Die maßgebliche Validierung ${String(validation.id ?? "").slice(0, 8)} steht auf ${statusLabel(validation.status)}.`
         : "Es gibt noch keine maßgebliche Validierung.",
@@ -176,7 +190,7 @@ export default function ReadableLiveBridgePage() {
               <PathStep number={4} question="WOMIT ist es nachweisbar verbunden?" title="RDF Relations + Keys + Context" answer={`${path.rdfStatementCount} RDF-artige Aussage(n), dazu ${path.relationCount} gespeicherte Impact-/Adressbeziehung(en).`} status={path.rdfStatementCount ? "SICHTBAR" : "NICHT BELEGT"} detail="RDF macht technische Beziehungen sichtbar. Eine technische Relation wird dadurch nicht automatisch zur fachlichen Wahrheit." />
               <PathStep number={5} question="WAS könnte diese Beziehung bedeuten?" title="Claim Candidate" answer={path.candidateText} status={path.candidateStatus} detail="Ein Kandidat ist eine prüfbare Vermutung. Er verändert weder die Quelle noch gibt er den Fall frei." />
               <PathStep number={6} question="WOHER kommen Claim und Belege?" title="PROV-O" answer={`${path.provLinkCount} Herkunfts-/Einflussbeziehung(en) sind sichtbar.`} status={path.provLinkCount ? "NACHVOLLZIEHBAR" : "NICHT BELEGT"} detail="PROV-O beschreibt Herkunft, Einfluss und Verantwortungsbezug. Es beweist nicht automatisch, dass eine Aussage richtig ist." />
-              <PathStep number={7} question="WAS belegt die Aussage?" title="Evidence" answer={path.evidenceText} status={path.evidenceText.startsWith("Für") ? "NICHT BELEGT" : "VERKNÜPFT"} detail="Evidence trägt oder widerspricht einer Aussage. Die Aussage bleibt trotzdem ein Claim mit eigenem Status." />
+              <PathStep number={7} question="WAS belegt die Aussage?" title="Evidence" answer={path.evidenceText} status={path.evidenceStatus} detail="Candidate-Evidence belegt nur die beobachtete Grundlage einer Vermutung. Erst ein eigener Claim↔Evidence-Link trägt eine explizite fachliche Aussage." />
               <PathStep number={8} question="DARF die Aussage für diesen Scope gelten?" title="Rule + Authority + Assessment" answer={path.scopeText} status={path.claimStatus} detail="Scope, Rule und fachliche Entscheidung dürfen nicht stillschweigend verallgemeinert werden." />
               <PathStep number={9} question="HÄLT genau dieser konkrete Fall?" title="Validation" answer={path.validationText} status={path.validationStatus} detail={path.conflicts ? `${path.conflicts} Konflikt(e) sind im Fall sichtbar.` : "Keine aktuell gespeicherten Konflikte im Fall."} />
               <PathStep number={10} question="HAT ein berechtigter Mensch den aktuellen Stand geprüft?" title="Review" answer={path.reviewText} status={path.reviewStatus} />
