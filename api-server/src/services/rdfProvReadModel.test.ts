@@ -16,6 +16,32 @@ test('projects address relations without turning them into semantic truth', () =
   assert.equal(result.rdf.statements.some((s) => s.predicate === 'pp:means'), false);
 });
 
+test('projects provenance and evidence for candidates without promoting them to claims', () => {
+  const result = buildRdfProvReadModel({
+    recordId: 'record-1',
+    snapshot: { id: 'snap-1', sourceSystem: 'northwind', observedAt: '2026-09-29T00:00:00Z' },
+    addresses: [
+      { id: 'a-order', address: 'NW:A-10305', kind: 'object' },
+      { id: 'a-qty', address: 'NW:A-10305#DetailQuantities', kind: 'collection', parent_address_id: 'a-order', source_path: 'orderDetails[].Quantity' },
+    ],
+    candidates: [{
+      id: 'candidate-1',
+      snapshot_id: 'snap-1',
+      source_address_id: 'a-qty',
+      conversion_kind: 'quantity-aggregation',
+      evidence: 'Observed values [25,25,30] at orderDetails[].Quantity.',
+      state: 'candidate',
+    }],
+  });
+
+  assert.equal(result.prov.links.some((l) => l.subject === 'pp:candidate:candidate-1' && l.predicate === 'prov:wasDerivedFrom' && l.object === 'NW:A-10305#DetailQuantities'), true);
+  assert.equal(result.prov.links.some((l) => l.subject === 'pp:candidate:candidate-1' && l.predicate === 'prov:wasDerivedFrom' && l.object === 'pp:snapshot:snap-1'), true);
+  assert.equal(result.prov.links.some((l) => l.subject === 'pp:candidate:candidate-1' && l.predicate === 'prov:wasGeneratedBy' && l.object === 'pp:activity:quantity-aggregation'), true);
+  assert.equal(result.prov.links.some((l) => l.subject === 'pp:candidate:candidate-1' && l.predicate === 'prov:wasInfluencedBy' && l.object === 'pp:evidence:candidate:candidate-1'), true);
+  assert.equal(result.rdf.statements.some((s) => s.subject === 'pp:evidence:candidate:candidate-1' && s.predicate === 'pp:evidenceText'), true);
+  assert.equal(result.rdf.statements.some((s) => s.subject === 'pp:claim:candidate-1'), false);
+});
+
 test('keeps claims separate and exposes provenance links', () => {
   const result = buildRdfProvReadModel({
     recordId: 'record-1',
