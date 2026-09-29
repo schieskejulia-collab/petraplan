@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getCaseTrace } from '../../../api-server/src/services/caseTrace.js';
 import { buildExplicitClaimDraft, CLAIM_TYPES, type ClaimType } from '../../../api-server/src/services/claimFromCandidate.js';
+import { invalidateReleaseAfterNewClaim } from '../../../api-server/src/services/claimReleaseInvalidation.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -135,8 +136,24 @@ export async function handleClaim(req: any, res: any, dependencies = { createCli
       throw evidenceError;
     }
 
+    let releaseInvalidation;
+    try {
+      releaseInvalidation = await invalidateReleaseAfterNewClaim({
+        supabase,
+        recordId,
+        claimId: String(claim.id),
+        actorUserId: user.id,
+      });
+    } catch (invalidationError) {
+      // The claim must never survive if the safety revocation could not be persisted.
+      // Deleting the claim also removes its claim_evidence_links via ON DELETE CASCADE.
+      await supabase.from('claims').delete().eq('id', claim.id);
+      throw invalidationError;
+    }
+
     return res.status(200).json({
       claim_id: claim.id,
+      release_invalidation: releaseInvalidation,
       trace: await dependencies.getCaseTrace(supabase, recordId),
     });
   } catch (error: any) {
