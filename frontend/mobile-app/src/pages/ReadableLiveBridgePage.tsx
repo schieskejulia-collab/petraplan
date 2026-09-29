@@ -7,6 +7,13 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+type ReadableCaseTrace = CaseTrace & {
+  claim_layer?: {
+    claims: Array<Record<string, unknown>>;
+    evidence_links: Array<Record<string, unknown>>;
+  };
+};
+
 function statusLabel(value: unknown) {
   const raw = String(value ?? "offen").toLowerCase();
   if (["trusted", "approved", "passed", "pass", "success", "validated", "valid"].includes(raw)) return "BESTÄTIGT";
@@ -61,7 +68,7 @@ function PathStep({ number, title, question, answer, status, detail }: PathStepP
 export default function ReadableLiveBridgePage() {
   const [, params] = useRoute("/bridge/:caseId");
   const caseId = params?.caseId ?? "";
-  const [data, setData] = useState<CaseTrace | null>(null);
+  const [data, setData] = useState<ReadableCaseTrace | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,7 +76,7 @@ export default function ReadableLiveBridgePage() {
     if (!caseId) return;
     void milaApi.caseTrace(caseId)
       .then((trace) => {
-        if (!cancelled) setData(trace);
+        if (!cancelled) setData(trace as ReadableCaseTrace);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Pfadansicht konnte nicht geladen werden.");
