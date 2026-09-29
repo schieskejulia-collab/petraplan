@@ -75,6 +75,32 @@ export interface CaseListItem {
   release_status: ReleaseStatus;
 }
 
+export type RdfObject =
+  | { kind: "resource"; value: string }
+  | { kind: "literal"; value: unknown };
+
+export interface RdfStatement {
+  subject: string;
+  predicate: string;
+  object: RdfObject;
+  evidence_basis: string;
+}
+
+export interface ProvLink {
+  subject: string;
+  predicate: "prov:wasDerivedFrom" | "prov:wasAttributedTo" | "prov:wasInfluencedBy" | "prov:wasGeneratedBy";
+  object: string;
+  evidence_basis: string;
+}
+
+export interface RdfProvReadModel {
+  mode: "READ_ONLY_PROJECTION";
+  record_id: string;
+  rdf: { statements: RdfStatement[] };
+  prov: { links: ProvLink[] };
+  guard_rails: string[];
+}
+
 export interface CaseTrace {
   id: string;
   title: string;
@@ -99,6 +125,7 @@ export interface CaseTrace {
   representation: { evidence: Array<Record<string, unknown>> };
   address_layer: {
     addresses: Array<Record<string, unknown>>;
+    observations?: Array<Record<string, unknown>>;
     candidates: Array<Record<string, unknown>>;
     links: Array<Record<string, unknown>>;
     history: Array<Record<string, unknown>>;
@@ -128,6 +155,7 @@ export interface CaseTrace {
     effective_status: ReleaseStatus;
     gate: ReleaseGateDecision | null;
   };
+  rdf_prov?: RdfProvReadModel;
 }
 
 async function parseError(res: Response): Promise<Error> {

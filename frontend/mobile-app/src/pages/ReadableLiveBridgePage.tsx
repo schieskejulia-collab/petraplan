@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute } from "wouter";
-import { milaApi, type CaseTrace } from "@/api/connector";
+import { milaApi, type CaseTrace, type RdfObject } from "@/api/connector";
 import LiveBridgePage from "./LiveBridgePage";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
+
+type ReadableCaseTrace = CaseTrace & {
+  claim_layer?: {
+    claims: Array<Record<string, unknown>>;
+    evidence_links: Array<Record<string, unknown>>;
+  };
+};
 
 function statusLabel(value: unknown) {
   const raw = String(value ?? "offen").toLowerCase();
@@ -18,6 +25,16 @@ function statusLabel(value: unknown) {
   if (raw === "candidate") return "KANDIDAT";
   if (raw === "superseded") return "ERSETZT";
   return raw ? raw.toUpperCase() : "OFFEN";
+}
+
+function rdfObjectText(object: RdfObject) {
+  if (object.kind === "resource") return object.value;
+  if (typeof object.value === "string" || typeof object.value === "number" || typeof object.value === "boolean") return String(object.value);
+  try {
+    return JSON.stringify(object.value);
+  } catch {
+    return String(object.value ?? "—");
+  }
 }
 
 type PathStepProps = {
@@ -51,7 +68,7 @@ function PathStep({ number, title, question, answer, status, detail }: PathStepP
 export default function ReadableLiveBridgePage() {
   const [, params] = useRoute("/bridge/:caseId");
   const caseId = params?.caseId ?? "";
-  const [data, setData] = useState<CaseTrace | null>(null);
+  const [data, setData] = useState<ReadableCaseTrace | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,7 +76,7 @@ export default function ReadableLiveBridgePage() {
     if (!caseId) return;
     void milaApi.caseTrace(caseId)
       .then((trace) => {
-        if (!cancelled) setData(trace);
+        if (!cancelled) setData(trace as ReadableCaseTrace);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Pfadansicht konnte nicht geladen werden.");
@@ -81,11 +98,12 @@ export default function ReadableLiveBridgePage() {
     const openCandidates = candidates.filter((item) => String(item.state).toLowerCase() === "candidate");
     const rejectedCandidates = candidates.filter((item) => String(item.state).toLowerCase() === "rejected");
 
-    const rawClaimLayer = (data as CaseTrace & { claim_layer?: unknown }).claim_layer;
-    const claimLayer = isRecord(rawClaimLayer) ? rawClaimLayer : {};
+    const claimLayer = data.claim_layer ?? { claims: [], evidence_links: [] };
     const claims = Array.isArray(claimLayer.claims) ? claimLayer.claims.filter(isRecord) : [];
     const evidenceLinks = Array.isArray(claimLayer.evidence_links) ? claimLayer.evidence_links.filter(isRecord) : [];
     const confirmedClaims = claims.filter((item) => ["confirmed", "supported"].includes(String(item.status).toLowerCase()));
+    const scopedClaims = claims.filter((item) => Boolean(item.scope_type));
+    const ruleBackedClaims = claims.filter((item) => Boolean(item.rule_id));
 
     const validation = data.validation.authoritative;
     const review = data.review.current;
@@ -93,6 +111,9 @@ export default function ReadableLiveBridgePage() {
 
     const relationCount = Array.isArray(data.address_layer?.links) ? data.address_layer.links.length : 0;
     const addressCount = Array.isArray(data.address_layer?.addresses) ? data.address_layer.addresses.length : 0;
+    const representationCount = Array.isArray(data.representation?.evidence) ? data.representation.evidence.length : 0;
+    const rdfStatementCount = data.rdf_prov?.rdf.statements.length ?? 0;
+    const provLinkCount = data.rdf_prov?.prov.links.length ?? 0;
 
     return {
       sourceRef,
@@ -100,14 +121,23 @@ export default function ReadableLiveBridgePage() {
       sourceStatus: statusLabel(ingestion?.status),
       addressCount,
       relationCount,
+      representationCount,
+      rdfStatementCount,
+      provLinkCount,
       candidateText: candidates.length
         ? `${candidates.length} Kandidat(en): ${confirmedCandidates.length} bestätigt, ${openCandidates.length} offen, ${rejectedCandidates.length} abgelehnt.`
         : "Keine gespeicherten Kandidaten in diesem Fall.",
       candidateStatus: openCandidates.length ? "OFFEN" : confirmedCandidates.length ? "BESTÄTIGT" : candidates.length ? "GEPRÜFT" : "KEIN KANDIDAT",
       claimText: claims.length
-        ? `${claims.length} fachliche Aussage(n), davon ${confirmedClaims.length} gestützt oder bestätigt. ${evidenceLinks.length} Evidence-Verknüpfung(en) zeigen, worauf diese Aussagen beruhen.`
-        : "Für diesen Fall ist noch kein Claim gespeichert. Das ist keine Behauptungslücke, die versteckt werden darf.",
+        ? `${claims.length} fachliche Aussage(n), davon ${confirmedClaims.length} gestützt oder bestätigt.`
+        : "Für diesen Fall ist noch kein Claim gespeichert.",
       claimStatus: claims.length ? (confirmedClaims.length === claims.length ? "BESTÄTIGT" : "TEILWEISE OFFEN") : "NICHT BELEGT",
+      evidenceText: evidenceLinks.length
+        ? `${evidenceLinks.length} Evidence-Verknüpfung(en) zeigen, worauf gespeicherte Claims beruhen.`
+        : "Für die Claims ist keine Evidence-Verknüpfung gespeichert.",
+      scopeText: claims.length
+        ? `${scopedClaims.length} von ${claims.length} Claim(s) haben einen expliziten Scope; ${ruleBackedClaims.length} verweisen auf eine gespeicherte Rule.`
+        : "Ohne Claim gibt es hier auch keinen Claim-Scope zu autorisieren.",
       validationText: validation
         ? `Die maßgebliche Validierung ${String(validation.id ?? "").slice(0, 8)} steht auf ${statusLabel(validation.status)}.`
         : "Es gibt noch keine maßgebliche Validierung.",
@@ -124,78 +154,81 @@ export default function ReadableLiveBridgePage() {
     };
   }, [data]);
 
+  const rdfStatements = data?.rdf_prov?.rdf.statements ?? [];
+  const provLinks = data?.rdf_prov?.prov.links ?? [];
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-3xl px-4 pt-5">
         <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pfadansicht · lesbare Beweiskette</p>
           <h2 className="mt-1 text-xl font-semibold">Wie kommt PetraPlan zu diesem Ergebnis?</h2>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Nicht nur das Ergebnis, sondern der Weg dorthin. Jede Stufe zeigt, was beobachtet, abgeleitet, bestätigt oder noch nicht belegt ist.</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">Nicht nur das Ergebnis, sondern der Weg dorthin. Jede Stufe zeigt, was beobachtet, verbunden, vermutet, belegt, geprüft oder freigegeben ist.</p>
 
           {error && <p className="mt-3 rounded-xl border p-3 text-sm">{error}</p>}
           {!path && !error && <p className="mt-3 text-sm text-muted-foreground">Pfad wird geladen…</p>}
 
           {path && (
             <div className="mt-4 space-y-3">
-              <PathStep
-                number={1}
-                question="Woher kommt es?"
-                title="Quelle / Snapshot"
-                answer={`${path.sourceRef} aus ${path.sourceSystem}`}
-                status={path.sourceStatus}
-                detail="Das ist die beobachtete Herkunft. Die Quelle wird nicht durch spätere Entscheidungen umgeschrieben."
-              />
-              <PathStep
-                number={2}
-                question="Womit hängt es zusammen?"
-                title="Adressen und beobachtete Verbindungen"
-                answer={`${path.addressCount} registrierte Adresse(n), ${path.relationCount} gespeicherte Verbindung(en).`}
-                status={path.relationCount ? "BEOBACHTET" : "NICHT BELEGT"}
-                detail="Eine technische Verbindung ist noch keine bestätigte fachliche Bedeutung."
-              />
-              <PathStep
-                number={3}
-                question="Welche Bedeutung wird vermutet?"
-                title="Kandidaten"
-                answer={path.candidateText}
-                status={path.candidateStatus}
-                detail="Ein Kandidat ist eine prüfbare Vermutung. Er verändert weder die Quelle noch gibt er den Fall frei."
-              />
-              <PathStep
-                number={4}
-                question="Was darf daraus behauptet werden?"
-                title="Claims und Evidence"
-                answer={path.claimText}
-                status={path.claimStatus}
-                detail="Eine Aussage bleibt auf ihren Scope begrenzt. Indirekte Aussagen dürfen ihre Beweiskette nicht verlieren."
-              />
-              <PathStep
-                number={5}
-                question="Hält die Kette der Prüfung stand?"
-                title="Validation"
-                answer={path.validationText}
-                status={path.validationStatus}
-                detail={path.conflicts ? `${path.conflicts} Konflikt(e) sind im Fall sichtbar.` : "Keine aktuell gespeicherten Konflikte im Fall."}
-              />
-              <PathStep
-                number={6}
-                question="Hat ein Mensch den konkreten Fall geprüft?"
-                title="Review"
-                answer={path.reviewText}
-                status={path.reviewStatus}
-              />
-              <PathStep
-                number={7}
-                question="Darf dieser konkrete Fall verwendet werden?"
-                title="Release"
-                answer={path.releaseText}
-                status={path.releaseStatus}
-              />
+              <PathStep number={1} question="WO liegt es?" title="Address / RDF Resource" answer={`${path.addressCount} registrierte Adresse(n) im Fall.`} status={path.addressCount ? "ADRESSIERT" : "NICHT BELEGT"} detail="Die Adresse sagt, wo etwas liegt. Sie sagt noch nicht, was es fachlich bedeutet." />
+              <PathStep number={2} question="WAS wurde dort tatsächlich beobachtet?" title="Observation / Source Snapshot" answer={`${path.sourceRef} aus ${path.sourceSystem}`} status={path.sourceStatus} detail="Das ist die beobachtete Herkunft. Die Quelle wird durch spätere Entscheidungen nicht umgeschrieben." />
+              <PathStep number={3} question="WIE wurde es dargestellt?" title="Representation Evidence" answer={`${path.representationCount} gespeicherte Darstellungsbefund(e).`} status={path.representationCount ? "BEOBACHTET" : "NICHT BELEGT"} detail="Raw, Bridge und Display dürfen auseinanderliegen. Eine Darstellungsabweichung ist noch keine fachliche Bedeutung." />
+              <PathStep number={4} question="WOMIT ist es nachweisbar verbunden?" title="RDF Relations + Keys + Context" answer={`${path.rdfStatementCount} RDF-artige Aussage(n), dazu ${path.relationCount} gespeicherte Impact-/Adressbeziehung(en).`} status={path.rdfStatementCount ? "SICHTBAR" : "NICHT BELEGT"} detail="RDF macht technische Beziehungen sichtbar. Eine technische Relation wird dadurch nicht automatisch zur fachlichen Wahrheit." />
+              <PathStep number={5} question="WAS könnte diese Beziehung bedeuten?" title="Claim Candidate" answer={path.candidateText} status={path.candidateStatus} detail="Ein Kandidat ist eine prüfbare Vermutung. Er verändert weder die Quelle noch gibt er den Fall frei." />
+              <PathStep number={6} question="WOHER kommen Claim und Belege?" title="PROV-O" answer={`${path.provLinkCount} Herkunfts-/Einflussbeziehung(en) sind sichtbar.`} status={path.provLinkCount ? "NACHVOLLZIEHBAR" : "NICHT BELEGT"} detail="PROV-O beschreibt Herkunft, Einfluss und Verantwortungsbezug. Es beweist nicht automatisch, dass eine Aussage richtig ist." />
+              <PathStep number={7} question="WAS belegt die Aussage?" title="Evidence" answer={path.evidenceText} status={path.evidenceText.startsWith("Für") ? "NICHT BELEGT" : "VERKNÜPFT"} detail="Evidence trägt oder widerspricht einer Aussage. Die Aussage bleibt trotzdem ein Claim mit eigenem Status." />
+              <PathStep number={8} question="DARF die Aussage für diesen Scope gelten?" title="Rule + Authority + Assessment" answer={path.scopeText} status={path.claimStatus} detail="Scope, Rule und fachliche Entscheidung dürfen nicht stillschweigend verallgemeinert werden." />
+              <PathStep number={9} question="HÄLT genau dieser konkrete Fall?" title="Validation" answer={path.validationText} status={path.validationStatus} detail={path.conflicts ? `${path.conflicts} Konflikt(e) sind im Fall sichtbar.` : "Keine aktuell gespeicherten Konflikte im Fall."} />
+              <PathStep number={10} question="HAT ein berechtigter Mensch den aktuellen Stand geprüft?" title="Review" answer={path.reviewText} status={path.reviewStatus} />
+              <PathStep number={11} question="DARF dieses geprüfte Ergebnis verwendet werden?" title="Release" answer={path.releaseText} status={path.releaseStatus} />
             </div>
           )}
-
-          <a href="#live-bridge-workflow" className="mt-4 block rounded-xl border px-4 py-3 text-center text-sm font-semibold">Technische Details darunter ansehen ↓</a>
         </section>
+
+        {data?.rdf_prov && (
+          <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">RDF + PROV-O · read-only</p>
+            <h2 className="mt-1 text-lg font-semibold">Beziehungen und Herkunft sichtbar</h2>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Diese Ansicht liest bestehende PetraPlan-Evidence. Sie erzeugt keine neue Source Truth, bestätigt keine fachliche Bedeutung und verändert weder Candidate, Validation, Review noch Release.</p>
+
+            <details className="mt-4 rounded-xl border p-3" open>
+              <summary className="cursor-pointer text-sm font-semibold">RDF Relations ({rdfStatements.length})</summary>
+              <div className="mt-3 space-y-2">
+                {rdfStatements.length ? rdfStatements.map((statement, index) => (
+                  <div key={`${statement.subject}-${statement.predicate}-${index}`} className="rounded-lg bg-muted/40 p-3 text-xs">
+                    <p className="break-all"><span className="font-semibold">{statement.subject}</span></p>
+                    <p className="my-1 break-all text-muted-foreground">↓ {statement.predicate}</p>
+                    <p className="break-all font-medium">{rdfObjectText(statement.object)}</p>
+                    <p className="mt-2 break-all text-[10px] text-muted-foreground">Evidence-Basis: {statement.evidence_basis}</p>
+                  </div>
+                )) : <p className="text-xs text-muted-foreground">Keine RDF-artige Beziehung für diesen Fall projiziert.</p>}
+              </div>
+            </details>
+
+            <details className="mt-3 rounded-xl border p-3" open>
+              <summary className="cursor-pointer text-sm font-semibold">PROV-O Herkunft ({provLinks.length})</summary>
+              <div className="mt-3 space-y-2">
+                {provLinks.length ? provLinks.map((link, index) => (
+                  <div key={`${link.subject}-${link.predicate}-${index}`} className="rounded-lg bg-muted/40 p-3 text-xs">
+                    <p className="break-all"><span className="font-semibold">{link.subject}</span></p>
+                    <p className="my-1 break-all text-muted-foreground">↓ {link.predicate}</p>
+                    <p className="break-all font-medium">{link.object}</p>
+                    <p className="mt-2 break-all text-[10px] text-muted-foreground">Evidence-Basis: {link.evidence_basis}</p>
+                  </div>
+                )) : <p className="text-xs text-muted-foreground">Keine PROV-O-artige Herkunftsbeziehung für diesen Fall projiziert.</p>}
+              </div>
+            </details>
+
+            <details className="mt-3 rounded-xl border p-3">
+              <summary className="cursor-pointer text-sm font-semibold">Grenzen dieser Ansicht</summary>
+              <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                {data.rdf_prov.guard_rails.map((guard) => <p key={guard}>• {guard}</p>)}
+              </div>
+            </details>
+          </section>
+        )}
+
+        <a href="#live-bridge-workflow" className="mb-4 block rounded-xl border px-4 py-3 text-center text-sm font-semibold">Technische Details darunter ansehen ↓</a>
       </div>
 
       <div id="live-bridge-workflow">
