@@ -11,8 +11,8 @@ const read = path => readFile(new URL(path, import.meta.url), 'utf8');
 const migrations = [
   '20260927222002_chinch64_decision_integrity',
   '20260927222450_chinch64_existing_basis_guard',
-  '20260928123500_chinch64_revoked_release_terminal',
-  '20261002120000_chinch64_claim_freshness_guard',
+  '20261002141108_chinch64_revoked_release_terminal',
+  '20261002141136_chinch64_claim_freshness_guard',
 ];
 
 before(async () => {
