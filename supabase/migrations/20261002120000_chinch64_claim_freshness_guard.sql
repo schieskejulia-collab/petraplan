@@ -124,6 +124,17 @@ drop trigger if exists bridge_lock_claim_evidence_basis on public.claim_evidence
 create trigger bridge_lock_claim_evidence_basis before insert or update or delete on public.claim_evidence_links
   for each row execute function public.bridge_lock_claim_evidence_basis();
 
+-- A system revocation has no human actor. Preserve its audit row without
+-- inventing a user, while keeping user IDs mandatory for every other action.
+alter table public.bridge_decision_audit alter column actor_user_id drop not null;
+alter table public.bridge_decision_audit
+  add constraint bridge_decision_audit_actor_or_automatic_claim_change
+  check (actor_user_id is not null or (
+    action = 'revoke'
+    and coalesce(details ->> 'automatic', '') = 'true'
+    and coalesce(details ->> 'source', '') = 'claim_freshness_invalidation'
+  ));
+
 create or replace function public.bridge_revoke_release_for_claim_change(
   p_record_id uuid, p_claim_id uuid, p_actor text, p_change text
 ) returns void language plpgsql security invoker set search_path = '' as $$
@@ -145,17 +156,25 @@ begin
     where release_certificate_id = v_cert.id order by created_at desc, id desc limit 1;
   v_previous := lower(coalesce(v_previous, v_cert.release_status, ''));
   if v_previous not in ('trusted', 'exception') then return; end if;
-  v_actor := case when p_actor ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    then p_actor::uuid end;
+  -- Claim producers may be system names, while the audit table requires a real
+  -- auth user. A Bridge role is FK-bound to auth.users; use the release actor
+  -- as fallback for an automatic revocation, and keep the producer in details.
+  select user_id into v_actor from public.bridge_actor_roles
+    where user_id::text = lower(p_actor) limit 1;
+  if v_actor is null then
+    select user_id into v_actor from public.bridge_actor_roles
+      where user_id::text = lower(v_cert.certified_by) limit 1;
+  end if;
   v_reason := 'Claim ' || p_claim_id::text || ' oder dessen Beleg wurde nach der geprüften Freigabe geändert (' ||
     p_change || '). Neuvalidierung, neues Review und eine neue explizite Freigabe sind erforderlich.';
   insert into public.release_status_history
     (release_certificate_id, previous_status, new_status, changed_by, reason)
-    values (v_cert.id, v_previous, 'revoked', v_actor, v_reason);
+    values (v_cert.id, v_previous, 'revoked', 'claim_freshness_invalidation', v_reason);
   insert into public.release_logs (release_certificate_id, event_type, message, details)
     values (v_cert.id, 'revoked', 'Release automatically revoked after claim basis changed',
       jsonb_build_object('automatic', true, 'source', 'claim_freshness_invalidation',
         'record_id', p_record_id, 'claim_id', p_claim_id, 'change', p_change,
+        'claim_producer', p_actor,
         'validation_result_id', v_cert.validation_result_id,
         'previous_release_status', v_previous, 'new_release_status', 'revoked'));
   insert into public.bridge_decision_audit
@@ -164,7 +183,8 @@ begin
     values (p_record_id, v_actor, 'revoke', v_reason, v_cert.validation_result_id, v_cert.id,
       v_previous, 'revoked', jsonb_build_object(
         'automatic', true, 'source', 'claim_freshness_invalidation',
-        'claim_id', p_claim_id, 'change', p_change));
+        'claim_id', p_claim_id, 'change', p_change, 'claim_producer', p_actor,
+        'audit_actor_from_release', v_actor is not null and v_actor::text is distinct from p_actor));
 end;
 $$;
 revoke all on function public.bridge_revoke_release_for_claim_change(uuid, uuid, text, text) from public, anon, authenticated;

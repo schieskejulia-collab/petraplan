@@ -17,6 +17,16 @@ const migrations = [
 
 before(async () => {
   await db.exec(await read('./schema.sql'));
+  await db.exec(`create schema auth;
+    create table auth.users (id uuid primary key);
+    alter table release_certificates alter column certified_by type text using certified_by::text;
+    alter table release_status_history alter column changed_by type text using changed_by::text;
+    alter table release_status_history alter column changed_by set not null;
+    alter table bridge_actor_roles add constraint bridge_actor_roles_user_id_fkey
+      foreign key (user_id) references auth.users(id);
+    alter table bridge_decision_audit alter column actor_user_id set not null;
+    alter table bridge_decision_audit add constraint bridge_decision_audit_actor_user_id_fkey
+      foreign key (actor_user_id) references auth.users(id);`);
   await db.exec((await read('../../db/address_layer.sql')).replace('create extension if not exists pgcrypto;', ''));
   await db.exec((await read('../../db/claim_layer.sql')).replace('create extension if not exists pgcrypto;', ''));
   for (const name of migrations) await db.exec(await read(`../../supabase/migrations/${name}.sql`));
@@ -26,6 +36,7 @@ beforeEach(async () => {
   await db.exec('begin');
   await db.query(`insert into ingestion_logs values ($1,'processed','source-hash','{"untouched":true}')`, [snapshot]);
   await db.query('insert into records values ($1,$2)', [record, snapshot]);
+  await db.query('insert into auth.users values ($1)', [actor]);
   await db.query('insert into bridge_actor_roles values ($1,true,true,true)', [actor]);
   await db.query(`insert into address_registry
     (id,source_id,first_snapshot_id,first_record_id,address,kind,source_path,registered_at)
@@ -62,10 +73,10 @@ const claimIsAfter = async validationId => (await db.query(
   'select bridge_claims_after_validation($1,$2) as stale', [record, validationId])).rows[0].stale;
 const rejectCandidate = () => db.query('select bridge_decide_candidate($1,$2,$3,$4,$5,$6,$7)',
   [record, candidate, snapshot, actor, 'rejected', 'Explicit test decision', null]);
-const addClaim = async (createdAt = '2026-09-02T00:00:00Z') => (await db.query(`insert into claims
+const addClaim = async (createdAt = '2026-09-02T00:00:00Z', createdBy = actor) => (await db.query(`insert into claims
   (claim_family_id,claim_type,subject_address,predicate,statement,status,scope_type,record_id,snapshot_id,created_by,created_at)
   values (gen_random_uuid(),'SEMANTIC_MAPPING','order.STATUS','means','Initial claim','UNPROVEN','CASE_ONLY',$1,$2,$3,$4)
-  returning id`, [record, snapshot, actor, createdAt])).rows[0].id;
+  returning id`, [record, snapshot, createdBy, createdAt])).rows[0].id;
 const addEvidence = claimId => db.query(`insert into claim_evidence_links
   (claim_id,evidence_type,evidence_reference,relation,directness,linked_by)
   values ($1,'SOURCE_SNAPSHOT',$2,'SUPPORTS','DIRECT',$3) returning id`, [claimId, snapshot, actor]);
@@ -180,6 +191,36 @@ test('claim status change and evidence edit revoke an existing release', async (
   const audits = (await db.query(`select count(*)::int as n from bridge_decision_audit
     where action='revoke' and release_certificate_id=$1`, [cert])).rows[0].n;
   assert.equal(audits, 1);
+});
+
+test('a system-produced claim revokes the release with a valid audit actor', async () => {
+  await rejectCandidate();
+  const cert = (await release()).rows[0].result.certificate_id;
+  await addClaim('2026-09-02T00:00:00Z', 'claim-pipeline');
+  assert.equal(await status(cert), 'revoked');
+  const history = (await db.query(`select changed_by from release_status_history
+    where release_certificate_id=$1 and new_status='revoked'`, [cert])).rows[0];
+  assert.equal(history.changed_by, 'claim_freshness_invalidation');
+  const audit = (await db.query(`select actor_user_id,details from bridge_decision_audit
+    where release_certificate_id=$1 and action='revoke'`, [cert])).rows[0];
+  assert.equal(audit.actor_user_id, actor);
+  assert.equal(audit.details.claim_producer, 'claim-pipeline');
+});
+
+test('a legacy system certificate has an automatic audit event without a made-up user', async () => {
+  await rejectCandidate();
+  const cert = (await release()).rows[0].result.certificate_id;
+  await db.query("update release_certificates set certified_by='legacy-system' where id=$1", [cert]);
+  await addClaim('2026-09-02T00:00:00Z', 'claim-pipeline');
+  assert.equal(await status(cert), 'revoked');
+  const logs = (await db.query(`select count(*)::int as n from release_logs
+    where release_certificate_id=$1 and event_type='revoked'`, [cert])).rows[0].n;
+  const audits = (await db.query(`select actor_user_id,details from bridge_decision_audit
+    where release_certificate_id=$1 and action='revoke'`, [cert])).rows;
+  assert.equal(logs, 1);
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].actor_user_id, null);
+  assert.equal(audits[0].details.automatic, true);
 });
 
 test('audit failure rolls back new claim and revocation together', async () => {
