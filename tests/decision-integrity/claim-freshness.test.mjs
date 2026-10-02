@@ -13,6 +13,7 @@ const migrations = [
   '20260927222450_chinch64_existing_basis_guard',
   '20261002141108_chinch64_revoked_release_terminal',
   '20261002141136_chinch64_claim_freshness_guard',
+  '20261002173000_chinch64_unresolved_semantic_claim_guard',
 ];
 
 before(async () => {
@@ -80,6 +81,9 @@ const addClaim = async (createdAt = '2026-09-02T00:00:00Z', createdBy = actor) =
 const addEvidence = claimId => db.query(`insert into claim_evidence_links
   (claim_id,evidence_type,evidence_reference,relation,directness,linked_by)
   values ($1,'SOURCE_SNAPSHOT',$2,'SUPPORTS','DIRECT',$3) returning id`, [claimId, snapshot, actor]);
+const confirmClaim = claimId => db.query(`update claims set status='CONFIRMED',
+  confirmed_by=$2, confirmed_at=now(), confirmer_role='owner_reviewer', confirmation_reason='Explicit test confirmation'
+  where id=$1`, [claimId, actor]);
 async function reviewedBasis() {
   const current = await basis();
   await db.query('update review_decisions set evidence_refs = evidence_refs || $2::text[] where id=$1',
@@ -146,10 +150,21 @@ test('database refuses an approved review if a claim arrived after its validatio
       [`ingestion:${snapshot}`, `validation:${validation}`, `claims:${current}`]]), 'PT409');
 });
 
-test('a claim created before validation is accepted by a later reviewed validation basis', async () => {
+test('an unresolved semantic claim cannot be approved after a fresh validation', async () => {
   await rejectCandidate();
   const claimId = await addClaim('2026-08-31T00:00:00Z');
   await addEvidence(claimId);
+  const current = await basis();
+  assert.equal(await claimIsAfter(validation), false);
+  await fails(() => addValidationAndReview(current), 'PT409');
+  await fails(() => db.query(`insert into release_certificates (record_id) values ($1)`, [record]), 'PT409');
+});
+
+test('a confirmed claim created before validation is accepted by a later reviewed validation basis', async () => {
+  await rejectCandidate();
+  const claimId = await addClaim('2026-08-31T00:00:00Z');
+  await addEvidence(claimId);
+  await confirmClaim(claimId);
   const current = await reviewedBasis();
   assert.equal(await claimIsAfter(validation), false);
   const { validationId, sessionId } = await addValidationAndReview(current);
@@ -163,6 +178,7 @@ test('a claim created before validation is accepted by a later reviewed validati
 test('change in claim statement after review changes basis and blocks release', async () => {
   await rejectCandidate();
   const claimId = await addClaim('2026-08-31T00:00:00Z');
+  await confirmClaim(claimId);
   const previous = await reviewedBasis();
   await db.query("update claims set statement='Changed assertion' where id=$1", [claimId]);
   assert.notEqual(await basis(), previous);
@@ -172,6 +188,7 @@ test('change in claim statement after review changes basis and blocks release', 
 test('evidence link added after review changes basis and blocks release', async () => {
   await rejectCandidate();
   const claimId = await addClaim('2026-08-31T00:00:00Z');
+  await confirmClaim(claimId);
   const previous = await reviewedBasis();
   await addEvidence(claimId);
   assert.notEqual(await basis(), previous);
@@ -182,6 +199,7 @@ test('claim status change and evidence edit revoke an existing release', async (
   await rejectCandidate();
   const claimId = await addClaim('2026-08-31T00:00:00Z');
   const link = (await addEvidence(claimId)).rows[0].id;
+  await confirmClaim(claimId);
   await reviewedBasis();
   const cert = (await release()).rows[0].result.certificate_id;
   await db.query("update claim_evidence_links set note='New evidence detail' where id=$1", [link]);

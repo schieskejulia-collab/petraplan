@@ -4,7 +4,7 @@ import { createDecisionHandler } from '../../api/cases/[recordId]/decision.js';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const claimsBasis = 'a'.repeat(64);
-function setup(options: { stale?: boolean; claimStale?: boolean; oldClaimsBasis?: boolean; rpcError?: {code:string;message:string}; freshnessRpcError?: {code:string;message:string}; basisRpcError?: {code:string;message:string}; noReviewRole?: boolean } = {}) {
+function setup(options: { stale?: boolean; claimStale?: boolean; unresolvedSemantic?: boolean; oldClaimsBasis?: boolean; rpcError?: {code:string;message:string}; freshnessRpcError?: {code:string;message:string}; basisRpcError?: {code:string;message:string}; noReviewRole?: boolean } = {}) {
   const calls: Array<{name: string; args: any}> = [];
   const trace: any = {
     source: { ingestion: {id:id(2), status:'processed'} },
@@ -21,7 +21,9 @@ function setup(options: { stale?: boolean; claimStale?: boolean; oldClaimsBasis?
         select:()=>query,eq:()=>query,maybeSingle:()=>query,
         then(resolve:any) {return Promise.resolve({data:table==='bridge_actor_roles'
           ?{role_name:'reviewer',can_review:!options.noReviewRole,can_release:true,can_revoke:true}
-          :[],error:null}).then(resolve);},
+          :table==='claims' && options.unresolvedSemantic
+            ?[{id:id(7),claim_type:'SEMANTIC_MAPPING',status:'UNPROVEN',created_at:'2026-09-01T00:00:00Z',subject_address:'NW:A-10266#STATUS'}]
+            :[],error:null}).then(resolve);},
       };
       return query;
     },
@@ -78,6 +80,15 @@ test('later claim blocks review approval and release in the API',async()=>{
  assert.equal(review.statusCode,409);
  const release=await request('POST',{action:'release',reason:'Reviewed'});
  assert.equal(release.statusCode,409);
+ assert.equal(calls.some(c=>c.name==='bridge_release_case'),false);
+});
+test('unproven semantic mapping stays blocked after a fresh validation',async()=>{
+ const {request,calls}=setup({unresolvedSemantic:true});
+ const get=await request('GET'); assert.equal(get.statusCode,200);
+ assert.equal(get.body.access.review_ready,false); assert.equal(get.body.access.release_ready,false);
+ assert.match(get.body.access.release_blockers.join(' '),/Bedeutungs-Claim/);
+ assert.equal((await request('POST',{action:'approve_review',reason:'Reviewed'})).statusCode,409);
+ assert.equal((await request('POST',{action:'release',reason:'Reviewed'})).statusCode,409);
  assert.equal(calls.some(c=>c.name==='bridge_release_case'),false);
 });
 test('missing claim freshness function fails closed',async()=>{
