@@ -2,6 +2,7 @@ export type ClaimFreshnessInput = {
   id?: unknown;
   created_at?: unknown;
   status?: unknown;
+  claim_type?: unknown;
   subject_address?: unknown;
 };
 
@@ -33,4 +34,13 @@ export function claimFreshnessBlockers(claims: ClaimFreshnessInput[], validation
   return [
     `${laterClaims.length} relevante${laterClaims.length === 1 ? 'r Claim ist' : ' Claims sind'} nach der maßgeblichen Validierung entstanden. Neuvalidierung ist erforderlich.`,
   ];
+}
+
+/** An unresolved case-level semantic mapping cannot justify a decision. */
+export function unresolvedSemanticClaimBlockers(claims: ClaimFreshnessInput[]) {
+  const count = claims.filter((claim) =>
+    String(claim.claim_type ?? '').toUpperCase() === 'SEMANTIC_MAPPING'
+    && ['DRAFT', 'UNPROVEN', 'SUPPORTED', 'CONTESTED'].includes(String(claim.status ?? '').toUpperCase()),
+  ).length;
+  return count ? [`${count} fachliche${count === 1 ? 'r Bedeutungs-Claim ist' : ' Bedeutungs-Claims sind'} noch nicht bestätigt. Review und Freigabe bleiben gesperrt.`] : [];
 }
