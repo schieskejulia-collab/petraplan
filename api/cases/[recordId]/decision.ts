@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { getCaseTrace } from '../../../api-server/src/services/caseTrace.js';
 import { releaseBasisBlockers } from '../../../api-server/src/services/releaseBasis.js';
-import { claimFreshnessBlockers } from '../../../api-server/src/services/claimFreshness.js';
+import { claimFreshnessBlockers, unresolvedSemanticClaimBlockers } from '../../../api-server/src/services/claimFreshness.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIVE_RULE = 'PetraPlan live bridge review';
@@ -36,7 +36,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const review:any=trace.review.current;
     const releaseStatus=trace.release.effective_status;
     const unresolvedCandidates=await many<any>(supabase.from('conversion_candidates').select('id').eq('record_id',recordId).eq('state','candidate'));
-    const claims=await many<any>(supabase.from('claims').select('id,created_at,status,subject_address').eq('record_id',recordId));
+    const claims=await many<any>(supabase.from('claims').select('id,created_at,status,claim_type,subject_address').eq('record_id',recordId));
     const unresolvedCandidateCount=unresolvedCandidates.length;
     const validationPassing=Boolean(authoritative?.id && isPassing(authoritative.status));
     const snapshotProcessed=trace.source.ingestion?.status === 'processed';
@@ -51,6 +51,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const {data:claimsBasis,error:claimsBasisError}=await supabase.rpc('bridge_claims_basis',{p_record_id:recordId});
     if(claimsBasisError || typeof claimsBasis!=='string' || !/^[0-9a-f]{64}$/.test(claimsBasis)) return res.status(503).json({error:'Claims-Basis ist nicht verfügbar.'});
     const freshnessBlockers=claimFreshnessBlockers(claims,authoritative);
+    const semanticBlockers=unresolvedSemanticClaimBlockers(claims);
     if(claimAfterValidation && freshnessBlockers.length===0) freshnessBlockers.push('Ein aktiver Claim ist nach der maßgeblichen Validierung entstanden. Neuvalidierung ist erforderlich.');
     const decisionBasisFresh=!claimAfterValidation && freshnessBlockers.length===0;
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
@@ -60,13 +61,14 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
       ...(unresolvedCandidateCount>0 ? [`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount===1?' ist':'en sind'} noch offen.`] : []),
       ...freshnessBlockers,
+      ...semanticBlockers,
     ];
     const basisBlockers=releaseBasisBlockers({validation:authoritative,review,snapshotId:trace.source.ingestion?.id ?? null});
     if(review?.complete && !review.evidence_reference_ids?.includes(`claims:${claimsBasis}`)) basisBlockers.push('Die Claim-Basis des Reviews ist veraltet. Neuvalidierung und neues Review sind erforderlich.');
     const releaseBlockers=[...reviewBlockers,...basisBlockers];
     const access={
       role:role.role_name, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
-      review_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh),
+      review_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
       review_rejection_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
       unresolved_candidate_count:unresolvedCandidateCount,
       review_blockers:reviewBlockers,
@@ -98,6 +100,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       if(action==='approve_review' && !validationPassing) return res.status(409).json({error:'Die maßgebliche Validierung ist nicht bestanden.'});
       if(action==='approve_review' && unresolvedCandidateCount>0) return res.status(409).json({error:`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount===1?' ist':'en sind'} noch offen.`});
       if(action==='approve_review' && freshnessBlockers.length) return res.status(409).json({error:freshnessBlockers.join(' ')});
+      if(action==='approve_review' && semanticBlockers.length) return res.status(409).json({error:semanticBlockers.join(' ')});
       const criterionInput=req.body?.criteria ?? {};
       if(action==='approve_review' && !CRITERIA.every(key=>criterionInput[key]===true)) return res.status(409).json({error:'All required review criteria must be confirmed before approval'});
       const rule=await one<any>(supabase.from('review_rules').select('*').eq('name',LIVE_RULE).eq('active',true).single());
@@ -122,6 +125,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       if(!authoritative?.id || !isPassing(authoritative.status)) return res.status(409).json({error:'Authoritative validation is not passing'});
       if(unresolvedCandidateCount>0) return res.status(409).json({error:`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount===1?' ist':'en sind'} noch offen.`});
       if(freshnessBlockers.length) return res.status(409).json({error:freshnessBlockers.join(' ')});
+      if(semanticBlockers.length) return res.status(409).json({error:semanticBlockers.join(' ')});
       if(!review?.complete || String(review.decision ?? '').toLowerCase()!=='approved' || review.reviewer_authorized!==true) return res.status(409).json({error:'A complete authorized approval is required before release'});
       if(basisBlockers.length) return res.status(409).json({error:basisBlockers.join(' ')});
       const {error}=await supabase.rpc('bridge_release_case',{p_record_id:recordId,p_snapshot_id:trace.source.ingestion?.id,p_validation_id:authoritative.id,p_review_session_id:review.session_id,p_actor_id:user.id,p_reason:reason});
