@@ -93,6 +93,8 @@ begin
   return new;
 end;
 $$;
+revoke all on function public.bridge_lock_claim_basis() from public, anon, authenticated;
+grant execute on function public.bridge_lock_claim_basis() to service_role;
 drop trigger if exists bridge_lock_claim_basis on public.claims;
 create trigger bridge_lock_claim_basis before insert or update or delete on public.claims
   for each row execute function public.bridge_lock_claim_basis();
@@ -116,6 +118,8 @@ begin
   return new;
 end;
 $$;
+revoke all on function public.bridge_lock_claim_evidence_basis() from public, anon, authenticated;
+grant execute on function public.bridge_lock_claim_evidence_basis() to service_role;
 drop trigger if exists bridge_lock_claim_evidence_basis on public.claim_evidence_links;
 create trigger bridge_lock_claim_evidence_basis before insert or update or delete on public.claim_evidence_links
   for each row execute function public.bridge_lock_claim_evidence_basis();
@@ -163,6 +167,8 @@ begin
         'claim_id', p_claim_id, 'change', p_change));
 end;
 $$;
+revoke all on function public.bridge_revoke_release_for_claim_change(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function public.bridge_revoke_release_for_claim_change(uuid, uuid, text, text) to service_role;
 
 create or replace function public.bridge_revoke_release_on_claim_basis_change()
 returns trigger language plpgsql security invoker set search_path = '' as $$
@@ -192,6 +198,8 @@ begin
   return new;
 end;
 $$;
+revoke all on function public.bridge_revoke_release_on_claim_basis_change() from public, anon, authenticated;
+grant execute on function public.bridge_revoke_release_on_claim_basis_change() to service_role;
 drop trigger if exists bridge_revoke_release_on_claim_basis_change on public.claims;
 create trigger bridge_revoke_release_on_claim_basis_change after insert or update or delete on public.claims
   for each row execute function public.bridge_revoke_release_on_claim_basis_change();

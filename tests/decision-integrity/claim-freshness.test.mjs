@@ -106,6 +106,14 @@ test('claim arriving after review blocks release', async () => {
   await fails(release, 'PT409');
 });
 
+test('claim revocation helper is callable by service role but not API client roles', async () => {
+  const result = await db.query(`select
+    has_function_privilege('anon', 'public.bridge_revoke_release_for_claim_change(uuid,uuid,text,text)', 'EXECUTE') as anon,
+    has_function_privilege('authenticated', 'public.bridge_revoke_release_for_claim_change(uuid,uuid,text,text)', 'EXECUTE') as authenticated,
+    has_function_privilege('service_role', 'public.bridge_revoke_release_for_claim_change(uuid,uuid,text,text)', 'EXECUTE') as service`);
+  assert.deepEqual(result.rows[0], { anon: false, authenticated: false, service: true });
+});
+
 test('claim created after validation cannot be laundered into an approved review fingerprint', async () => {
   await rejectCandidate();
   const claimId = await addClaim();
