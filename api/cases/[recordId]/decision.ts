@@ -40,8 +40,19 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const unresolvedCandidateCount=unresolvedCandidates.length;
     const validationPassing=Boolean(authoritative?.id && isPassing(authoritative.status));
     const snapshotProcessed=trace.source.ingestion?.status === 'processed';
+    let claimAfterValidation=false;
+    if(authoritative?.id) {
+      const {data,error}=await supabase.rpc('bridge_claims_after_validation',{
+        p_record_id:recordId,p_validation_id:authoritative.id,
+      });
+      if(error || typeof data!=='boolean') return res.status(503).json({error:'Claim-Freshness-Prüfung ist nicht verfügbar.'});
+      claimAfterValidation=data;
+    }
+    const {data:claimsBasis,error:claimsBasisError}=await supabase.rpc('bridge_claims_basis',{p_record_id:recordId});
+    if(claimsBasisError || typeof claimsBasis!=='string' || !/^[0-9a-f]{64}$/.test(claimsBasis)) return res.status(503).json({error:'Claims-Basis ist nicht verfügbar.'});
     const freshnessBlockers=claimFreshnessBlockers(claims,authoritative);
-    const decisionBasisFresh=freshnessBlockers.length===0;
+    if(claimAfterValidation && freshnessBlockers.length===0) freshnessBlockers.push('Ein aktiver Claim ist nach der maßgeblichen Validierung entstanden. Neuvalidierung ist erforderlich.');
+    const decisionBasisFresh=!claimAfterValidation && freshnessBlockers.length===0;
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
     const releaseAlreadyTrusted=releaseStatus==='trusted';
     const reviewBlockers=[
@@ -51,6 +62,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       ...freshnessBlockers,
     ];
     const basisBlockers=releaseBasisBlockers({validation:authoritative,review,snapshotId:trace.source.ingestion?.id ?? null});
+    if(review?.complete && !review.evidence_reference_ids?.includes(`claims:${claimsBasis}`)) basisBlockers.push('Die Claim-Basis des Reviews ist veraltet. Neuvalidierung und neues Review sind erforderlich.');
     const releaseBlockers=[...reviewBlockers,...basisBlockers];
     const access={
       role:role.role_name, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
@@ -92,7 +104,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       const structure=await one<any>(supabase.from('review_structures').select('*').eq('rule_id',rule?.id).eq('name',LIVE_STRUCTURE).single());
       if(!rule || !structure) return res.status(500).json({error:'Live review structure is not configured'});
       const criteria=await many<any>(supabase.from('review_criteria').select('*').eq('structure_id',structure.id));
-      const evidenceRefs=[`record:${recordId}`,`validation:${authoritative.id}`,trace.source.ingestion?.id?`ingestion:${String(trace.source.ingestion.id)}`:null].filter(Boolean) as string[];
+      const evidenceRefs=[`claims:${claimsBasis}`,`record:${recordId}`,`validation:${authoritative.id}`,trace.source.ingestion?.id?`ingestion:${String(trace.source.ingestion.id)}`:null].filter(Boolean) as string[];
       const now=new Date().toISOString(); const decisionName=action==='approve_review'?'approved':'rejected';
       const reviewRecord=await one<any>(supabase.from('review_records').insert({resolution_record_id:authoritative.resolution_record_id,validation_result_id:authoritative.id,reviewer_id:user.id,reviewer_type:'human',review_status:decisionName,review_reason:reason,reviewed_at:now}).select('*').single());
       const session=await one<any>(supabase.from('review_sessions').insert({review_record_id:reviewRecord?.id,rule_id:rule.id,structure_id:structure.id,status:decisionName,started_at:now,completed_at:now,reviewer_authorized:true,authorization_level:role.role_name,evidence_checked:true,evidence_refs:evidenceRefs,criteria_checked:true,validation_result_id:authoritative.id}).select('*').single());
