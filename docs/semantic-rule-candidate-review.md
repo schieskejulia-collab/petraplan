@@ -46,7 +46,9 @@ Auch `APPROVED` bestätigt keinen einzelnen Claim automatisch. Für einen konkre
 - Beobachtet: `NW:A-10266#ShippedDate = 1996-07-31` im festgelegten Northwind-Snapshot.
 - Vorgeschlagen: Aus einem vorhandenen Versanddatum könnte für diesen Fall `STATUS=GESCHLOSSEN` abgeleitet werden.
 - Nicht belegt: Eine zuständige fachliche Definition, nach der *versendet* in diesem Scope *geschlossen* bedeutet.
-- Ergebnis: Der Regel-Kandidat bleibt `PROPOSED`; er erhält hier weder eine fachliche Autorität noch `APPROVED`. Der bestehende Claim bleibt als eigener Datensatz `UNPROVEN`. Der aktuelle Fall ist wegen der nach der Validierung geänderten Claim-Basis gesperrt; `UNPROVEN` allein ist derzeit keine allgemeine technische Release-Sperre.
+- Ergebnis: Der Regel-Kandidat bleibt `PROPOSED`; er erhält hier weder eine fachliche Autorität noch `APPROVED`. Der bestehende Claim bleibt als eigener Datensatz `UNPROVEN`. Der aktuelle Fall ist wegen der nach der Validierung geänderten Claim-Basis gesperrt. Seit PR #50 sperrt zusätzlich ein ungelöster `SEMANTIC_MAPPING`-Claim in `DRAFT`, `UNPROVEN`, `SUPPORTED` oder `CONTESTED` ein genehmigtes Review und ein neues Release, auch nach einer frischen Validierung. Diese technische Sperre genehmigt selbst keine Bedeutungsregel.
+
+**Quellengrenze für diese Frage:** Der verwendete `neo4j-contrib/northwind-neo4j`-Datensatz enthält für A-10266 ein `shippedDate` vom 1996-07-31, aber keine Statusdefinition, aus der `Closed` folgen würde ([CSV-Zeile](https://github.com/neo4j-contrib/northwind-neo4j/blob/master/data/orders.csv)). Microsoft beschreibt in der *Northwind 2.0 Developer Edition* `Shipped` und `Closed` als getrennte Workflow-Zustände ([Dokumentation](https://support.microsoft.com/en-us/access/northwind-2-0-developer-edition-orders)). Diese andere Version ist keine Autorität für den festgelegten CSV-Snapshot; sie warnt nur davor, Versand und Abschluss ohne Scope-Nachweis gleichzusetzen. Der Bedeutungsbeleg bleibt `UNKNOWN`.
 
 ## 5. Abnahmeszenarien für eine spätere Umsetzung
 
