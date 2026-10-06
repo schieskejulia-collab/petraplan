@@ -73,7 +73,7 @@ export function SemanticRulePanel({ recordId, claims, onChanged }: {
   };
   const draftValid = claimId && ['question','condition','conclusion','justification'].every(key => draft[key as keyof typeof draft].trim().length >= 8)
     && (!draft.meaningReference.trim() || draft.meaningSummary.trim().length >= 8);
-  return <section className="mb-4 rounded-2xl border bg-card p-4 shadow-sm">
+  return <section className="bridge-proof-form mb-4 rounded-2xl border bg-card p-4 shadow-sm">
     <p className="text-xs font-semibold uppercase text-muted-foreground">Fachliche Bedeutungsregeln</p>
     <h2 className="mt-1 text-lg font-semibold">Was darf aus dem Quellwert folgen?</h2>
     <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Eine Genehmigung gilt für diesen Fall und diesen Snapshot. Sie bestätigt keinen Claim automatisch und erteilt keine Freigabe. Die Anwendung der Regel in der Neuvalidierung bleibt ein eigener Schritt.</p>

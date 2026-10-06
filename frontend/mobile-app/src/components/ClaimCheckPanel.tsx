@@ -22,7 +22,7 @@ export function ClaimCheckPanel({recordId,claims}:{recordId:string;claims:Array<
  const save=async(body:Record<string,unknown>)=>{setBusy(true);setError('');try{await request(recordId,body);const data=await request(recordId);setRequirements(data.requirements);setEvidence(data.evidence);if(body.action==='add'){setDraft(empty());setPrevious(null);setClaimId('');}setReports({});}catch(err){setError(err instanceof Error?err.message:'Prüfung konnte nicht gespeichert werden.');}finally{setBusy(false);}};
  const report=(id:string)=>reports[id]??{result:'UNKNOWN',coverage_status:'UNKNOWN',coverage_reference:'',representation_evidence_id:'',reason:''};
  const update=(id:string,key:string,value:string)=>setReports(old=>({...old,[id]:{...report(id),[key]:value}}));
- return <section className="rounded-xl border p-4 space-y-4">
+ return <section className="bridge-proof-form mb-4 rounded-xl border p-4 space-y-4">
   <h2 className="font-semibold">Benötigte Belege und Gegenprüfungen</h2>
   <p>Welche Information fehlt? Was könnte der Aussage widersprechen? Prüfberichte bestätigen keinen Claim und erteilen keine Freigabe.</p>
   {error&&<p role="alert" className="text-red-700">{error}</p>}
