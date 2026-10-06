@@ -1,0 +1,10 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {emailVerification} from '../../frontend/mobile-app/src/lib/bridge-email-verification.js';
+const hash='a'.repeat(64);
+const link=`https://yxhllviostywckxoehgf.supabase.co/auth/v1/verify?token=${hash}&type=magiclink&redirect_to=https://petraplan-eight.vercel.app/translator`;
+test('email code is normalized and verified without redirect',()=>{assert.deepEqual(emailVerification(' 123456 ',' USER@example.com '),{type:'email',email:'user@example.com',token:'123456'});});
+test('unused original project magic link yields only the token hash',()=>{assert.deepEqual(emailVerification(link,''),{type:'email',token_hash:hash});});
+test('redirect destination in email is never executed or passed to verification',()=>{assert.deepEqual(emailVerification(link.replace('https://petraplan-eight.vercel.app/translator','https://untrusted.example'),''),{type:'email',token_hash:hash});});
+test('foreign project, non-HTTPS URL, recovery link and session fragment are rejected',()=>{for(const url of [link.replace('yxhllviostywckxoehgf','anotherproject'),link.replace('https:','http:'),link.replace('magiclink','recovery'),link+'#access_token=example',link.replace('/auth/v1/verify','/elsewhere')])assert.throws(()=>emailVerification(url,''));});
+test('duplicate or missing challenges and malformed input fail closed',()=>{for(const input of [link+'&token=another',link.replace(`token=${hash}`,'token='),link+'&type=email','javascript:alert(1)','123456'])assert.throws(()=>emailVerification(input,''));});
