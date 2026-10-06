@@ -4,6 +4,6 @@
     "rootDir": ".",
     "outDir": ".decision-test-build"
   },
-  "include": ["api/cases/[recordId]/decision.ts", "api/cases/[recordId]/revalidate.ts", "tests/decision-integrity/*.ts"],
+  "include": ["api/cases/[recordId]/decision.ts", "api/cases/[recordId]/revalidate.ts", "api/cases/[recordId]/semantic-rules.ts", "tests/decision-integrity/*.ts"],
   "exclude": []
 }

@@ -7,8 +7,8 @@ export type RevalidationEvidenceBlocker = {
 };
 
 /**
- * Candidate confirmation is not semantic authority. The persisted semantic
- * rule catalogue and its scope-authority verifier are not implemented yet.
+ * Candidate confirmation is not semantic authority. The rule governance catalogue exists, but the executable rule/Claim
+ * verifier has not yet been connected to revalidation.
  * Consequently even a CONFIRMED claim with rule IDs cannot authorize applying
  * a proposed STATUS/MENGE value. No reference string is treated as a proof.
  */
@@ -40,6 +40,6 @@ export function revalidationEvidenceBlockers(input: {
     if (!String(claim.rule_id ?? '').trim() || !String(claim.rule_version ?? '').trim()) {
       return { ...base, code: 'RULE_REFERENCE_MISSING', reason: 'Dem Claim fehlt die Referenz auf eine versionierte fachliche Bedeutungsregel.' };
     }
-    return { ...base, code: 'RULE_AUTHORITY_UNVERIFIED', reason: 'Regelbeleg, Geltungsbereich und fachliche Berechtigung sind noch nicht prüfbar. Der Regelkatalog ist bisher spezifiziert; eine Regelreferenz allein ist kein Bedeutungsbeleg.' };
+    return { ...base, code: 'RULE_AUTHORITY_UNVERIFIED', reason: 'Regelbeleg, Geltungsbereich und fachliche Berechtigung sind noch nicht prüfbar. Der Regel-Genehmigungsweg ist noch nicht an eine ausführbare fachliche Neuvalidierung angeschlossen; eine Regelreferenz allein ist kein Bedeutungsbeleg.' };
   });
 }
