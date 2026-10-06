@@ -2,6 +2,8 @@
 
 Status: **Spezifikation, nicht implementierter Regelkatalog**. Dieses Dokument aktiviert keine Bedeutungsregel und ändert weder Claim-, Review- noch Release-Gates. Insbesondere ist `ShippedDate -> STATUS=GESCHLOSSEN` keine genehmigte Northwind-Regel. Die auf `northwind-proof-only` begrenzte Testautorität bleibt ein Test des Lebenszyklus, kein fachlicher Beleg.
 
+Die Live-Neuvalidierung sperrt die Anwendung bestätigter Kandidaten bis zur Implementierung der fachlichen Regelprüfung. Fehlende Claims, ungeklärter Status oder ungeprüfte Regelautorität bleiben `UNKNOWN` und erzeugen keine neue Validation. Details und Grenzen: [Neuvalidierungs-Sperre](revalidation-semantic-evidence-gate.md).
+
 ## 1. Grenze und Begriffe
 
 Ein beobachteter Quellwert ist Source Truth für den erfassten Datenstand. Eine vorgeschlagene Bedeutung im Bridge-Ziel ist zunächst ein Kandidat. Eine bestätigte Kandidatenentscheidung, ein Claim, eine genehmigte Bedeutungsregel, eine bestandene Validierung, ein Review und ein Release sind verschiedene Entscheidungen; keine davon folgt automatisch aus der jeweils vorherigen.
