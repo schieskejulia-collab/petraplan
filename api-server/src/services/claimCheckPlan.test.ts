@@ -1,0 +1,13 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {buildClaimCheckPlan} from './claimCheckPlan.js';
+const r={id:'r',record_id:'case',snapshot_id:'s',claim_id:'c',claim_basis:'basis',required_address:'field',next_check:'Read full export'};
+const e={id:'e',record_id:'case',ingestion_log_id:'s',field_address:'field',raw_representation:0};
+const plan=(rs:any[]=[r],os:any[]=[],es:any[]=[e],basis='basis',snapshot='s')=>buildClaimCheckPlan(rs,os,es,{c:basis},snapshot);
+test('available zero-valued evidence does not silently establish support',()=>{const x=plan()[0];assert.equal(x.status,'UNASSESSED');assert.equal(x.evidence_available,true);assert.equal(x.next_check_pending,r.next_check);});
+test('missing evidence preserves explicit next question',()=>{const x=plan([r],[],[])[0];assert.equal(x.status,'UNASSESSED');assert.equal(x.evidence_available,false);});
+test('changed snapshot or Claim basis supersedes reported support with STALE',()=>{for(const [basis,snapshot] of [['changed','s'],['basis','new']])assert.equal(plan([r],[{requirement_id:'r',sequence:1,result:'SUPPORTS'}],[e],basis,snapshot)[0].status,'STALE');});
+test('history sequence determines latest report without erasing old results',()=>{const x=plan([r],[{requirement_id:'r',sequence:2,result:'CONTRADICTS'},{requirement_id:'r',sequence:1,result:'UNKNOWN'}])[0];assert.equal(x.status,'CONTRADICTS');assert.equal(x.history.length,2);assert.equal(x.acceptance_automatic,false);});
+test('revision retires previous task and wrong field evidence is not offered',()=>{const x=plan([r,{...r,id:'new',previous_requirement_id:'r'}],[],[{...e,field_address:'other'}]);assert.equal(x[0].status,'SUPERSEDED');assert.equal(x[0].next_check_pending,null);assert.equal(x[1].evidence_available,false);});
+test('a changed or missing used source representation makes a report stale',()=>{const o={requirement_id:'r',sequence:1,result:'SUPPORTS',representation_evidence_id:'e',evidence_snapshot:e};assert.equal(plan([r],[o],[e])[0].status,'SUPPORTS');assert.equal(plan([r],[o],[{...e,raw_representation:5}])[0].status,'STALE');assert.equal(plan([r],[o],[])[0].status,'STALE');});
+test('newly available evidence reopens a previously missing check',()=>{assert.equal(plan([r],[{requirement_id:'r',sequence:1,result:'MISSING'}],[e])[0].status,'STALE');});

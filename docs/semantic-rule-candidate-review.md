@@ -1,12 +1,14 @@
 # Prüfschema für fachliche Regel-Kandidaten
 
-Status: **Spezifikation, nicht implementierter Regelkatalog**. Dieses Dokument aktiviert keine Bedeutungsregel und ändert weder Claim-, Review- noch Release-Gates. Insbesondere ist `ShippedDate -> STATUS=GESCHLOSSEN` keine genehmigte Northwind-Regel. Die auf `northwind-proof-only` begrenzte Testautorität bleibt ein Test des Lebenszyklus, kein fachlicher Beleg.
+Status: **CASE_ONLY-Genehmigungsweg implementiert; ausführbare Regel-/Claim-Prüfung noch offen**. Details: [Regel-Governance](semantic-rule-governance.md). Dieses Dokument aktiviert keine Bedeutungsregel und ändert weder Claim-, Review- noch Release-Gates. Insbesondere ist `ShippedDate -> STATUS=GESCHLOSSEN` keine genehmigte Northwind-Regel. Die auf `northwind-proof-only` begrenzte Testautorität bleibt ein Test des Lebenszyklus, kein fachlicher Beleg.
+
+Die Live-Neuvalidierung sperrt die Anwendung bestätigter Kandidaten bis zur Implementierung der fachlichen Regelprüfung. Fehlende Claims, ungeklärter Status oder ungeprüfte Regelautorität bleiben `UNKNOWN` und erzeugen keine neue Validation. Details und Grenzen: [Neuvalidierungs-Sperre](revalidation-semantic-evidence-gate.md).
 
 ## 1. Grenze und Begriffe
 
 Ein beobachteter Quellwert ist Source Truth für den erfassten Datenstand. Eine vorgeschlagene Bedeutung im Bridge-Ziel ist zunächst ein Kandidat. Eine bestätigte Kandidatenentscheidung, ein Claim, eine genehmigte Bedeutungsregel, eine bestandene Validierung, ein Review und ein Release sind verschiedene Entscheidungen; keine davon folgt automatisch aus der jeweils vorherigen.
 
-`RuleCandidate.status` in diesem Dokument ist **nicht** `claims.status` und **nicht** `review_rules.active`. Die bestehende Claim-Tabelle kennt etwa `UNPROVEN`, `SUPPORTED` und `CONFIRMED`, außerdem `rule_id` und `rule_version`. Die bestehenden `review_rules` beschreiben den Review-Ablauf. Ein persistierter Katalog fachlicher Bedeutungsregeln und die hier beschriebenen Übergänge existieren derzeit nicht. `PROVEN` ist kein bestehender Claim-Status.
+`RuleCandidate.status` in diesem Dokument ist **nicht** `claims.status` und **nicht** `review_rules.active`. Die bestehende Claim-Tabelle kennt etwa `UNPROVEN`, `SUPPORTED` und `CONFIRMED`, außerdem `rule_id` und `rule_version`. Die bestehenden `review_rules` beschreiben den Review-Ablauf. Ein persistierter Genehmigungskatalog mit unveränderlichen Versionen und Entscheidungen existiert für genau einen Fall/Snapshot; der ausführbare Regel-Interpreter und die Claim-Bestätigung sind noch nicht angeschlossen. `PROVEN` ist kein bestehender Claim-Status.
 
 ## 2. Vorschlag und Nachweise
 
@@ -37,7 +39,7 @@ Vor `APPROVED` prüft der Reviewer:
 4. Gegenbeispiele, Ausnahmen, Nullwerte, widersprechende Regeln und mögliche Informationsverluste sind geklärt oder begrenzen den Scope ausdrücklich.
 5. Die Entscheidung mit Rolle, Person, Begründung, Belegen und Zeitpunkt ist nachvollziehbar und reproduzierbar.
 
-Scheitert eine dieser Bedingungen, bleibt der Kandidat `PROPOSED` oder wird begründet `REJECTED`. Eine genehmigte Regel gilt nur in ihrem dokumentierten Scope und ihrer Version. Spätere Änderungen erzeugen eine neue Version; `REVOKED` beziehungsweise `SUPERSEDED` bewahrt die frühere Entscheidung historisch und löst eine Prüfung abhängiger Claims, Validierungen, Reviews und Releases aus. Diese Abhängigkeitsprüfung ist hier eine Anforderung für eine spätere Implementierung, keine Behauptung über bereits vorhandene Automatik.
+Scheitert eine dieser Bedingungen, bleibt der Kandidat `PROPOSED` oder wird begründet `REJECTED`. Eine genehmigte Regel gilt nur in ihrem dokumentierten Scope und ihrer Version. Spätere Änderungen erzeugen eine neue Version; `REVOKED` beziehungsweise `SUPERSEDED` bewahrt die frühere Entscheidung historisch und löst eine Prüfung abhängiger Claims, Validierungen, Reviews und Releases aus. Negative Regelentscheidungen ergänzen für ausdrücklich regelgebundene Claims qualifizierende Belege; die vorhandenen Basis-/Widerrufstrigger entwerten nutzbare Freigaben atomar. Die Anwendung genehmigter Regeln auf konkrete Claims und neue Validierungen bleibt ein eigener Implementierungsschritt.
 
 Auch `APPROVED` bestätigt keinen einzelnen Claim automatisch. Für einen konkreten Fall sind dessen Belege und Scope erneut zu prüfen. Eine neue oder geänderte Claim-Basis erfordert die bestehende Reihenfolge aus Neuvalidierung, neuem Review und separater Freigabe. Es gibt keinen Übergang `APPROVED rule -> release`.
 
@@ -50,7 +52,7 @@ Auch `APPROVED` bestätigt keinen einzelnen Claim automatisch. Für einen konkre
 
 **Quellengrenze für diese Frage:** Der verwendete `neo4j-contrib/northwind-neo4j`-Datensatz enthält für A-10266 ein `shippedDate` vom 1996-07-31, aber keine Statusdefinition, aus der `Closed` folgen würde ([CSV-Zeile](https://github.com/neo4j-contrib/northwind-neo4j/blob/master/data/orders.csv)). Microsoft beschreibt in der *Northwind 2.0 Developer Edition* `Shipped` und `Closed` als getrennte Workflow-Zustände ([Dokumentation](https://support.microsoft.com/en-us/access/northwind-2-0-developer-edition-orders)). Diese andere Version ist keine Autorität für den festgelegten CSV-Snapshot; sie warnt nur davor, Versand und Abschluss ohne Scope-Nachweis gleichzusetzen. Der Bedeutungsbeleg bleibt `UNKNOWN`.
 
-## 5. Abnahmeszenarien für eine spätere Umsetzung
+## 5. Abnahmeszenarien
 
 | Fall | Erwartung |
 | --- | --- |
