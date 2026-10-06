@@ -1,4 +1,5 @@
 import {useEffect,useState} from 'react';
+import {CLAIM_CHECK_TEMPLATES} from '@/lib/claim-check-templates';
 import {currentAccessToken} from '@/lib/bridge-auth';
 type Requirement = {id:string;claim_id:string;question:string;required_information:string;required_address:string;check_condition:string;counter_condition:string;coverage_requirement:string;next_check:string;status:string;next_check_pending:string|null;available_evidence_ids:string[];history:Array<{id:string;result:string;reason:string;recorded_at:string;recorded_by:string;coverage_status:string;coverage_reference:string|null;representation_evidence_id:string|null;evidence_snapshot:unknown}>};
 type Evidence = {id:string;field_address:string;source_path:string;raw_representation:unknown;evidence_hash:string;ingestion_log_id:string};
@@ -14,6 +15,8 @@ export function ClaimCheckPanel({recordId,claims}:{recordId:string;claims:Array<
  const [requirements,setRequirements]=useState<Requirement[]>([]),[evidence,setEvidence]=useState<Evidence[]>([]);
  const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [claimId,setClaimId]=useState(''),[previous,setPrevious]=useState<string|null>(null),[draft,setDraft]=useState(empty);
+ const [templateId,setTemplateId]=useState('');
+ const template=CLAIM_CHECK_TEMPLATES.find(t=>t.id===templateId);
  const [reports,setReports]=useState<Record<string,Record<string,string>>>({});
  useEffect(()=>{let active=true;void request(recordId).then(data=>{if(active){setRequirements(data.requirements);setEvidence(data.evidence);setReady(true);}}).catch(err=>{if(active)setError(err.message);});return()=>{active=false;};},[recordId]);
  const save=async(body:Record<string,unknown>)=>{setBusy(true);setError('');try{await request(recordId,body);const data=await request(recordId);setRequirements(data.requirements);setEvidence(data.evidence);if(body.action==='add'){setDraft(empty());setPrevious(null);setClaimId('');}setReports({});}catch(err){setError(err instanceof Error?err.message:'Prüfung konnte nicht gespeichert werden.');}finally{setBusy(false);}};
@@ -46,6 +49,8 @@ export function ClaimCheckPanel({recordId,claims}:{recordId:string;claims:Array<
    </article>)}
    <form onSubmit={e=>{e.preventDefault();void save({action:'add',claim_id:claimId,previous_requirement_id:previous,definition:draft});}} className="space-y-3">
     <fieldset disabled={busy} className="space-y-3"><legend>{previous?'Neue Fassung':'Prüfanforderung anlegen'}</legend>
+     <label className="block">Prüfvorlage <select value={templateId} onChange={e=>setTemplateId(e.target.value)}><option value="">Eigene Prüfanforderung</option>{CLAIM_CHECK_TEMPLATES.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
+     {template&&<div className="space-y-2"><p>Vorlagenquelle: {template.source}. Daraus abgeleitete Prüffragen; noch kein Beleg für diesen Fall.</p><p>{template.fundstelleHint}</p><p>Jede benötigte Fundstelle separat prüfen. Die konkrete Feldadresse bleibt von dir zu ergänzen.</p><button type="button" onClick={()=>setDraft({...template.definition})}>Vorlage in die Eingabefelder übernehmen</button><p>Übernehmen ersetzt die Texte im aktuellen Entwurf. Gespeicherte Prüfungen bleiben erhalten.</p></div>}
      <label className="block">Aussage <select required value={claimId} disabled={previous!==null} onChange={e=>setClaimId(e.target.value)}><option value="">Claim wählen</option>{claims.filter(c=>!['REJECTED','SUPERSEDED'].includes(String(c.status))).map(c=><option key={String(c.id)} value={String(c.id)}>{String(c.statement)}</option>)}</select></label>
      {fields.map(([key,label])=><label className="block" key={key}>{label}<textarea required minLength={key==='required_address'?1:8} className="w-full border rounded p-2" value={draft[key]} onChange={e=>setDraft(old=>({...old,[key]:e.target.value}))}/></label>)}
      <button type="submit" disabled={!claimId}>Prüfanforderung speichern</button>
