@@ -47,7 +47,7 @@ export function inspectEdifactOrders(raw) {
       if (!active) {
         findings.push({ code: 'ORPHAN_QUANTITY', state: 'BLOCKED', segment: segment.index });
       } else {
-        const valid = /^(0|[1-9]\\d*)(\\.\\d+)?$/.test(rawValue ?? '') && Number.isFinite(Number(rawValue));
+        const valid = /^[0-9]+(?:[.][0-9]+)?$/.test(rawValue ?? '') && Number.isFinite(Number(rawValue));
         active.quantities.push({ sourceSegment: segment.index, qualifier, rawValue: rawValue ?? null, unit, value: valid ? Number(rawValue) : null });
         if (!valid) findings.push({ code: 'INVALID_QUANTITY', state: 'BLOCKED', segment: segment.index });
         if (qualifier !== '21') findings.push({ code: 'UNCONFIRMED_QUANTITY_QUALIFIER', state: 'NEEDS_CONFIRMATION', segment: segment.index });
