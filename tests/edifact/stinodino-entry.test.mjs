@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { inspectEdifactOrders } from './stinodino-entry.mjs';
 
-const fixture = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48'LIN+2++4000862141411:EN'QTY+21:12'UNT+6+1'";
+const fixture = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48'LIN+2++4000862141411:EN'QTY+21:12'UNT+7+1'";
 test('preserves raw source and does not release an unconfirmed total', () => {
   const result = inspectEdifactOrders(fixture);
   assert.equal(result.rawSource, fixture);
