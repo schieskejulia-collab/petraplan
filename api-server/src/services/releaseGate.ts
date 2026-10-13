@@ -57,9 +57,19 @@ export function hasDocumentedException(exceptionApproval?: ReleaseExceptionAppro
   );
 }
 
-function latestByCreatedAt<T extends { created_at?: string | null }>(items: T[]): T | null {
+function latestByCreatedAt<T extends ValidationRef>(items: T[]): T | null {
   if (!items.length) return null;
-  return [...items].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0] ?? null;
+  // A timestamp is not a unique ordering key. If multiple validations share
+  // the newest timestamp, prefer a non-passing result to avoid false release.
+  // A stable ID tie-breaker makes the outcome independent of database row order.
+  return [...items].sort((a, b) => {
+    const byTime = String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
+    if (byTime) return byTime;
+    const aPasses = PASSING.has(String(a.status ?? 'unknown').toLowerCase());
+    const bPasses = PASSING.has(String(b.status ?? 'unknown').toLowerCase());
+    if (aPasses !== bPasses) return aPasses ? 1 : -1;
+    return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+  })[0] ?? null;
 }
 
 /**
