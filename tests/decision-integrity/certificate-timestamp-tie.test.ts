@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectLatestCertificate } from '../../api-server/src/services/certificateAuthority.js';
+import { selectLatestCertificate, selectLatestReleaseHistory } from '../../api-server/src/services/certificateAuthority.js';
 
 const trusted = { id: 'cert-trusted', certified_at: '2026-10-13T12:00:00Z', release_status: 'trusted' };
 const revoked = { id: 'cert-revoked', certified_at: '2026-10-13T12:00:00Z', release_status: 'revoked' };
@@ -30,4 +30,20 @@ test('unique newest certificate is selected regardless of input order', () => {
 
 test('missing timestamps cannot establish unique certificate authority', () => {
   assert.deepEqual(selectLatestCertificate([{ id: 'legacy', certified_at: null }]), { certificate: null, ambiguous: true });
+});
+
+test('release status history tie fails closed regardless of input order', () => {
+  const trusted = { created_at: '2026-10-13T12:00:00Z', new_status: 'trusted' };
+  const revoked = { created_at: '2026-10-13T12:00:00Z', new_status: 'revoked' };
+  for (const entries of [[trusted, revoked], [revoked, trusted]]) {
+    assert.deepEqual(selectLatestReleaseHistory(entries), { entry: null, ambiguous: true });
+  }
+});
+
+test('unique latest status history wins over older entry', () => {
+  const old = { created_at: '2026-10-12T12:00:00Z', new_status: 'trusted' };
+  const newest = { created_at: '2026-10-13T12:00:00Z', new_status: 'revoked' };
+  const result = selectLatestReleaseHistory([newest, old]);
+  assert.equal(result.ambiguous, false);
+  assert.equal(result.entry?.new_status, 'revoked');
 });
