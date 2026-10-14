@@ -12,6 +12,10 @@ function fakeDb(tables: Record<string, any[]>) {
         in() { return query; },
         order() { return query; },
         range() { return query; },
+        maybeSingle() {
+          const matches = tables[table] ?? [];
+          return Promise.resolve({ data: matches[0] ?? null, error: null });
+        },
         then(resolve: (value: any) => any, reject: (reason: any) => any) {
           return Promise.resolve({ data: tables[table] ?? [], error: null }).then(resolve, reject);
         },
