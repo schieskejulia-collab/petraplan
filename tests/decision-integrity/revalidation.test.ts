@@ -130,7 +130,7 @@ test('each confirmed candidate needs its own unambiguous evidence basis', async 
     ['RULE_AUTHORITY_UNVERIFIED', 'CLAIM_MISSING']);
 });
 
-import { checkRuleFreshness, checkTransitionEvidence } from '../../api-server/src/services/revalidationEvidence.js';
+import { assessRevalidationReadiness, checkRuleFreshness, checkTransitionEvidence } from '../../api-server/src/services/revalidationEvidence.js';
 
 test('rule freshness rejects changed claim basis, revoked approval and expired authority', () => {
   const rule = { id: id(10), record_id: id(1), snapshot_id: id(2), candidate_id: id(3),
@@ -176,4 +176,32 @@ test('transition with explicit from/to values must match both observed states', 
     after: { snapshotId: id(31), observedAt: '2026-10-14T11:02:00Z', value: 'CLOSED' },
   });
   assert.equal(result.state, 'READY_FOR_SEMANTIC_REVIEW');
+});
+
+
+test('combined readiness requires both coherent lifecycle and current rule governance', () => {
+  const transition = {
+    objectKey: { order: 10266 },
+    before: { snapshotId: id(40), observedAt: '2026-10-14T12:00:00Z', value: 'OPEN' },
+    operation: { kind: 'STATUS_CHANGE', occurredAt: '2026-10-14T12:01:00Z', fromValue: 'OPEN', toValue: 'CLOSED' },
+    after: { snapshotId: id(41), observedAt: '2026-10-14T12:02:00Z', value: 'CLOSED' },
+  };
+  const rule = {
+    recordId: id(1), snapshotId: id(2), candidateId: id(3), claimId: id(4), claimBasis: 'basis-a',
+    rule: { id: id(10), record_id: id(1), snapshot_id: id(2), candidate_id: id(3), claim_id: id(4),
+      scope_type: 'CASE_ONLY', target_address: 'NW:CustomerID', claim_basis: 'basis-a' },
+    latestDecision: { rule_version_id: id(10), authority_id: id(11), actor_id: id(5), decision: 'APPROVED' },
+    authority: { id: id(11), user_id: id(5), record_id: id(1), snapshot_id: id(2),
+      target_address: 'NW:CustomerID', authority_reference: 'delegation-1',
+      granted_at: '2026-10-01T00:00:00Z', valid_until: '2026-11-01T00:00:00Z' },
+    revoked: false,
+    checkedAt: '2026-10-14T12:03:00Z',
+  };
+  assert.equal(assessRevalidationReadiness({ transition, rule }).state, 'READY_FOR_SEMANTIC_EVIDENCE');
+  assert.equal(assessRevalidationReadiness({
+    transition: { ...transition, after: { ...transition.after, value: 'OPEN' } }, rule,
+  }).state, 'BLOCKED_TRANSITION');
+  assert.equal(assessRevalidationReadiness({
+    transition, rule: { ...rule, claimBasis: 'basis-b' },
+  }).state, 'BLOCKED_RULE_GOVERNANCE');
 });
