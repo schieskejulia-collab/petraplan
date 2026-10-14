@@ -45,3 +45,16 @@ test('same timestamp but different timezone offsets is compared as an instant', 
   const newerFail = { id: 'offset-fail', status: 'failed', created_at: '2026-10-13T14:00:01+02:00' };
   assert.equal(selectAuthoritativeValidation([passed, newerFail], cert)?.id, 'offset-fail');
 });
+
+
+test('earlier instant with a larger local clock does not override certificate', () => {
+  const cert = { validation_result_id: 'pass', certified_at: '2026-10-13T12:00:00Z' };
+  const olderFail = { id: 'offset-older-fail', status: 'failed', created_at: '2026-10-13T13:59:59+02:00' };
+  assert.equal(selectAuthoritativeValidation([passed, olderFail], cert)?.id, 'pass');
+});
+
+test('later instant with a smaller local clock overrides certificate', () => {
+  const cert = { validation_result_id: 'pass', certified_at: '2026-10-13T12:00:00Z' };
+  const laterFail = { id: 'offset-later-fail', status: 'failed', created_at: '2026-10-13T11:00:01-01:00' };
+  assert.equal(selectAuthoritativeValidation([passed, laterFail], cert)?.id, 'offset-later-fail');
+});
