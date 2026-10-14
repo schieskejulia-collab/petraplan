@@ -129,3 +129,22 @@ test('each confirmed candidate needs its own unambiguous evidence basis', async 
   assert.deepEqual(res.body.blockers.map((blocker: any) => blocker.code),
     ['RULE_AUTHORITY_UNVERIFIED', 'CLAIM_MISSING']);
 });
+
+import { checkRuleFreshness } from '../../api-server/src/services/revalidationEvidence.js';
+
+test('rule freshness rejects changed claim basis, revoked approval and expired authority', () => {
+  const rule = { id: id(10), record_id: id(1), snapshot_id: id(2), candidate_id: id(3),
+    claim_id: id(4), scope_type: 'CASE_ONLY', target_address: 'NW:CustomerID', claim_basis: 'basis-a' };
+  const latestDecision = { rule_version_id: id(10), authority_id: id(11), actor_id: id(5), decision: 'APPROVED' };
+  const authority = { id: id(11), user_id: id(5), record_id: id(1), snapshot_id: id(2),
+    target_address: 'NW:CustomerID', authority_reference: 'delegation-1',
+    granted_at: '2026-10-01T00:00:00Z', valid_until: '2026-11-01T00:00:00Z' };
+  const base = { recordId: id(1), snapshotId: id(2), candidateId: id(3), claimId: id(4),
+    claimBasis: 'basis-a', rule, latestDecision, authority, revoked: false, checkedAt: '2026-10-14T10:00:00Z' };
+  assert.equal(checkRuleFreshness(base).state, 'READY_FOR_EVIDENCE_REVIEW');
+  assert.equal(checkRuleFreshness({ ...base, claimBasis: 'basis-b' }).state, 'BLOCKED_STALE_BASIS');
+  assert.equal(checkRuleFreshness({ ...base, revoked: true }).state, 'BLOCKED_STALE_BASIS');
+  assert.equal(checkRuleFreshness({ ...base, checkedAt: '2026-12-01T00:00:00Z' }).state, 'BLOCKED_STALE_BASIS');
+  assert.equal(checkRuleFreshness({ ...base, snapshotId: id(99) }).state, 'BLOCKED_BINDING_MISMATCH');
+  assert.equal(checkRuleFreshness({ ...base, authority: null }).state, 'BLOCKED_INCOMPLETE_EVIDENCE');
+});
