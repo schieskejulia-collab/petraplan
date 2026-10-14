@@ -130,7 +130,7 @@ test('each confirmed candidate needs its own unambiguous evidence basis', async 
     ['RULE_AUTHORITY_UNVERIFIED', 'CLAIM_MISSING']);
 });
 
-import { checkRuleFreshness } from '../../api-server/src/services/revalidationEvidence.js';
+import { checkRuleFreshness, checkTransitionEvidence } from '../../api-server/src/services/revalidationEvidence.js';
 
 test('rule freshness rejects changed claim basis, revoked approval and expired authority', () => {
   const rule = { id: id(10), record_id: id(1), snapshot_id: id(2), candidate_id: id(3),
@@ -147,4 +147,33 @@ test('rule freshness rejects changed claim basis, revoked approval and expired a
   assert.equal(checkRuleFreshness({ ...base, checkedAt: '2026-12-01T00:00:00Z' }).state, 'BLOCKED_STALE_BASIS');
   assert.equal(checkRuleFreshness({ ...base, snapshotId: id(99) }).state, 'BLOCKED_BINDING_MISMATCH');
   assert.equal(checkRuleFreshness({ ...base, authority: null }).state, 'BLOCKED_INCOMPLETE_EVIDENCE');
+});
+
+
+test('transition evidence binds identity, time and before/after state without authorizing release', () => {
+  const base = {
+    objectKey: { customer: '624456', position: 13 },
+    expectedObjectKey: { customer: '624456', position: 13 },
+    before: { snapshotId: id(20), observedAt: '2026-10-14T10:00:00Z', value: 1000 },
+    operation: { kind: 'PURCHASE', occurredAt: '2026-10-14T10:01:00Z', delta: 42 },
+    after: { snapshotId: id(21), observedAt: '2026-10-14T10:02:00Z', value: 1042 },
+  };
+  assert.equal(checkTransitionEvidence(base).state, 'READY_FOR_SEMANTIC_REVIEW');
+  assert.equal(checkTransitionEvidence({ ...base,
+    expectedObjectKey: { customer: '624456', position: 14 } }).state, 'BLOCKED_IDENTITY_MISMATCH');
+  assert.equal(checkTransitionEvidence({ ...base,
+    after: { ...base.after, value: 1041 } }).state, 'BLOCKED_STATE_MISMATCH');
+  assert.equal(checkTransitionEvidence({ ...base,
+    operation: { ...base.operation, occurredAt: '2026-10-14T09:59:00Z' } }).state, 'BLOCKED_STATE_MISMATCH');
+  assert.equal(checkTransitionEvidence({ ...base, operation: null }).state, 'BLOCKED_INCOMPLETE_TRANSITION');
+});
+
+test('transition with explicit from/to values must match both observed states', () => {
+  const result = checkTransitionEvidence({
+    objectKey: { order: 10266 },
+    before: { snapshotId: id(30), observedAt: '2026-10-14T11:00:00Z', value: 'OPEN' },
+    operation: { kind: 'STATUS_CHANGE', occurredAt: '2026-10-14T11:01:00Z', fromValue: 'OPEN', toValue: 'CLOSED' },
+    after: { snapshotId: id(31), observedAt: '2026-10-14T11:02:00Z', value: 'CLOSED' },
+  });
+  assert.equal(result.state, 'READY_FOR_SEMANTIC_REVIEW');
 });
