@@ -57,9 +57,21 @@ export function hasDocumentedException(exceptionApproval?: ReleaseExceptionAppro
   );
 }
 
-function latestByCreatedAt<T extends { created_at?: string | null }>(items: T[]): T | null {
+function latestByCreatedAt<T extends ValidationRef>(items: T[]): T | null {
   if (!items.length) return null;
-  return [...items].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0] ?? null;
+  // A timestamp is not a unique ordering key. If multiple validations share
+  // the newest timestamp, prefer a non-passing result to avoid false release.
+  // A stable ID tie-breaker makes the outcome independent of database row order.
+  return [...items].sort((a, b) => {
+    const aTime = a.created_at ? Date.parse(a.created_at) : NaN;
+    const bTime = b.created_at ? Date.parse(b.created_at) : NaN;
+    const byTime = (Number.isFinite(bTime) ? bTime : -Infinity) - (Number.isFinite(aTime) ? aTime : -Infinity);
+    if (byTime) return byTime;
+    const aPasses = PASSING.has(String(a.status ?? 'unknown').toLowerCase());
+    const bPasses = PASSING.has(String(b.status ?? 'unknown').toLowerCase());
+    if (aPasses !== bPasses) return aPasses ? 1 : -1;
+    return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+  })[0] ?? null;
 }
 
 /**
@@ -84,7 +96,9 @@ export function selectAuthoritativeValidation<T extends ValidationRef>(
 
   if (certificate.certified_at) {
     const provablyLater = validations.filter(
-      (item) => item.created_at && String(item.created_at) > String(certificate.certified_at),
+      (item) => item.created_at && Number.isFinite(Date.parse(item.created_at))
+        && Number.isFinite(Date.parse(certificate.certified_at!))
+        && Date.parse(item.created_at) > Date.parse(certificate.certified_at!),
     );
     const laterValidation = latestByCreatedAt(provablyLater);
     if (laterValidation) return laterValidation;
