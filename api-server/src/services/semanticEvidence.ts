@@ -21,6 +21,15 @@ export type SemanticObservation = {
   evidenceKind: 'MEANING' | 'COUNTEREXAMPLE';
   verification: 'VERIFIED' | 'UNVERIFIED';
   observedAt: string;
+  /** Verified origin and meaning authority, not merely a reviewer report. */
+  provenance?: {
+    sourceReference: string;
+    sourceDigest: string;
+    verifierId: string;
+    verificationRecordId: string;
+    verifiedAt: string;
+    authorityReference: string;
+  };
 };
 
 export function checkSemanticEvidence(input: {
@@ -67,6 +76,16 @@ export function checkSemanticEvidence(input: {
         || obs.proposition !== input.proposition) {
       return block('BLOCKED_BINDING_MISMATCH', 'Evidence belongs to a different claim, rule, scope or proposition');
     }
+    if (obs.verification === 'VERIFIED') {
+      const provenance = obs.provenance;
+      const references = [provenance?.sourceReference, provenance?.sourceDigest,
+        provenance?.verifierId, provenance?.verificationRecordId, provenance?.authorityReference];
+      if (references.some(value => typeof value !== 'string' || !value.trim())
+          || !Number.isFinite(Date.parse(provenance?.verifiedAt ?? ''))
+          || Date.parse(provenance!.verifiedAt) < Date.parse(obs.observedAt)) {
+        return block('BLOCKED_MISSING_EVIDENCE', 'A verified label requires traceable source, verifier, authority and verification record');
+      }
+    }
     if (!Number.isFinite(Date.parse(obs.observedAt))) {
       return block('BLOCKED_MISSING_EVIDENCE', 'Evidence timestamp is not verifiable');
     }
@@ -82,7 +101,7 @@ export function checkSemanticEvidence(input: {
   }
   return {
     state: 'READY_FOR_INDEPENDENT_REVIEW',
-    reason: 'Supplied evidence is structurally coherent; external authenticity, semantic truth and atomic binding remain unproven',
+    reason: 'Supplied provenance metadata is structurally coherent; authenticity, semantic truth and atomic binding remain independently unproven',
     evidenceIds: [...required].sort(),
   };
 }
