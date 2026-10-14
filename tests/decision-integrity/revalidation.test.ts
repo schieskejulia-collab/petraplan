@@ -106,3 +106,26 @@ test('revalidation still requires authentication and review permission', async (
   assert.equal((await request([], { token: false })).statusCode, 401);
   assert.equal((await request([], { role: false })).statusCode, 403);
 });
+
+
+test('superseded claim cannot silently authorize a confirmed candidate', async () => {
+  const res = await request([{ ...confirmedClaim, status: 'SUPERSEDED' }]);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_MISSING');
+});
+
+test('a claim with another candidate in its scope is rejected', async () => {
+  const res = await request([{ ...confirmedClaim,
+    scope_payload: { ...confirmedClaim.scope_payload, candidate_id: id(99) } }]);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_SCOPE_MISMATCH');
+});
+
+test('each confirmed candidate needs its own unambiguous evidence basis', async () => {
+  const second = { ...candidate, id: id(7), candidate_key: 'NW:A-10266:QUANTITY-AGGREGATION' };
+  const res = await request([confirmedClaim], { candidates: [candidate, second] });
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers.length, 2);
+  assert.deepEqual(res.body.blockers.map((blocker: any) => blocker.code),
+    ['RULE_AUTHORITY_UNVERIFIED', 'CLAIM_MISSING']);
+});
