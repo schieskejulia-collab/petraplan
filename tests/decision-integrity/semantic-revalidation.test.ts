@@ -11,7 +11,8 @@ const base = {
   readiness: {
     transition: {
       objectKey: { order: 10266 },
-      before: { snapshotId: 'before-1', observedAt: '2026-10-14T10:00:00Z', value: 'OPEN' },
+      before: { snapshotId: 'before-1', observedAt: '2026-10-14T10:00:00Z',
+    provenance: { sourceReference: 'source-doc-1', sourceDigest: 'sha256:test-digest', verifierId: 'reviewer-1', verificationRecordId: 'verification-1', verifiedAt: '2026-10-14T10:04:00Z', authorityReference: 'authority-1' }, value: 'OPEN' },
       operation: { kind: 'STATUS_CHANGE', occurredAt: '2026-10-14T10:01:00Z', fromValue: 'OPEN', toValue: 'CLOSED' },
       after: { snapshotId: 'after-1', observedAt: '2026-10-14T10:02:00Z', value: 'CLOSED' },
     },
