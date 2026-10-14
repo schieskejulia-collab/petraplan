@@ -148,3 +148,47 @@ export function checkTransitionEvidence(input: {
   return { state: 'READY_FOR_SEMANTIC_REVIEW',
     reason: 'Identity and state transition are coherent; semantic meaning and authority still require independent verification' };
 }
+
+
+export type RevalidationReadinessResult = {
+  state: 'BLOCKED_TRANSITION' | 'BLOCKED_RULE_GOVERNANCE' | 'READY_FOR_SEMANTIC_EVIDENCE';
+  transition: TransitionEvidenceResult;
+  rule: RuleFreshnessResult;
+  reason: string;
+};
+
+/**
+ * Combines lifecycle coherence and semantic-rule freshness.
+ * READY means only that both structural gates passed; semantic evidence,
+ * conflict review and atomic persistence are still required.
+ */
+export function assessRevalidationReadiness(input: {
+  transition: Parameters<typeof checkTransitionEvidence>[0];
+  rule: Parameters<typeof checkRuleFreshness>[0];
+}): RevalidationReadinessResult {
+  const transition = checkTransitionEvidence(input.transition);
+  const rule = checkRuleFreshness(input.rule);
+
+  if (transition.state !== 'READY_FOR_SEMANTIC_REVIEW') {
+    return {
+      state: 'BLOCKED_TRANSITION',
+      transition,
+      rule,
+      reason: 'Object identity or lifecycle transition is not sufficiently proven',
+    };
+  }
+  if (rule.state !== 'READY_FOR_EVIDENCE_REVIEW') {
+    return {
+      state: 'BLOCKED_RULE_GOVERNANCE',
+      transition,
+      rule,
+      reason: 'Semantic rule basis or authority is not sufficiently current',
+    };
+  }
+  return {
+    state: 'READY_FOR_SEMANTIC_EVIDENCE',
+    transition,
+    rule,
+    reason: 'Lifecycle and rule governance gates passed; semantic evidence and atomic persistence remain mandatory',
+  };
+}
