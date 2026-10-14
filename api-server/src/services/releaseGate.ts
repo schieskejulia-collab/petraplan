@@ -94,7 +94,9 @@ export function selectAuthoritativeValidation<T extends ValidationRef>(
 
   if (certificate.certified_at) {
     const provablyLater = validations.filter(
-      (item) => item.created_at && String(item.created_at) > String(certificate.certified_at),
+      (item) => item.created_at && Number.isFinite(Date.parse(item.created_at))
+        && Number.isFinite(Date.parse(certificate.certified_at!))
+        && Date.parse(item.created_at) > Date.parse(certificate.certified_at!),
     );
     const laterValidation = latestByCreatedAt(provablyLater);
     if (laterValidation) return laterValidation;
