@@ -14,6 +14,7 @@ const base = {
     sourceAddress: 'NW:A-10266#ShippedDate', targetAddress: 'NW:A-10266#STATUS',
     proposition: 'STATUS=GESCHLOSSEN', evidenceKind: 'MEANING' as const,
     verification: 'VERIFIED' as const, observedAt: '2026-10-14T10:00:00Z',
+    provenance: { sourceReference: 'source-doc-1', sourceDigest: 'sha256:test-digest', verifierId: 'reviewer-1', verificationRecordId: 'verification-1', verifiedAt: '2026-10-14T10:04:00Z', authorityReference: 'authority-1' },
   }],
 };
 test('matching supplied meaning evidence only reaches independent review, never release', () => {
@@ -40,4 +41,9 @@ test('unknown coverage, duplicates and absent requirements fail closed', () => {
   assert.equal(checkSemanticEvidence({ ...base, coverage: 'UNKNOWN' }).state, 'BLOCKED_MISSING_EVIDENCE');
   assert.equal(checkSemanticEvidence({ ...base, requiredEvidenceIds: [] }).state, 'BLOCKED_MISSING_EVIDENCE');
   assert.equal(checkSemanticEvidence({ ...base, observations: [...base.observations, ...base.observations] }).state, 'BLOCKED_MISSING_EVIDENCE');
+});
+
+test('a reviewer VERIFIED label without source provenance remains insufficient', () => {
+  const observation = { ...base.observations[0], provenance: undefined };
+  assert.equal(checkSemanticEvidence({ ...base, observations: [observation] }).state, 'BLOCKED_MISSING_EVIDENCE');
 });
