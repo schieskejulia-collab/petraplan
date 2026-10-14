@@ -58,3 +58,20 @@ test('later instant with a smaller local clock overrides certificate', () => {
   const laterFail = { id: 'offset-later-fail', status: 'failed', created_at: '2026-10-13T11:00:01-01:00' };
   assert.equal(selectAuthoritativeValidation([passed, laterFail], cert)?.id, 'offset-later-fail');
 });
+
+
+test('newest instant wins even when its local clock text sorts earlier', () => {
+  const newerPass = { id: 'offset-newer-pass', status: 'passed', created_at: '2026-10-13T11:00:01-01:00' };
+  const olderFail = { id: 'offset-older-fail', status: 'failed', created_at: '2026-10-13T13:59:59+02:00' };
+  for (const entries of [[olderFail, newerPass], [newerPass, olderFail]]) {
+    assert.equal(selectAuthoritativeValidation(entries)?.id, 'offset-newer-pass');
+  }
+});
+
+test('same instant with different timezone offsets prefers negative validation', () => {
+  const pass = { id: 'offset-pass', status: 'passed', created_at: '2026-10-13T14:00:00+02:00' };
+  const fail = { id: 'offset-fail', status: 'failed', created_at: '2026-10-13T12:00:00Z' };
+  for (const entries of [[pass, fail], [fail, pass]]) {
+    assert.equal(selectAuthoritativeValidation(entries)?.id, 'offset-fail');
+  }
+});
