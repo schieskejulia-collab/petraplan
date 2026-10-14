@@ -63,7 +63,9 @@ function latestByCreatedAt<T extends ValidationRef>(items: T[]): T | null {
   // the newest timestamp, prefer a non-passing result to avoid false release.
   // A stable ID tie-breaker makes the outcome independent of database row order.
   return [...items].sort((a, b) => {
-    const byTime = String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
+    const aTime = a.created_at ? Date.parse(a.created_at) : NaN;
+    const bTime = b.created_at ? Date.parse(b.created_at) : NaN;
+    const byTime = (Number.isFinite(bTime) ? bTime : -Infinity) - (Number.isFinite(aTime) ? aTime : -Infinity);
     if (byTime) return byTime;
     const aPasses = PASSING.has(String(a.status ?? 'unknown').toLowerCase());
     const bPasses = PASSING.has(String(b.status ?? 'unknown').toLowerCase());
