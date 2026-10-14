@@ -91,3 +91,60 @@ export function checkRuleFreshness(input: {
   return { state: 'READY_FOR_EVIDENCE_REVIEW',
     reason: 'Governance metadata checked; independent semantic evidence and atomic database verification still required' };
 }
+
+
+export type TransitionEvidenceResult = {
+  state: 'BLOCKED_INCOMPLETE_TRANSITION' | 'BLOCKED_IDENTITY_MISMATCH' | 'BLOCKED_STATE_MISMATCH' | 'READY_FOR_SEMANTIC_REVIEW';
+  reason: string;
+};
+
+/**
+ * Checks whether one claimed state transition is internally coherent:
+ * same object identity, explicit before/after snapshots, one operation, and
+ * expected post-state matching observed post-state.
+ *
+ * This does not prove business meaning and never authorizes release.
+ */
+export function checkTransitionEvidence(input: {
+  objectKey: Record<string, unknown>;
+  before: { snapshotId: string; observedAt: string; value: unknown } | null;
+  operation: { kind: string; occurredAt: string; delta?: number; fromValue?: unknown; toValue?: unknown } | null;
+  after: { snapshotId: string; observedAt: string; value: unknown } | null;
+  expectedObjectKey?: Record<string, unknown>;
+}): TransitionEvidenceResult {
+  const block = (state: TransitionEvidenceResult['state'], reason: string): TransitionEvidenceResult => ({ state, reason });
+  const key = JSON.stringify(input.objectKey ?? {});
+  const expectedKey = JSON.stringify(input.expectedObjectKey ?? input.objectKey ?? {});
+  if (!key || key === '{}' || !input.before || !input.operation || !input.after) {
+    return block('BLOCKED_INCOMPLETE_TRANSITION', 'Object key, before state, operation and after state are all required');
+  }
+  if (key !== expectedKey) {
+    return block('BLOCKED_IDENTITY_MISMATCH', 'Observed transition is not bound to the expected object identity');
+  }
+  if (input.before.snapshotId === input.after.snapshotId
+    || ![input.before.observedAt, input.operation.occurredAt, input.after.observedAt].every(v => Number.isFinite(Date.parse(v)))) {
+    return block('BLOCKED_INCOMPLETE_TRANSITION', 'Distinct snapshots and valid event times are required');
+  }
+  const beforeAt = Date.parse(input.before.observedAt);
+  const eventAt = Date.parse(input.operation.occurredAt);
+  const afterAt = Date.parse(input.after.observedAt);
+  if (!(beforeAt <= eventAt && eventAt <= afterAt)) {
+    return block('BLOCKED_STATE_MISMATCH', 'Operation time is outside the observed state interval');
+  }
+
+  let expected = input.operation.toValue;
+  if (expected === undefined && typeof input.before.value === 'number' && typeof input.operation.delta === 'number') {
+    expected = input.before.value + input.operation.delta;
+  }
+  if (input.operation.fromValue !== undefined && input.operation.fromValue !== input.before.value) {
+    return block('BLOCKED_STATE_MISMATCH', 'Operation input does not match the observed before state');
+  }
+  if (expected === undefined) {
+    return block('BLOCKED_INCOMPLETE_TRANSITION', 'Operation lacks a verifiable expected post-state');
+  }
+  if (expected !== input.after.value) {
+    return block('BLOCKED_STATE_MISMATCH', 'Observed after state does not match the operation result');
+  }
+  return { state: 'READY_FOR_SEMANTIC_REVIEW',
+    reason: 'Identity and state transition are coherent; semantic meaning and authority still require independent verification' };
+}
