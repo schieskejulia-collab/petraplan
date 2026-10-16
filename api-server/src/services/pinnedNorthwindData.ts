@@ -16,14 +16,29 @@ export function pinnedNorthwindBytes(name: PinnedNorthwindFile): Uint8Array {
   return gunzipSync(Buffer.from(PINNED_NORTHWIND_GZIP_BASE64[name], 'base64'));
 }
 
-/** Expected digest must be independently reviewed and server-owned.
- * Byte identity does not prove source authenticity or semantic meaning.
+/**
+ * An externally reviewed, server-owned digest manifest is not yet available.
+ * Do not accept caller-supplied hashes as evidence of trusted source identity.
  */
-export function verifyPinnedNorthwindFile(name: PinnedNorthwindFile, expectedSha256: string) {
+export async function verifyPinnedNorthwindFile(name: PinnedNorthwindFile) {
+  const sourceId = 'northwind/' + name;
+  return {
+    sourceId,
+    state: 'BLOCKED_REFERENCE_NOT_ESTABLISHED' as const,
+    computedSha256: null,
+    validationAllowed: false as const,
+    releaseAllowed: false as const,
+  };
+}
+
+/** Internal byte comparison helper only. A matching caller-provided digest
+ * is not trusted source verification and cannot grant validation or release.
+ */
+export function comparePinnedNorthwindBytes(name: PinnedNorthwindFile, candidateSha256: string) {
   return verifyPinnedSourceBytes({
     sourceId: 'northwind/' + name,
     expectedSourceId: 'northwind/' + name,
-    expectedSha256,
+    expectedSha256: candidateSha256,
     readTrustedBytes: async () => pinnedNorthwindBytes(name),
   });
 }
