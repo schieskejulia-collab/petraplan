@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { verifyPinnedSourceBytes } from '../../api-server/src/services/pinnedSourceIntegrity.js';
+import { verifyPinnedNorthwindFile } from '../../api-server/src/services/pinnedNorthwindData.js';
 
 const sourceId = 'northwind/orders.csv';
 const bytes = new TextEncoder().encode('orderID,customerID\n10266,WARTH\n');
@@ -41,4 +42,13 @@ test('changed bytes fail integrity', async () => {
 test('unavailable or throwing resolver fails closed', async () => {
   assert.equal((await check({ readTrustedBytes: async () => null })).state, 'BLOCKED_SOURCE_UNAVAILABLE');
   assert.equal((await check({ readTrustedBytes: async () => { throw new Error('offline'); } })).state, 'BLOCKED_SOURCE_UNAVAILABLE');
+});
+
+test('Northwind remains blocked without an independently established digest manifest', async () => {
+  for (const name of ['orders.csv', 'order-details.csv', 'customers.csv'] as const) {
+    const result = await verifyPinnedNorthwindFile(name);
+    assert.equal(result.state, 'BLOCKED_REFERENCE_NOT_ESTABLISHED');
+    assert.equal(result.validationAllowed, false);
+    assert.equal(result.releaseAllowed, false);
+  }
 });
