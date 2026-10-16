@@ -17,7 +17,7 @@ const upstreamGitBlobs = {
 test('pinned Northwind source bytes match Git upstream blob IDs', async () => {
   for (const [name, expectedBlob] of Object.entries(upstreamGitBlobs)) {
     const bytes = pinnedNorthwindBytes(name as keyof typeof upstreamGitBlobs);
-    const prefix = Buffer.from('blob ' + bytes.byteLength + '\\0', 'utf8');
+    const prefix = Buffer.from('blob ' + bytes.byteLength + '\0', 'utf8');
     const actualBlob = createHash('sha1').update(prefix).update(bytes).digest('hex');
     if (actualBlob !== expectedBlob) {
       const url = 'https://raw.githubusercontent.com/neo4j-contrib/northwind-neo4j/5db323116a2779434ba0c17eb2b733575bfc2a4a/data/' + name;
