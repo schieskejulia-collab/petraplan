@@ -37,7 +37,10 @@ const base = {
     observations: [{ evidenceId: 'meaning-1', recordId, snapshotId, claimId,
       ruleVersionId: ruleId, sourceAddress, targetAddress, proposition,
       evidenceKind: 'MEANING' as const, verification: 'VERIFIED' as const,
-      observedAt: '2026-10-14T10:02:30Z' }],
+      observedAt: '2026-10-14T10:02:30Z',
+      provenance: { sourceReference: 'source-doc-1', sourceDigest: 'sha256:test-digest',
+        verifierId: 'reviewer-1', verificationRecordId: 'verification-1',
+        verifiedAt: '2026-10-14T10:04:00Z', authorityReference: 'authority-1' } }],
   },
 };
 
