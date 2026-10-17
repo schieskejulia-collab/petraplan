@@ -77,7 +77,12 @@ export default async function handler(req: any, res: any) {
 
     const certificate = trace.release.certificates.at(-1);
     const validation = trace.validation.authoritative;
-    const hasClaimBlockers = claimFreshnessBlockers(claimLayer.claims, validation).length > 0
+    // Unknown validation time is not proof that the claim basis is current.
+    const validationTimestamp = validation?.created_at ?? validation?.validated_at ?? validation?.updated_at;
+    const validationTime = typeof validationTimestamp === 'string' ? Date.parse(validationTimestamp) : NaN;
+    const validationBasisKnown = Boolean(validation?.id) && Number.isFinite(validationTime);
+    const hasClaimBlockers = !validationBasisKnown
+      || claimFreshnessBlockers(claimLayer.claims, validation).length > 0
       || unresolvedSemanticClaimBlockers(claimLayer.claims).length > 0;
     const effectiveReleaseStatus = hasClaimBlockers ? null : trace.release.effective_status;
     const addressClaimRead = [...new Set(trace.address_layer.addresses.map((a: any) => String(a.address ?? '')).filter(Boolean))]
