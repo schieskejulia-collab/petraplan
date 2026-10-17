@@ -17,6 +17,7 @@ test('regression: trusted release without verified semantic T0/T1 basis is not t
     hasReleaseCertificate: true,
     latestValidationId: 'validation-1',
     certificateValidationId: 'validation-1',
+    requireSemanticBasis: true,
   });
 
   assert.equal(
