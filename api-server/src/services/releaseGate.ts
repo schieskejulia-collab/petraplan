@@ -20,6 +20,8 @@ export interface ReleaseGateInput {
   certificateValidationId?: string | null;
   /** Explicitly supplied T0/T1 basis. Never inferred from an ordinary release certificate. */
   semanticBasis?: { bound: DecisionBasis; current: DecisionBasis } | null;
+  /** Require independently verified T0/T1 input for this evaluation. */
+  requireSemanticBasis?: boolean;
 }
 
 export interface ReleaseGateDecision {
@@ -104,6 +106,18 @@ export function decideReleaseGate(input: ReleaseGateInput): ReleaseGateDecision 
     : null;
   const validationIsPassing = PASSING.has(normalizedValidation);
   const exceptionIsDocumented = hasDocumentedException(input.exceptionApproval);
+
+  // Fail closed for callers that explicitly require semantic verification.
+  // This is a read-only assessment: it does not revoke historical certificates.
+  if (input.requireSemanticBasis && !input.semanticBasis) {
+    return {
+      effectiveStatus: currentStatus === 'revoked' ? 'revoked' : 'blocked',
+      shouldTransition: false,
+      reason: 'Semantic decision basis is missing: BLOCKED_INCOMPLETE_EVIDENCE. A new review is required.',
+      validationIsPassing,
+      exceptionIsDocumented,
+    };
+  }
 
   // A supplied semantic basis is a mandatory pre-review gate, not a write permit.
   // Historical certificates and exception approvals cannot override a failed T1 check.
