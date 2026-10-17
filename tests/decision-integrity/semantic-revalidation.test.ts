@@ -83,3 +83,34 @@ test('rule without explicit source address and conclusion cannot claim semantic 
     rule: { ...base.readiness.rule, rule: { ...base.readiness.rule.rule, source_address: '' } } } });
   assert.equal(result.state, 'BLOCKED_SEMANTIC_BINDING');
 });
+
+test('new conflicting meaning evidence blocks a previously coherent case without rewriting its history', () => {
+  const original = assessSemanticRevalidation(base);
+  assert.equal(original.state, 'READY_FOR_EXTERNAL_SEMANTIC_VERIFICATION');
+  const revised = assessSemanticRevalidation({
+    ...base,
+    semantic: {
+      ...base.semantic,
+      unresolvedConflicts: 1,
+      observations: [
+        ...base.semantic.observations,
+        {
+          ...base.semantic.observations[0],
+          evidenceId: 'meaning-2',
+          proposition: 'STATUS=OFFEN',
+          observedAt: '2026-10-15T10:00:00Z',
+          provenance: {
+            ...base.semantic.observations[0].provenance,
+            sourceReference: 'source-doc-2',
+            verificationRecordId: 'verification-2',
+            verifiedAt: '2026-10-15T10:04:00Z',
+          },
+        },
+      ],
+    },
+  });
+  assert.equal(revised.state, 'BLOCKED_SEMANTIC_EVIDENCE');
+  assert.equal(revised.validationAllowed, false);
+  assert.equal(revised.releaseAllowed, false);
+  assert.equal(original.state, 'READY_FOR_EXTERNAL_SEMANTIC_VERIFICATION');
+});
