@@ -183,3 +183,42 @@
     pointer-events: none;
   }
 }
+/* Native fieldsets otherwise retain the min-content width of long claim options. */
+.bridge-proof-form {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.bridge-proof-form form,
+.bridge-proof-form fieldset,
+.bridge-proof-form label {
+  min-width: 0;
+  min-inline-size: 0;
+  max-width: 100%;
+}
+.bridge-proof-form fieldset {
+  width: 100%;
+}
+.bridge-proof-form textarea,
+.bridge-proof-form select,
+.bridge-proof-form input:not([type="checkbox"]) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  margin-top: 0.25rem;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  background: hsl(var(--background));
+  font-size: 1rem;
+}
+.bridge-proof-form button,
+.bridge-proof-form pre {
+  max-width: 100%;
+}
+.bridge-proof-form button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

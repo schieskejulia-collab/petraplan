@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { BridgeSignIn } from "@/components/BridgeSignIn";
+import { bridgeAuth } from "@/lib/bridge-auth";
 import { useLocation } from "wouter";
 import { milaApi, type CaseListItem } from "@/api/connector";
 
@@ -36,6 +38,8 @@ export default function CasesPage() {
 
   useEffect(() => {
     void load();
+    const {data:listener}=bridgeAuth.auth.onAuthStateChange(() => queueMicrotask(() => void load()));
+    return () => listener.subscription.unsubscribe();
   }, []);
 
   return (
@@ -51,6 +55,8 @@ export default function CasesPage() {
             <button className="shrink-0 rounded-xl border px-3 py-2 text-sm font-semibold" onClick={() => setLocation('/translator')}>Übersetzer</button>
           </div>
         </header>
+
+        <BridgeSignIn />
 
         {loading && <p className="text-sm text-muted-foreground">Lade Fälle…</p>}
 

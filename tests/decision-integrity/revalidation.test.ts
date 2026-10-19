@@ -1,0 +1,207 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { handleRevalidation } from '../../api/cases/[recordId]/revalidate.js';
+
+const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const candidate = { id: id(3), record_id: id(1), snapshot_id: id(2), state: 'confirmed',
+  candidate_key: 'NW:A-10266:STATUS-DERIVATION', source_path: 'order.ShippedDate', proposed_value: 'STATUS=GESCHLOSSEN' };
+const confirmedClaim = { id: id(4), candidate_id: id(3), record_id: id(1), snapshot_id: id(2),
+  scope_type: 'CASE_ONLY', scope_payload: { record_id: id(1), snapshot_id: id(2), candidate_id: id(3) },
+  status: 'CONFIRMED', rule_id: 'asserted-rule', rule_version: '1',
+  confirmed_by: id(5), confirmed_at: '2026-10-01T00:00:00Z',
+};
+
+async function request(claims: any[] = [], options: { role?: boolean; token?: boolean; claimError?: boolean; candidates?: any[] } = {}) {
+  const writes: string[] = [];
+  const trace = { source: { ingestion: { id: id(2), status: 'processed',
+    extracted_schema: { source_mode: 'northwind-proof', bridge_input_raw: { STATUS: 'UNKNOWN', MENGE: '12' } } } },
+    validation: { authoritative: { id: id(6), status: 'failed' } } };
+  const original = structuredClone(trace);
+  const client = {
+    auth: { getUser: async () => ({ data: { user: { id: id(5) } }, error: null }) },
+    from(table: string) {
+      const q: any = {
+        select: () => q, eq: () => q, order: () => q, maybeSingle: () => q,
+        insert: () => { writes.push(table); return q; },
+        update: () => { writes.push(table); return q; },
+        delete: () => { writes.push(table); return q; },
+        then(resolve: any) {
+          return Promise.resolve({ data: table === 'bridge_actor_roles' ? { can_review: options.role !== false }
+            : table === 'conversion_candidates' ? options.candidates ?? [candidate] : claims,
+            error: table === 'claims' && options.claimError ? new Error('Evidence store unavailable') : null }).then(resolve);
+        },
+      };
+      return q;
+    },
+    rpc: async (name: string) => { writes.push(name); throw new Error('No RPC may run during blocked revalidation'); },
+  };
+  const res: any = { statusCode: 200, body: null, setHeader() {},
+    status(n: number) { this.statusCode = n; return this; }, json(body: any) { this.body = body; return this; } };
+  const oldUrl = process.env.SUPABASE_URL, oldKey = process.env.SUPABASE_SECRET_KEY;
+  process.env.SUPABASE_URL = 'https://test.supabase.co'; process.env.SUPABASE_SECRET_KEY = 'test-only';
+  try {
+    await handleRevalidation({ method: 'POST', query: { recordId: id(1) },
+      headers: { authorization: options.token === false ? '' : 'Bearer test' } }, res,
+      { createClient: () => client, getCaseTrace: async () => trace } as any);
+  } finally {
+    if (oldUrl === undefined) delete process.env.SUPABASE_URL; else process.env.SUPABASE_URL = oldUrl;
+    if (oldKey === undefined) delete process.env.SUPABASE_SECRET_KEY; else process.env.SUPABASE_SECRET_KEY = oldKey;
+  }
+  assert.deepEqual(writes, []);
+  assert.deepEqual(trace, original);
+  assert.equal(res.body.validation_id, undefined);
+  assert.equal(res.body.release_allowed, undefined);
+  return res;
+}
+
+test('candidate confirmation without a claim cannot generate a passing validation', async () => {
+  const res = await request();
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_MISSING');
+  assert.equal(res.body.evidence_state, 'UNKNOWN');
+});
+
+for (const status of ['DRAFT', 'UNPROVEN', 'SUPPORTED', 'CONTESTED', 'REJECTED']) {
+  test(`${status} semantic claim cannot be applied in revalidation`, async () => {
+    const res = await request([{ ...confirmedClaim, status }]);
+    assert.equal(res.statusCode, 409);
+    assert.equal(res.body.blockers[0].code, 'CLAIM_UNRESOLVED');
+  });
+}
+
+test('confirmed claim and a rule reference do not stand in for verified semantic authority', async () => {
+  const res = await request([confirmedClaim]);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers[0].code, 'RULE_AUTHORITY_UNVERIFIED');
+});
+
+test('claim for another snapshot is explicitly blocked', async () => {
+  const res = await request([{ ...confirmedClaim, snapshot_id: id(99) }]);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_SCOPE_MISMATCH');
+});
+
+test('an asserted rule without its version remains unproven', async () => {
+  const res = await request([{ ...confirmedClaim, rule_version: null }]);
+  assert.equal(res.body.blockers[0].code, 'RULE_REFERENCE_MISSING');
+});
+
+test('ambiguous claims are not silently picked', async () => {
+  const res = await request([confirmedClaim, { ...confirmedClaim, id: id(99) }]);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_AMBIGUOUS');
+});
+
+test('source and human confirmation evidence cannot authorize quantity aggregation either', async () => {
+  const res = await request([], { candidates: [{ ...candidate,
+    candidate_key: 'NW:A-10266:QUANTITY-AGGREGATION', source_path: 'orderDetails[].Quantity',
+    proposed_value: 'MENGE=12', evidence: 'Source and candidate history both present' }] });
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_MISSING');
+});
+
+test('unavailable claim data produces no validation or fallback', async () => {
+  assert.equal((await request([], { claimError: true })).statusCode, 500);
+});
+
+test('revalidation still requires authentication and review permission', async () => {
+  assert.equal((await request([], { token: false })).statusCode, 401);
+  assert.equal((await request([], { role: false })).statusCode, 403);
+});
+
+
+test('superseded claim cannot silently authorize a confirmed candidate', async () => {
+  const res = await request([{ ...confirmedClaim, status: 'SUPERSEDED' }]);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_MISSING');
+});
+
+test('a claim with another candidate in its scope is rejected', async () => {
+  const res = await request([{ ...confirmedClaim,
+    scope_payload: { ...confirmedClaim.scope_payload, candidate_id: id(99) } }]);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers[0].code, 'CLAIM_SCOPE_MISMATCH');
+});
+
+test('each confirmed candidate needs its own unambiguous evidence basis', async () => {
+  const second = { ...candidate, id: id(7), candidate_key: 'NW:A-10266:QUANTITY-AGGREGATION' };
+  const res = await request([confirmedClaim], { candidates: [candidate, second] });
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.blockers.length, 2);
+  assert.deepEqual(res.body.blockers.map((blocker: any) => blocker.code),
+    ['RULE_AUTHORITY_UNVERIFIED', 'CLAIM_MISSING']);
+});
+
+import { assessRevalidationReadiness, checkRuleFreshness, checkTransitionEvidence } from '../../api-server/src/services/revalidationEvidence.js';
+
+test('rule freshness rejects changed claim basis, revoked approval and expired authority', () => {
+  const rule = { id: id(10), record_id: id(1), snapshot_id: id(2), candidate_id: id(3),
+    claim_id: id(4), scope_type: 'CASE_ONLY', target_address: 'NW:CustomerID', claim_basis: 'basis-a' };
+  const latestDecision = { rule_version_id: id(10), authority_id: id(11), actor_id: id(5), decision: 'APPROVED' };
+  const authority = { id: id(11), user_id: id(5), record_id: id(1), snapshot_id: id(2),
+    target_address: 'NW:CustomerID', authority_reference: 'delegation-1',
+    granted_at: '2026-10-01T00:00:00Z', valid_until: '2026-11-01T00:00:00Z' };
+  const base = { recordId: id(1), snapshotId: id(2), candidateId: id(3), claimId: id(4),
+    claimBasis: 'basis-a', rule, latestDecision, authority, revoked: false, checkedAt: '2026-10-14T10:00:00Z' };
+  assert.equal(checkRuleFreshness(base).state, 'READY_FOR_EVIDENCE_REVIEW');
+  assert.equal(checkRuleFreshness({ ...base, claimBasis: 'basis-b' }).state, 'BLOCKED_STALE_BASIS');
+  assert.equal(checkRuleFreshness({ ...base, revoked: true }).state, 'BLOCKED_STALE_BASIS');
+  assert.equal(checkRuleFreshness({ ...base, checkedAt: '2026-12-01T00:00:00Z' }).state, 'BLOCKED_STALE_BASIS');
+  assert.equal(checkRuleFreshness({ ...base, snapshotId: id(99) }).state, 'BLOCKED_BINDING_MISMATCH');
+  assert.equal(checkRuleFreshness({ ...base, authority: null }).state, 'BLOCKED_INCOMPLETE_EVIDENCE');
+});
+
+
+test('transition evidence binds identity, time and before/after state without authorizing release', () => {
+  const base = {
+    objectKey: { customer: '624456', position: 13 },
+    expectedObjectKey: { customer: '624456', position: 13 },
+    before: { snapshotId: id(20), observedAt: '2026-10-14T10:00:00Z', value: 1000 },
+    operation: { kind: 'PURCHASE', occurredAt: '2026-10-14T10:01:00Z', delta: 42 },
+    after: { snapshotId: id(21), observedAt: '2026-10-14T10:02:00Z', value: 1042 },
+  };
+  assert.equal(checkTransitionEvidence(base).state, 'READY_FOR_SEMANTIC_REVIEW');
+  assert.equal(checkTransitionEvidence({ ...base,
+    expectedObjectKey: { customer: '624456', position: 14 } }).state, 'BLOCKED_IDENTITY_MISMATCH');
+  assert.equal(checkTransitionEvidence({ ...base,
+    after: { ...base.after, value: 1041 } }).state, 'BLOCKED_STATE_MISMATCH');
+  assert.equal(checkTransitionEvidence({ ...base,
+    operation: { ...base.operation, occurredAt: '2026-10-14T09:59:00Z' } }).state, 'BLOCKED_STATE_MISMATCH');
+  assert.equal(checkTransitionEvidence({ ...base, operation: null }).state, 'BLOCKED_INCOMPLETE_TRANSITION');
+});
+
+test('transition with explicit from/to values must match both observed states', () => {
+  const result = checkTransitionEvidence({
+    objectKey: { order: 10266 },
+    before: { snapshotId: id(30), observedAt: '2026-10-14T11:00:00Z', value: 'OPEN' },
+    operation: { kind: 'STATUS_CHANGE', occurredAt: '2026-10-14T11:01:00Z', fromValue: 'OPEN', toValue: 'CLOSED' },
+    after: { snapshotId: id(31), observedAt: '2026-10-14T11:02:00Z', value: 'CLOSED' },
+  });
+  assert.equal(result.state, 'READY_FOR_SEMANTIC_REVIEW');
+});
+
+
+test('combined readiness requires both coherent lifecycle and current rule governance', () => {
+  const transition = {
+    objectKey: { order: 10266 },
+    before: { snapshotId: id(40), observedAt: '2026-10-14T12:00:00Z', value: 'OPEN' },
+    operation: { kind: 'STATUS_CHANGE', occurredAt: '2026-10-14T12:01:00Z', fromValue: 'OPEN', toValue: 'CLOSED' },
+    after: { snapshotId: id(41), observedAt: '2026-10-14T12:02:00Z', value: 'CLOSED' },
+  };
+  const rule = {
+    recordId: id(1), snapshotId: id(2), candidateId: id(3), claimId: id(4), claimBasis: 'basis-a',
+    rule: { id: id(10), record_id: id(1), snapshot_id: id(2), candidate_id: id(3), claim_id: id(4),
+      scope_type: 'CASE_ONLY', target_address: 'NW:CustomerID', claim_basis: 'basis-a' },
+    latestDecision: { rule_version_id: id(10), authority_id: id(11), actor_id: id(5), decision: 'APPROVED' },
+    authority: { id: id(11), user_id: id(5), record_id: id(1), snapshot_id: id(2),
+      target_address: 'NW:CustomerID', authority_reference: 'delegation-1',
+      granted_at: '2026-10-01T00:00:00Z', valid_until: '2026-11-01T00:00:00Z' },
+    revoked: false,
+    checkedAt: '2026-10-14T12:03:00Z',
+  };
+  assert.equal(assessRevalidationReadiness({ transition, rule }).state, 'READY_FOR_SEMANTIC_EVIDENCE');
+  assert.equal(assessRevalidationReadiness({
+    transition: { ...transition, after: { ...transition.after, value: 'OPEN' } }, rule,
+  }).state, 'BLOCKED_TRANSITION');
+  assert.equal(assessRevalidationReadiness({
+    transition, rule: { ...rule, claimBasis: 'basis-b' },
+  }).state, 'BLOCKED_RULE_GOVERNANCE');
+});

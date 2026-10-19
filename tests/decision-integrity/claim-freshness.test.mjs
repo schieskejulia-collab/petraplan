@@ -31,6 +31,8 @@ before(async () => {
   await db.exec((await read('../../db/address_layer.sql')).replace('create extension if not exists pgcrypto;', ''));
   await db.exec((await read('../../db/claim_layer.sql')).replace('create extension if not exists pgcrypto;', ''));
   for (const name of migrations) await db.exec(await read(`../../supabase/migrations/${name}.sql`));
+  await db.exec(`create table public.semantic_rule_versions (id uuid primary key, record_id uuid not null, claim_id uuid not null);\n    create table public.semantic_rule_decisions (id uuid primary key, rule_version_id uuid not null, decision text not null, actor_id uuid not null);`);
+  await db.exec(await read('../../supabase/migrations/20261019100500_semantic_rule_case_release_guard.sql'));
   await db.exec('grant all on all tables in schema public to service_role');
 });
 beforeEach(async () => {
@@ -258,4 +260,22 @@ test('a case without claims has an explicit empty basis and still releases', asy
   const cert = (await release()).rows[0].result.certificate_id;
   assert.match(await basis(), /^[0-9a-f]{64}$/);
   assert.equal(await status(cert), 'trusted');
+});
+
+
+test('negative semantic decision revokes a real certificate without Claim rule linkage and retains history', async () => {
+  await rejectCandidate();
+  const cert = (await release()).rows[0].result.certificate_id;
+  assert.equal(await status(cert), 'trusted');
+  const rule = id(91);
+  // The case has no Claim rule_id/rule_version linkage; this deliberately
+  // exercises the independent case-level negative-decision trigger.
+  await db.query('insert into public.semantic_rule_versions values ($1,$2,$3)', [rule,record,id(92)]);
+  await db.query('insert into public.semantic_rule_decisions values ($1,$2,$3,$4)', [id(93),rule,'REVOKED',actor]);
+  assert.equal(await status(cert), 'revoked');
+  assert.equal((await db.query('select count(*)::int as n from release_certificates where id=$1',[cert])).rows[0].n,1);
+  assert.equal((await db.query("select count(*)::int as n from release_status_history where release_certificate_id=$1 and new_status='revoked'",[cert])).rows[0].n,1);
+  assert.equal((await db.query("select count(*)::int as n from release_logs where release_certificate_id=$1 and event_type='revoked'",[cert])).rows[0].n,1);
+  assert.equal((await db.query("select count(*)::int as n from bridge_decision_audit where release_certificate_id=$1 and action='revoke'",[cert])).rows[0].n,1);
+  await fails(release, 'PT409');
 });
