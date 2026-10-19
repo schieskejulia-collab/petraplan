@@ -10,6 +10,9 @@ test('negative semantic decision reaches case-level revocation without a Claim r
   const db = new PGlite();
   try {
     await db.exec(`
+      create role anon;
+      create role authenticated;
+      create role service_role;
       create table public.semantic_rule_versions (
         id uuid primary key, record_id uuid not null, claim_id uuid not null
       );
