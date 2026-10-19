@@ -240,3 +240,20 @@ test('full rule governance revokes an unlinked certificate and preserves audit h
   assert.equal((await db.query("select count(*)::int as n from release_logs where release_certificate_id=$1 and event_type='revoked'",[cert])).rows[0].n,1);
   assert.equal((await db.query("select count(*)::int as n from bridge_decision_audit where release_certificate_id=$1 and action='revoke'",[cert])).rows[0].n,1);
 });
+
+test('revoking delegated authority also revokes an existing unlinked certificate with audit trail',async()=>{
+  await grant();
+  const rule=await propose();
+  await decide(rule);
+  // A confirmed Claim permits the historical certificate; its rule link is intentionally absent.
+  await db.query("update claims set status='CONFIRMED',confirmed_by=$1,confirmed_at=now() where id=$2",[actor,claim]);
+  const cert=(await db.query("insert into release_certificates(record_id,release_status,certified_by) values($1,'trusted',$2) returning id",[record,actor])).rows[0].id;
+  await db.query(`insert into semantic_rule_authority_revocations(authority_id,revoked_by,reason)
+    values($1,$2,'Delegation withdrawn after release certificate issuance')`,[authority,otherActor]);
+  assert.equal((await db.query('select bridge_semantic_rule_status($1) as s',[rule.id])).rows[0].s,'REVOKED');
+  assert.equal((await db.query('select rule_id from claims where id=$1',[claim])).rows[0].rule_id,null);
+  assert.equal((await db.query("select count(*)::int n from release_status_history where release_certificate_id=$1 and new_status='revoked'",[cert])).rows[0].n,1);
+  assert.equal((await db.query("select count(*)::int n from release_logs where release_certificate_id=$1 and event_type='revoked'",[cert])).rows[0].n,1);
+  assert.equal((await db.query("select count(*)::int n from bridge_decision_audit where release_certificate_id=$1 and action='revoke'",[cert])).rows[0].n,1);
+  assert.equal((await db.query('select count(*)::int n from release_certificates where id=$1',[cert])).rows[0].n,1);
+});
