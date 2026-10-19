@@ -34,3 +34,17 @@ test('stale snapshot and revoked technical reviewer fail closed',async()=>{const
 test('records are immutable; browser cannot insert',async()=>{const r=await add();await fails(()=>db.query('update claim_check_requirements set next_check=$1 where id=$2',['Overwrite',r.id]),'PT409');await observe(r);await fails(()=>db.exec('delete from claim_check_observations'),'PT409');await db.exec('set local role authenticated');await fails(()=>db.exec('select * from claim_check_requirements'),'42501');await db.exec('reset role');});
 test('service RPC works with restricted grants; coverage cannot be asserted with an empty reference',async()=>{await db.exec('set local role service_role');const r=await add();await fails(()=>observe(r,{coverage_status:'COMPLETE',coverage_reference:''}),'23514');await observe(r);await db.exec('reset role');});
 test('report freezes the actual source evidence; client cannot supply a fabricated copy',async()=>{const r=await add();await observe(r,{representation_evidence_id:evidence,evidence_snapshot:{raw_representation:999}});const o=(await db.query('select * from claim_check_observations')).rows[0];assert.equal(o.evidence_snapshot.raw_representation,0);assert.equal(o.evidence_snapshot.id,evidence);});
+
+test('self-reported COMPLETE coverage and SUPPORTS never create semantic approval or release',async()=>{
+ const r=await add();
+ await observe(r,{result:'SUPPORTS',representation_evidence_id:evidence,coverage_status:'COMPLETE',coverage_reference:'fixture://self-reported-coverage'});
+ const report=(await db.query('select result,coverage_status,coverage_reference from claim_check_observations where requirement_id=$1',[r.id])).rows[0];
+ assert.equal(report.result,'SUPPORTS');
+ assert.equal(report.coverage_status,'COMPLETE');
+ assert.equal(report.coverage_reference,'fixture://self-reported-coverage');
+ assert.equal((await db.query('select status from claims where id=$1',[claim])).rows[0].status,'UNPROVEN');
+ assert.equal((await db.query('select count(*)::int n from semantic_rule_decisions')).rows[0].n,0);
+ assert.equal((await db.query('select count(*)::int n from validation_results')).rows[0].n,0);
+ assert.equal((await db.query('select count(*)::int n from release_certificates')).rows[0].n,0);
+ assert.equal((await db.query('select count(*)::int n from release_status_history')).rows[0].n,0);
+});
