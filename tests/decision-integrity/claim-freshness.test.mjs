@@ -31,7 +31,9 @@ before(async () => {
   await db.exec((await read('../../db/address_layer.sql')).replace('create extension if not exists pgcrypto;', ''));
   await db.exec((await read('../../db/claim_layer.sql')).replace('create extension if not exists pgcrypto;', ''));
   for (const name of migrations) await db.exec(await read(`../../supabase/migrations/${name}.sql`));
-  await db.exec(`create table public.semantic_rule_versions (id uuid primary key, record_id uuid not null, claim_id uuid not null);\n    create table public.semantic_rule_decisions (id uuid primary key, rule_version_id uuid not null, decision text not null, actor_id uuid not null);`);\n  await db.exec(await read('../../supabase/migrations/20261019100500_semantic_rule_case_release_guard.sql'));\n  await db.exec('grant all on all tables in schema public to service_role');
+  await db.exec(`create table public.semantic_rule_versions (id uuid primary key, record_id uuid not null, claim_id uuid not null);\n    create table public.semantic_rule_decisions (id uuid primary key, rule_version_id uuid not null, decision text not null, actor_id uuid not null);`);
+  await db.exec(await read('../../supabase/migrations/20261019100500_semantic_rule_case_release_guard.sql'));
+  await db.exec('grant all on all tables in schema public to service_role');
 });
 beforeEach(async () => {
   await db.exec('begin');
