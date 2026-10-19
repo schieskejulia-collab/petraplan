@@ -229,7 +229,9 @@ test('full rule governance revokes an unlinked certificate and preserves audit h
   await grant();
   const rule=await propose();
   await decide(rule);
-  // Deliberately leave the Claim without rule_id/rule_version linkage.
+  // Establish a confirmed semantic Claim before issuing the historical certificate.
+  // Deliberately leave rule_id/rule_version NULL to exercise the independent guard.
+  await db.query("update claims set status='CONFIRMED',confirmed_by=$1,confirmed_at=now() where id=$2",[actor,claim]);
   const cert=(await db.query("insert into release_certificates(record_id,release_status,certified_by) values($1,'trusted',$2) returning id",[record,actor])).rows[0].id;
   await decide(rule,'REVOKED');
   assert.equal((await db.query('select rule_id from claims where id=$1',[claim])).rows[0].rule_id,null);
