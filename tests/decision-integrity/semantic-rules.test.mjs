@@ -30,6 +30,8 @@ before(async()=>{
     '20261002173000_chinch64_unresolved_semantic_claim_guard',migration]) {
     await db.exec(await read(`../../supabase/migrations/${name}.sql`));
   }
+  // Apply the actual case-level release guard to the full governed rule schema.
+  await db.exec(await read('../../supabase/migrations/20261019100500_semantic_rule_case_release_guard.sql'));
   // Fixture permissions for existing tables; keep new catalogue grants exactly as shipped.
   await db.exec('grant all on claims,claim_evidence_links,address_registry,conversion_candidates to service_role');
 });
@@ -220,4 +222,19 @@ test('evidence-write failure rolls back the negative rule decision as well',asyn
     create trigger fail_rule_evidence before insert on claim_evidence_links for each row execute function fail_rule_evidence();`);
   await fails(()=>decide(rule,'REVOKED'),'P0001');
   assert.equal((await db.query('select bridge_semantic_rule_status($1) as s',[rule.id])).rows[0].s,'APPROVED');
+});
+
+
+test('full rule governance revokes an unlinked certificate and preserves audit history',async()=>{
+  await grant();
+  const rule=await propose();
+  await decide(rule);
+  // Deliberately leave the Claim without rule_id/rule_version linkage.
+  const cert=(await db.query("insert into release_certificates(record_id,release_status,certified_by) values($1,'trusted',$2) returning id",[record,actor])).rows[0].id;
+  await decide(rule,'REVOKED');
+  assert.equal((await db.query('select rule_id from claims where id=$1',[claim])).rows[0].rule_id,null);
+  assert.equal((await db.query("select count(*)::int as n from release_status_history where release_certificate_id=$1 and new_status='revoked'",[cert])).rows[0].n,1);
+  assert.equal((await db.query('select count(*)::int as n from release_certificates where id=$1',[cert])).rows[0].n,1);
+  assert.equal((await db.query("select count(*)::int as n from release_logs where release_certificate_id=$1 and event_type='revoked'",[cert])).rows[0].n,1);
+  assert.equal((await db.query("select count(*)::int as n from bridge_decision_audit where release_certificate_id=$1 and action='revoke'",[cert])).rows[0].n,1);
 });
