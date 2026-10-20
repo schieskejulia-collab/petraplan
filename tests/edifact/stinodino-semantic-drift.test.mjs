@@ -63,7 +63,7 @@ test('qualifier-only changes still require a claim, even when value and unit mat
   assert.equal(payload.changedObservations[0].value, '48');
 });
 
-import { assessPositionChanges } from './stinodino-position-dependencies.mjs';
+import { assessPositionChanges, proposePositionClaimBindings } from './stinodino-position-dependencies.mjs';
 
 test('position observation change does not prove independent release', () => {
   const result = assessPositionChanges(base, base.replace('48:PCE', '48:CT'));
@@ -97,5 +97,25 @@ test('reordered LIN identifiers cannot be silently paired by array index', () =>
 test('missing LIN identifier cannot establish independent position', () => {
   const result = assessPositionChanges(base, base.replace('LIN+2++', 'LIN+++'));
   assert.equal(result.assessment, 'BLOCKED_POSITION_BINDING_UNPROVEN');
+  assert.equal(result.releaseAllowed, false);
+});
+
+test('position-to-claim binding stays a proposal without release authority', () => {
+  const result = proposePositionClaimBindings(base, base.replace('48:PCE', '48:CT'));
+  assert.equal(result.state, 'CANDIDATE_ONLY');
+  assert.deepEqual(result.candidates.map(item => item.observationChanged), [true, false]);
+  assert.deepEqual(result.candidates.map(item => item.subjectAddress), [
+    'synthetic:stinodino-001#LIN-1/QTY',
+    'synthetic:stinodino-001#LIN-2/QTY',
+  ]);
+  assert.ok(result.candidates.every(item => item.claimStatus === 'UNPROVEN' &&
+    item.scopeStatus === 'UNVERIFIED' && item.releaseAllowed === false));
+  assert.equal(result.independentReleaseProven, false);
+});
+
+test('ambiguous LIN identity cannot create position claim bindings', () => {
+  const result = proposePositionClaimBindings(base, base.replace('LIN+2++', 'LIN+1++'));
+  assert.equal(result.state, 'BLOCKED_POSITION_BINDING_UNPROVEN');
+  assert.deepEqual(result.candidates, []);
   assert.equal(result.releaseAllowed, false);
 });
