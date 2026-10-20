@@ -62,3 +62,19 @@ test('qualifier-only changes still require a claim, even when value and unit mat
   assert.equal(payload.changedObservations[0].qualifier, '59');
   assert.equal(payload.changedObservations[0].value, '48');
 });
+
+import { assessPositionChanges } from './stinodino-position-dependencies.mjs';
+
+test('position observation change does not prove independent release', () => {
+  const result = assessPositionChanges(base, base.replace('48:PCE', '48:CT'));
+  assert.deepEqual(result.positions.map(item => item.changed), [true, false]);
+  assert.equal(result.independenceProven, false);
+  assert.equal(result.releaseAllowed, false);
+  assert.ok(result.positions.every(item => item.releasePreserved === false));
+});
+
+test('duplicate position identifiers block positional binding', () => {
+  const result = assessPositionChanges(base, base.replace('LIN+2++', 'LIN+1++'));
+  assert.equal(result.assessment, 'BLOCKED_POSITION_BINDING_UNPROVEN');
+  assert.equal(result.independenceProven, false);
+});
