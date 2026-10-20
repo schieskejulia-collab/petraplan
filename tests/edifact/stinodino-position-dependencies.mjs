@@ -24,3 +24,29 @@ export function assessPositionChanges(t0Raw, t1Raw) {
     })),
   };
 }
+
+/**
+ * Proposes a test-only observation-to-claim dependency boundary.
+ * No claims are confirmed and no release scope is inferred from line IDs.
+ */
+export function proposePositionClaimBindings(t0Raw, t1Raw) {
+  const result = assessPositionChanges(t0Raw, t1Raw);
+  if (result.assessment !== 'POSITION_OBSERVATIONS_ONLY') {
+    return { state: 'BLOCKED_POSITION_BINDING_UNPROVEN', candidates: [],
+      releaseAllowed: false, independentReleaseProven: false };
+  }
+  return {
+    state: 'CANDIDATE_ONLY',
+    candidates: result.positions.map(position => ({
+      subjectAddress: 'synthetic:stinodino-001#LIN-' + position.lineId + '/QTY',
+      lineId: position.lineId,
+      observationChanged: position.changed,
+      claimStatus: 'UNPROVEN',
+      scopeStatus: 'UNVERIFIED',
+      evidenceRelation: 'PROPOSED_NOT_CONFIRMED',
+      releaseAllowed: false,
+    })),
+    releaseAllowed: false,
+    independentReleaseProven: false,
+  };
+}
