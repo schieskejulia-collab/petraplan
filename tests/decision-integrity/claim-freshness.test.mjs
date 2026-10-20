@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { before, beforeEach, afterEach, after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { compareStinoDinoRevisions } from '../edifact/stinodino-revision-comparison.mjs';
+import { submitStinoDinoRevisionObservation } from '../edifact/stinodino-claim-test-adapter.mjs';
 
 const db = new PGlite();
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -266,26 +266,27 @@ test('StinoDino T0/T1 changed source triggers actual PetraPlan database release 
   // controlled test fixture, NOT an actual StinoDino production approval.
   const t0 = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48'LIN+2++4000862141411:EN'QTY+21:12'UNT+7+1'";
   const t1 = t0.replace('QTY+21:48', 'QTY+21:49');
-  const comparison = compareStinoDinoRevisions(t0, t1);
-  assert.equal(comparison.assessment, 'BLOCKED_REVALIDATION_REQUIRED');
-  assert.equal(comparison.oldEvidenceUsableForCurrentSource, false);
-  assert.notEqual(comparison.t0.snapshotRef, comparison.t1.snapshotRef);
-
-  // Existing fixture provides a valid historical release basis.
   await rejectCandidate();
   const cert = (await release()).rows[0].result.certificate_id;
   assert.equal(await status(cert), 'trusted');
 
-  // New, unconfirmed source observation enters the real claims table.
-  // The DB's claim-freshness trigger must revoke the old release atomically.
-  const newClaim = (await db.query(`insert into claims
-    (claim_family_id,claim_type,subject_address,predicate,statement,status,
-     scope_type,record_id,snapshot_id,created_by,created_at)
-    values (gen_random_uuid(),'SEMANTIC_MAPPING','order.QTY','observed',
-      $4,'UNPROVEN','CASE_ONLY',$1,$2,$3,now()) returning id`,
-    [record, snapshot, 'stinodino-isolated-proof',
-      `EDIFACT T1 source changed from ${comparison.t0.snapshotRef} to ${comparison.t1.snapshotRef}; observed quantity 49; semantics unconfirmed`])).rows[0].id;
-  assert.ok(newClaim);
+  // No manually constructed claim: the adapter compares EDIFACT T0/T1,
+  // prepares the unconfirmed observation, and submits it to the DB trigger.
+  const { comparison, submitted, claimId } = await submitStinoDinoRevisionObservation({
+    db, t0Raw: t0, t1Raw: t1, recordId: record, snapshotId: snapshot,
+  });
+  assert.equal(comparison.assessment, 'BLOCKED_REVALIDATION_REQUIRED');
+  assert.equal(comparison.oldEvidenceUsableForCurrentSource, false);
+  assert.notEqual(comparison.t0.snapshotRef, comparison.t1.snapshotRef);
+  assert.equal(submitted, true);
+  assert.ok(claimId);
+  const stored = (await db.query('select statement,status from claims where id=$1', [claimId])).rows[0];
+  assert.equal(stored.status, 'UNPROVEN');
+  const observation = JSON.parse(stored.statement);
+  assert.equal(observation.t0, comparison.t0.snapshotRef);
+  assert.equal(observation.t1, comparison.t1.snapshotRef);
+  assert.equal(observation.changedObservations[0].value, '49');
+  assert.equal(observation.semanticAuthority, 'none');
   assert.equal(await status(cert), 'revoked');
   const history = (await db.query(`select previous_status,new_status from release_status_history
     where release_certificate_id=$1 order by created_at,id`, [cert])).rows;
@@ -296,4 +297,22 @@ test('StinoDino T0/T1 changed source triggers actual PetraPlan database release 
   assert.equal(audit.length, 1);
   assert.equal(audit[0].details.claim_producer, 'stinodino-isolated-proof');
   await fails(release, 'PT409');
+});
+
+test('StinoDino adapter rejects invalid T1 before inserting any claim', async () => {
+  const t0 = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48'UNT+5+1'";
+  await assert.rejects(() => submitStinoDinoRevisionObservation({
+    db, t0Raw: t0, t1Raw: t0.replace('QTY+21:48', 'QTY+21:ABC'),
+    recordId: record, snapshotId: snapshot,
+  }), /INVALID_EDIFACT_INPUT/);
+  assert.equal((await db.query('select count(*)::int as n from claims')).rows[0].n, 0);
+});
+test('StinoDino adapter does not insert a claim for identical source bytes', async () => {
+  const t0 = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48'UNT+5+1'";
+  const result = await submitStinoDinoRevisionObservation({
+    db, t0Raw: t0, t1Raw: t0, recordId: record, snapshotId: snapshot,
+  });
+  assert.equal(result.submitted, false);
+  assert.equal(result.claimId, null);
+  assert.equal((await db.query('select count(*)::int as n from claims')).rows[0].n, 0);
 });
