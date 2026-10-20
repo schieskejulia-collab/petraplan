@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { before, beforeEach, afterEach, after, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { compareStinoDinoRevisions } from '../edifact/stinodino-revision-comparison.mjs';
 
 const db = new PGlite();
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -258,4 +259,41 @@ test('a case without claims has an explicit empty basis and still releases', asy
   const cert = (await release()).rows[0].result.certificate_id;
   assert.match(await basis(), /^[0-9a-f]{64}$/);
   assert.equal(await status(cert), 'trusted');
+});
+
+test('StinoDino T0/T1 changed source triggers actual PetraPlan database release revocation', async () => {
+  // This is a synthetic, isolated PGlite scenario. The initial release is a
+  // controlled test fixture, NOT an actual StinoDino production approval.
+  const t0 = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48'LIN+2++4000862141411:EN'QTY+21:12'UNT+7+1'";
+  const t1 = t0.replace('QTY+21:48', 'QTY+21:49');
+  const comparison = compareStinoDinoRevisions(t0, t1);
+  assert.equal(comparison.assessment, 'BLOCKED_REVALIDATION_REQUIRED');
+  assert.equal(comparison.oldEvidenceUsableForCurrentSource, false);
+  assert.notEqual(comparison.t0.snapshotRef, comparison.t1.snapshotRef);
+
+  // Existing fixture provides a valid historical release basis.
+  await rejectCandidate();
+  const cert = (await release()).rows[0].result.certificate_id;
+  assert.equal(await status(cert), 'trusted');
+
+  // New, unconfirmed source observation enters the real claims table.
+  // The DB's claim-freshness trigger must revoke the old release atomically.
+  const newClaim = (await db.query(`insert into claims
+    (claim_family_id,claim_type,subject_address,predicate,statement,status,
+     scope_type,record_id,snapshot_id,created_by,created_at)
+    values (gen_random_uuid(),'SEMANTIC_MAPPING','order.QTY','observed',
+      $4,'UNPROVEN','CASE_ONLY',$1,$2,$3,now()) returning id`,
+    [record, snapshot, 'stinodino-isolated-proof',
+      `EDIFACT T1 source changed from ${comparison.t0.snapshotRef} to ${comparison.t1.snapshotRef}; observed quantity 49; semantics unconfirmed`])).rows[0].id;
+  assert.ok(newClaim);
+  assert.equal(await status(cert), 'revoked');
+  const history = (await db.query(`select previous_status,new_status from release_status_history
+    where release_certificate_id=$1 order by created_at,id`, [cert])).rows;
+  assert.ok(history.some(row => row.new_status === 'trusted'));
+  assert.ok(history.some(row => row.previous_status === 'trusted' && row.new_status === 'revoked'));
+  const audit = (await db.query(`select details from bridge_decision_audit
+    where release_certificate_id=$1 and action='revoke'`, [cert])).rows;
+  assert.equal(audit.length, 1);
+  assert.equal(audit[0].details.claim_producer, 'stinodino-isolated-proof');
+  await fails(release, 'PT409');
 });
