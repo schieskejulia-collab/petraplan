@@ -20,3 +20,14 @@ jobs:
           node-version: '24'
       - name: Run EDIFACT parser and mathematics safety gates
         run: node --test tests/edifact/*.test.mjs
+      - name: Produce downloadable synthetic EDIFACT proof report
+        run: |
+          mkdir -p edifact-proof-output
+          node tests/edifact/stinodino-inspect.mjs tests/edifact/fixtures/orders-d96a-synthetic.edi edifact-proof-output/stinodino-proof.json
+      - name: Upload read-only EDIFACT proof artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stinodino-synthetic-proof
+          path: edifact-proof-output/stinodino-proof.json
+          if-no-files-found: error
+          retention-days: 7
