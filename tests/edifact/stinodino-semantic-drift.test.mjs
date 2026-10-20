@@ -134,3 +134,26 @@ test('position claim proposals retain distinct T0/T1 source locators and hashes'
   assert.equal(unchanged.claimStatus, 'UNPROVEN');
   assert.equal(result.independentReleaseProven, false);
 });
+
+test('EDIFACT read-only projection matches PetraPlan address-layer fields', async () => {
+  const { projectStinoDinoSourceAddresses } = await import('./stinodino-bridge-handoff.mjs');
+  const projection = projectStinoDinoSourceAddresses(base);
+  assert.equal(projection.state, 'SOURCE_OBSERVATIONS_ONLY');
+  assert.equal(projection.addresses.length, 3);
+  assert.equal(projection.observations.length, 2);
+  assert.equal(projection.addresses[0].kind, 'object');
+  assert.ok(projection.addresses.slice(1).every(a =>
+    a.kind === 'field' && a.parentAddress === projection.addresses[0].address));
+  assert.deepEqual(projection.observations.map(o => o.rawValue), ['48', '12']);
+  assert.deepEqual(projection.candidates, []);
+  assert.equal(projection.persisted, false);
+  assert.equal(projection.releaseAllowed, false);
+});
+
+test('invalid EDIFACT cannot produce address-layer observations', async () => {
+  const { projectStinoDinoSourceAddresses } = await import('./stinodino-bridge-handoff.mjs');
+  const projection = projectStinoDinoSourceAddresses(base.replace('UNT+7+1', 'UNT+6+1'));
+  assert.equal(projection.state, 'BLOCKED');
+  assert.deepEqual(projection.addresses, []);
+  assert.deepEqual(projection.observations, []);
+});
