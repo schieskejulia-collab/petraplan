@@ -24,6 +24,24 @@ jobs:
         run: |
           mkdir -p edifact-proof-output
           node tests/edifact/stinodino-inspect.mjs tests/edifact/fixtures/orders-d96a-synthetic.edi edifact-proof-output/stinodino-proof.json
+      - name: Show StinoDino proof report in GitHub job log and summary
+        shell: bash
+        run: |
+          echo '=== StinoDino synthetic EDIFACT proof (read-only) ==='
+          cat edifact-proof-output/stinodino-proof.json
+          {
+            echo '## StinoDino EDIFACT – lesbarer Prüfbericht'
+            echo ''
+            echo '**Nur synthetische Testdaten. Keine fachliche Freigabe, keine authentifizierte Herkunft.**'
+            echo ''
+            echo '<details open><summary>JSON-Prüfbericht anzeigen</summary>'
+            echo ''
+            echo '\`\`\`json'
+            cat edifact-proof-output/stinodino-proof.json
+            echo '\`\`\`'
+            echo ''
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload read-only EDIFACT proof artifact
         uses: actions/upload-artifact@v4
         with:
