@@ -43,3 +43,28 @@ export function proposeStinoDinoBridgeHandoff(raw, { sourceId = 'synthetic:stino
     orderTotal: null,
   };
 }
+
+/**
+ * Read-only projection shaped like the existing PetraPlan address layer.
+ * Segment addresses are source locators, not confirmed business identities.
+ */
+export function projectStinoDinoSourceAddresses(raw, options = {}) {
+  const handoff = proposeStinoDinoBridgeHandoff(raw, options);
+  if (handoff.ingestionState === 'BLOCKED') {
+    return { state: 'BLOCKED', addresses: [], observations: [],
+      candidates: [], persisted: false, releaseAllowed: false };
+  }
+  const root = handoff.source.id;
+  const addresses = [{ address: root, parentAddress: null,
+    kind: 'object', sourcePath: '$raw' }];
+  const observations = [];
+  for (const item of handoff.candidates) {
+    addresses.push({ address: item.address, parentAddress: root,
+      kind: 'field', sourcePath: item.address.slice(root.length + 1) });
+    observations.push({ address: item.address, rawValue: item.rawValue,
+      qualifier: item.qualifier, unit: item.rawUnit,
+      meaning: 'unconfirmed' });
+  }
+  return { state: 'SOURCE_OBSERVATIONS_ONLY', addresses, observations,
+    candidates: [], persisted: false, releaseAllowed: false };
+}
