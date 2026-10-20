@@ -58,7 +58,7 @@ test('qualifier-only changes still require a claim, even when value and unit mat
   assert.equal(writes.length, 1);
   const payload = JSON.parse(writes[0].params[3]);
   assert.equal(payload.assessment, 'BLOCKED_REVALIDATION_REQUIRED');
-  assert.equal(payload.changedObservations.length, 0);
-  // This test documents a gap: raw snapshot changes, but the field-level
-  // change list currently omits qualifier differences.
+  assert.equal(payload.changedObservations.length, 1);
+  assert.equal(payload.changedObservations[0].qualifier, '59');
+  assert.equal(payload.changedObservations[0].value, '48');
 });
