@@ -19,4 +19,4 @@ jobs:
         with:
           node-version: '24'
       - name: Run EDIFACT parser and mathematics safety gates
-        run: node --test tests/edifact/stinodino-entry.test.mjs tests/edifact/stinodino-math-evidence-gates.test.mjs
+        run: node --test tests/edifact/*.test.mjs
