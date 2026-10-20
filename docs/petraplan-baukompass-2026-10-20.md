@@ -32,3 +32,15 @@ Dies ist die Reihenfolge und der Maßstab für neue Quellen. Claims, Bedeutungsp
 Arbeitskontext: GitHub `schieskejulia-collab/petraplan`, Entwurfs-PR #55, Branch `test/stinodino-math-evidence-gates-20261020`. Letzter vor diesem Dokument bestätigter grüner Stand: Commit `7c0f537`, beide CI-Workflows erfolgreich.
 
 **Bei jeder Fortsetzung zuerst diesen Baukompass lesen und gegen den tatsächlichen Repo-Stand prüfen.**
+
+## Codeabgleich: vorhandene Bauteile (20.10.2026)
+
+| Bauabschnitt | Northwind | StinoDino EDIFACT | Gemeinsame Grenze |
+| --- | --- | --- | --- |
+| Lesen | `bridge-northwind-adapter.ts`, `bridge-source-observation.ts` | `stinodino-entry.mjs` | Verschiedene Quellformate, Rohwerte nicht als bestätigte Bedeutung behandeln |
+| Übersetzen | `addressableNorthwind.ts` erzeugt Beobachtungen und **nicht bestätigte** Status-/Mengen-Kandidaten | `stinodino-bridge-handoff.mjs` erzeugt LIN/QTY-Beobachtungen und **nicht bestätigte** Kandidaten | Keine fachliche Bedeutung aus technischem Parsing ableiten |
+| Adressieren | `buildAddressLayerProjection` erzeugt Adressen, Elternbezüge, Quellpfade und Kandidaten; `db/address_layer.sql` kennt Registry und Snapshot-Beobachtungen | Segment-Fundstellen und vorgeschlagene LIN/QTY-Adressen; SHA-256-Proof | EDIFACT ist **noch nicht** an dieselbe Address-Layer-Projektion angeschlossen |
+
+**Wichtige Nichtgleichheiten:** Northwind adressiert Mengen derzeit gesammelt als `NW:A-<id>#DetailQuantities` mit `orderDetails[].Quantity`, nicht als nachgewiesene einzelne Positionen. StinoDino verwendet zunächst `#segment-<index>` und schlägt zusätzlich `#LIN-<id>/QTY` vor. Diese Adressarten sind nicht ohne Prüfung austauschbar. Der Northwind-Adapter führt mögliche Summierung und Statusableitung als unbestätigte Kandidaten; sie dürfen nicht als feststehende Übersetzung behandelt werden.
+
+**Technischer nächster Schritt:** eine **read-only, nicht persistierende** EDIFACT-Projektion in der Form von `buildAddressLayerProjection` testen, zunächst nur `addresses` und beobachtete Quellwerte; keine fachlichen Zieladressen, keine bestätigten Konversionen, keine Datenbankmigration. Der gemeinsame Vertrag muss Quellfundstelle und logische Adresse getrennt halten, bei mehrfacher QTY pro LIN und Produktidentitätswechsel Mehrdeutigkeit melden, und eine Rückverfolgung zu den unveränderten Rohdaten ermöglichen. Anschließend Vergleich mit einer einzelnen Northwind-Quellfeldbeobachtung. Bestehende Persistenz- und Freigabepfade bleiben unangetastet.
