@@ -119,3 +119,18 @@ test('ambiguous LIN identity cannot create position claim bindings', () => {
   assert.deepEqual(result.candidates, []);
   assert.equal(result.releaseAllowed, false);
 });
+
+test('position claim proposals retain distinct T0/T1 source locators and hashes', () => {
+  const result = proposePositionClaimBindings(base, base.replace('48:PCE', '48:CT'));
+  assert.equal(result.state, 'CANDIDATE_ONLY');
+  assert.equal(result.candidates.length, 2);
+  const [changed, unchanged] = result.candidates;
+  assert.notEqual(changed.evidence.t0SnapshotRef, changed.evidence.t1SnapshotRef);
+  assert.match(changed.evidence.t0SnapshotRef, /^sha256:[0-9a-f]{64}$/);
+  assert.equal(changed.evidence.t0Locator, changed.evidence.t1Locator);
+  assert.notEqual(changed.evidence.t0Locator, unchanged.evidence.t0Locator);
+  assert.equal(changed.evidence.authenticity, 'UNVERIFIED_SYNTHETIC_SOURCE');
+  assert.equal(changed.evidence.persistence, 'NOT_PERSISTED');
+  assert.equal(unchanged.claimStatus, 'UNPROVEN');
+  assert.equal(result.independentReleaseProven, false);
+});
