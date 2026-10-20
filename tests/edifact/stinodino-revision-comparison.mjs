@@ -12,7 +12,8 @@ export function compareStinoDinoRevisions(t0Raw, t1Raw, options = {}) {
     snapshotRef: t0.snapshot.ref,
     raw: t0.handoff.source.raw,
     observations: t0.handoff.candidates.map(c => ({
-      locator: c.sourceLocator, value: c.rawValue, unit: c.rawUnit, snapshotRef: c.snapshotRef,
+      locator: c.sourceLocator, value: c.rawValue, unit: c.rawUnit,
+      qualifier: c.qualifier, lineId: c.lineId, snapshotRef: c.snapshotRef,
     })),
   });
   const t1History = Object.freeze({
