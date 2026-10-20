@@ -35,12 +35,21 @@ export function proposePositionClaimBindings(t0Raw, t1Raw) {
     return { state: 'BLOCKED_POSITION_BINDING_UNPROVEN', candidates: [],
       releaseAllowed: false, independentReleaseProven: false };
   }
+  const comparison = compareStinoDinoRevisions(t0Raw, t1Raw);
   return {
     state: 'CANDIDATE_ONLY',
     candidates: result.positions.map(position => ({
       subjectAddress: 'synthetic:stinodino-001#LIN-' + position.lineId + '/QTY',
       lineId: position.lineId,
       observationChanged: position.changed,
+      evidence: {
+        t0SnapshotRef: comparison.t0.snapshotRef,
+        t1SnapshotRef: comparison.t1.snapshotRef,
+        t0Locator: comparison.t0.observations.find(item => item.lineId === position.lineId)?.locator ?? null,
+        t1Locator: comparison.t1.observations.find(item => item.lineId === position.lineId)?.locator ?? null,
+        authenticity: 'UNVERIFIED_SYNTHETIC_SOURCE',
+        persistence: 'NOT_PERSISTED',
+      },
       claimStatus: 'UNPROVEN',
       scopeStatus: 'UNVERIFIED',
       evidenceRelation: 'PROPOSED_NOT_CONFIRMED',
