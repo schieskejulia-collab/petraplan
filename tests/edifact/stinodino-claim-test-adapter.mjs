@@ -14,7 +14,7 @@ export async function submitStinoDinoRevisionObservation({
   if (!comparison.sourceChanged) return { comparison, submitted: false, claimId: null };
   const changed = comparison.t1.observations.filter((item, index) => {
     const prior = comparison.t0.observations[index];
-    return !prior || prior.value !== item.value || prior.unit !== item.unit || prior.locator !== item.locator;
+    return !prior || prior.value !== item.value || prior.unit !== item.unit || prior.qualifier !== item.qualifier || prior.lineId !== item.lineId || prior.locator !== item.locator;
   });
   const details = JSON.stringify({
     source: 'stinodino-edifact', t0: comparison.t0.snapshotRef, t1: comparison.t1.snapshotRef,
