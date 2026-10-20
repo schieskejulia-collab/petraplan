@@ -299,6 +299,44 @@ test('StinoDino T0/T1 changed source triggers actual PetraPlan database release 
   await fails(release, 'PT409');
 });
 
+// These cases exercise the real PGlite claim/release triggers, not a mocked DB.
+// They establish conservative CASE_ONLY invalidation; they do NOT establish
+// position-specific independence or selective release preservation.
+for (const scenario of [
+  { name: 'unit-only', before: 'QTY+21:48:PCE', after: 'QTY+21:48:CT', field: 'unit', expected: 'CT' },
+  { name: 'qualifier-only', before: 'QTY+21:48:PCE', after: 'QTY+59:48:PCE', field: 'qualifier', expected: '59' },
+]) {
+  test(`StinoDino ${scenario.name} semantic drift revokes an existing isolated PetraPlan release`, async () => {
+    const t0 = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48:PCE'LIN+2++4000862141411:EN'QTY+21:12:PCE'UNT+7+1'";
+    const t1 = t0.replace(scenario.before, scenario.after);
+    await rejectCandidate();
+    const cert = (await release()).rows[0].result.certificate_id;
+    assert.equal(await status(cert), 'trusted');
+
+    const { comparison, submitted, claimId } = await submitStinoDinoRevisionObservation({
+      db, t0Raw: t0, t1Raw: t1, recordId: record, snapshotId: snapshot,
+    });
+    assert.equal(comparison.assessment, 'BLOCKED_REVALIDATION_REQUIRED');
+    assert.equal(comparison.oldEvidenceUsableForCurrentSource, false);
+    assert.equal(submitted, true);
+    assert.ok(claimId);
+    const stored = (await db.query('select statement,status,scope_type from claims where id=$1', [claimId])).rows[0];
+    assert.equal(stored.status, 'UNPROVEN');
+    assert.equal(stored.scope_type, 'CASE_ONLY');
+    const observation = JSON.parse(stored.statement);
+    assert.equal(observation.semanticAuthority, 'none');
+    assert.equal(observation.changedObservations.length, 1);
+    assert.equal(observation.changedObservations[0].value, '48');
+    assert.equal(observation.changedObservations[0][scenario.field], scenario.expected);
+    assert.equal(await status(cert), 'revoked');
+    const audits = (await db.query(`select details from bridge_decision_audit
+      where release_certificate_id=$1 and action='revoke'`, [cert])).rows;
+    assert.equal(audits.length, 1);
+    assert.equal(audits[0].details.claim_producer, 'stinodino-isolated-proof');
+    await fails(release, 'PT409');
+  });
+}
+
 test('StinoDino adapter rejects invalid T1 before inserting any claim', async () => {
   const t0 = "UNH+1+ORDERS:D:96A:UN'BGM+220+STINODINO-001+9'LIN+1++4000862141404:EN'QTY+21:48'UNT+5+1'";
   await assert.rejects(() => submitStinoDinoRevisionObservation({
