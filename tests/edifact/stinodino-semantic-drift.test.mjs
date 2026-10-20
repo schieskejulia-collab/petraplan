@@ -78,3 +78,24 @@ test('duplicate position identifiers block positional binding', () => {
   assert.equal(result.assessment, 'BLOCKED_POSITION_BINDING_UNPROVEN');
   assert.equal(result.independenceProven, false);
 });
+
+test('qualifier-only drift isolates observation but does not prove release independence', () => {
+  const result = assessPositionChanges(base, base.replace('QTY+21:48:PCE', 'QTY+59:48:PCE'));
+  assert.deepEqual(result.positions.map(item => item.changed), [true, false]);
+  assert.equal(result.independenceProven, false);
+  assert.ok(result.positions.every(item => !item.releasePreserved));
+});
+
+test('reordered LIN identifiers cannot be silently paired by array index', () => {
+  const changed = base.replace('LIN+1++', 'LIN+TEMP++')
+    .replace('LIN+2++', 'LIN+1++').replace('LIN+TEMP++', 'LIN+2++');
+  const result = assessPositionChanges(base, changed);
+  assert.equal(result.assessment, 'BLOCKED_POSITION_BINDING_UNPROVEN');
+  assert.deepEqual(result.positions, []);
+});
+
+test('missing LIN identifier cannot establish independent position', () => {
+  const result = assessPositionChanges(base, base.replace('LIN+2++', 'LIN+++'));
+  assert.equal(result.assessment, 'BLOCKED_POSITION_BINDING_UNPROVEN');
+  assert.equal(result.releaseAllowed, false);
+});
