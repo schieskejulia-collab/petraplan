@@ -158,6 +158,18 @@ export function decideReleaseGate(input: ReleaseGateInput): ReleaseGateDecision 
     };
   }
 
+  // A certificate's terminal history cannot be overridden by a later exception.
+  // A new approval must issue a new certificate with a fresh decision basis.
+  if (input.hasReleaseCertificate && (currentStatus === 'revoked' || currentStatus === 'superseded')) {
+    return {
+      effectiveStatus: currentStatus,
+      shouldTransition: false,
+      reason: 'Terminal release status cannot be reactivated by an exception approval.',
+      validationIsPassing,
+      exceptionIsDocumented,
+    };
+  }
+
   if (exceptionIsDocumented) {
     return {
       effectiveStatus: 'exception',
