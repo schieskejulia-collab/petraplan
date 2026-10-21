@@ -103,3 +103,63 @@ export function buildAddressLayerProjection(input: {
     })),
   };
 }
+
+
+/**
+ * Read-only position observations attached to the existing Northwind root address.
+ * Index-based sourcePath is a physical locator, NOT a stable logical identity.
+ * OrderID+ProductID is a candidate key only within a verified unique snapshot;
+ * this function makes no claim about the upstream Northwind schema.
+ * Does not alter the existing address projection, persist, or authorize release.
+ */
+export function observeNorthwindDetailPositions(input: {
+  orderId: number;
+  envelope: any;
+}) {
+  const rootAddress = `NW:A-${input.orderId}`;
+  const details = input.envelope?.orderDetails;
+  if (!Array.isArray(details)) {
+    return { state: 'BLOCKED_INVALID_DETAILS', rootAddress, positions: [] };
+  }
+  const seen = new Set<string>();
+  const positions: Array<{
+    address: string;
+    parentAddress: string;
+    kind: 'field';
+    sourcePath: string;
+    physicalLocator: string;
+    candidateIdentity: string;
+    observedValue: unknown;
+    identityStatus: 'unique_in_snapshot_only';
+  }> = [];
+  for (let i = 0; i < details.length; i++) {
+    const row = details[i];
+    if (!row || row.OrderID !== input.orderId ||
+        !Number.isInteger(row.ProductID) || !Number.isFinite(row.Quantity)) {
+      return { state: 'BLOCKED_INVALID_POSITION', rootAddress, positions: [] };
+    }
+    const candidateIdentity = JSON.stringify([row.OrderID, row.ProductID]);
+    if (seen.has(candidateIdentity)) {
+      return { state: 'BLOCKED_AMBIGUOUS_IDENTITY', rootAddress, positions: [] };
+    }
+    seen.add(candidateIdentity);
+    const physicalLocator = `orderDetails[${i}].Quantity`;
+    positions.push({
+      address: `${rootAddress}#detail-index-${i}-Quantity`,
+      parentAddress: `${rootAddress}#DetailQuantities`,
+      kind: 'field',
+      sourcePath: physicalLocator,
+      physicalLocator,
+      candidateIdentity,
+      observedValue: row.Quantity,
+      identityStatus: 'unique_in_snapshot_only',
+    });
+  }
+  return {
+    state: 'SOURCE_OBSERVATIONS_ONLY',
+    rootAddress,
+    positions,
+    persisted: false,
+    releaseAllowed: false,
+  };
+}
