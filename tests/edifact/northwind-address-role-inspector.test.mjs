@@ -53,7 +53,7 @@ test('duplicate candidate identity is blocked before address-role comparison', (
     orderId: 10248, envelope: { orderDetails: [...details, details[2]] },
   });
   assert.equal(observed.state, 'BLOCKED_AMBIGUOUS_IDENTITY');
-  assert.equal(inspectAddressRoles(observed).state, 'SOURCE_OBSERVATIONS_ONLY');
+  assert.equal(inspectAddressRoles(observed).state, 'BLOCKED_UNVERIFIED_OBSERVATION');
   assert.deepEqual(inspectAddressRoles(observed).entries, []);
 });
 
