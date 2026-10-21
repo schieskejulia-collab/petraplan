@@ -35,3 +35,10 @@ Status: **TEILWEISE BELEGT; KEINE PRODUKTIONSFREIGABE**.
 ## Grundsatz
 **LESEN → ÜBERSETZEN → ADRESSIERBAR MACHEN.**
 Ein Kreis wird nur bei Code + ausgeführtem Test + begrenztem Nachweis geschlossen. Offen bleibt offen.
+
+
+## Nachprüfung: Scope ist nicht Herkunft (Commit f043cdb)
+- Ein Vergleich verlangt gleiche caller-gelieferte System-, Umgebungs-, Quellen- und Auftragsbezeichnungen sowie verschiedene Snapshot-IDs.
+- **Negativtest:** Fremde Beobachtungswerte mit identisch gesetzten Labels passieren die Vergleichsform, bleiben aber ausdrücklich `unverified_synthetic_fixture` und `releaseAllowed: false`.
+- Das ist eine **offene Vertrauensgrenze**, kein fehlgeschlagener Test und kein Herkunftsnachweis.
+- Kreisabschluss erfordert unabhängige Erfassung/Bindung von Snapshot, Quelle und System sowie überprüfbare Integrität und Autorität. Keine automatische Freigabe auf Basis selbstdeklarierter Labels.
