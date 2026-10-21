@@ -1,6 +1,7 @@
 // Read-only identity/locator distinction for existing Address Layer observations.
 // This is an inspection view, NOT an address_registry migration or business key proof.
-export function inspectAddressRoles({ rootAddress, positions }) {
+export function inspectAddressRoles({ state, rootAddress, positions }) {
+  if (state !== 'SOURCE_OBSERVATIONS_ONLY') return { state: 'BLOCKED_UNVERIFIED_OBSERVATION', entries: [] };
   if (typeof rootAddress !== 'string' || !rootAddress ||
       !Array.isArray(positions)) return { state: 'BLOCKED_INVALID_INPUT', entries: [] };
   const physical = new Set();
