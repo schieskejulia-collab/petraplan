@@ -55,6 +55,11 @@ export function projectStinoDinoSourceAddresses(raw, options = {}) {
       candidates: [], persisted: false, releaseAllowed: false };
   }
   const root = handoff.source.id;
+  const locators = handoff.candidates.map(item => item.address);
+  if (new Set(locators).size !== locators.length) {
+    return { state: 'BLOCKED_AMBIGUOUS_SOURCE_LOCATOR', addresses: [],
+      observations: [], candidates: [], persisted: false, releaseAllowed: false };
+  }
   const addresses = [{ address: root, parentAddress: null,
     kind: 'object', sourcePath: '$raw' }];
   const observations = [];
