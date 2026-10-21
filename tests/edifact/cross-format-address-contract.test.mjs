@@ -34,8 +34,8 @@ function assertAddressTree(projection) {
 
 test('actual Northwind and EDIFACT projections share a minimal address-tree contract', () => {
   assertAddressTree(nw);
-  assertAddressTree({ ...ed, rootAddress: ed.addresses[0].address });
-  assert.notEqual(nw.rootAddress, ed.addresses[0].address);
+  assertAddressTree(ed);
+  assert.notEqual(nw.rootAddress, ed.rootAddress);
   assert.equal(ed.releaseAllowed, false);
   assert.deepEqual(ed.candidates, []);
   assert.ok(nw.candidates.every(candidate => candidate.state === 'candidate'));
