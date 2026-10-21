@@ -51,13 +51,13 @@ export function proposeStinoDinoBridgeHandoff(raw, { sourceId = 'synthetic:stino
 export function projectStinoDinoSourceAddresses(raw, options = {}) {
   const handoff = proposeStinoDinoBridgeHandoff(raw, options);
   if (handoff.ingestionState === 'BLOCKED') {
-    return { state: 'BLOCKED', addresses: [], observations: [],
+    return { state: 'BLOCKED', rootAddress: null, addresses: [], observations: [],
       candidates: [], persisted: false, releaseAllowed: false };
   }
   const root = handoff.source.id;
   const locators = handoff.candidates.map(item => item.address);
   if (new Set(locators).size !== locators.length) {
-    return { state: 'BLOCKED_AMBIGUOUS_SOURCE_LOCATOR', addresses: [],
+    return { state: 'BLOCKED_AMBIGUOUS_SOURCE_LOCATOR', rootAddress: null, addresses: [],
       observations: [], candidates: [], persisted: false, releaseAllowed: false };
   }
   const addresses = [{ address: root, parentAddress: null,
@@ -70,6 +70,6 @@ export function projectStinoDinoSourceAddresses(raw, options = {}) {
       qualifier: item.qualifier, unit: item.rawUnit,
       meaning: 'unconfirmed' });
   }
-  return { state: 'SOURCE_OBSERVATIONS_ONLY', addresses, observations,
+  return { state: 'SOURCE_OBSERVATIONS_ONLY', rootAddress: root, addresses, observations,
     candidates: [], persisted: false, releaseAllowed: false };
 }
