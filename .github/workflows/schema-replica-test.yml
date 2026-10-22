@@ -1,0 +1,55 @@
+name: Prepare isolated PetraPlan schema replica
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  replicate-schema:
+    runs-on: ubuntu-latest
+    container: postgres:17
+    timeout-minutes: 15
+    env:
+      PROD_DATABASE_URL: ${{ secrets.PETRAPLAN_PROD_DB_URL }}
+      TEST_DATABASE_URL: ${{ secrets.PETRAPLAN_TEST_DB_URL }}
+      PGCONNECT_TIMEOUT: "15"
+    steps:
+      - name: Check credentials and prevent accidental self-targeting
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PROD_DATABASE_URL" && test -n "$TEST_DATABASE_URL" || { echo "Missing protected database URL secrets"; exit 1; }
+          test "$PROD_DATABASE_URL" != "$TEST_DATABASE_URL" || { echo "Source and destination must differ"; exit 1; }
+          source_id=$(psql "$PROD_DATABASE_URL" -X -Atqc "select current_database() || '@' || inet_server_addr()::text")
+          target_id=$(psql "$TEST_DATABASE_URL" -X -Atqc "select current_database() || '@' || inet_server_addr()::text")
+          test "$source_id" != "$target_id" || { echo "Same database server and database detected"; exit 1; }
+          count=$(psql "$TEST_DATABASE_URL" -X -Atqc "select count(*) from pg_tables where schemaname='public'")
+          test "$count" = "0" || { echo "Destination public schema is not empty; refusing import"; exit 1; }
+      - name: Dump public schema only (no user rows or credentials)
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          pg_dump --dbname="$PROD_DATABASE_URL" --schema-only --schema=public --no-owner --no-acl --file=/tmp/petraplan-schema.sql
+          test -s /tmp/petraplan-schema.sql
+      - name: Restore schema into empty test project
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$TEST_DATABASE_URL" -X -v ON_ERROR_STOP=1 --single-transaction -f /tmp/petraplan-schema.sql >/tmp/schema-restore.log 2>&1 || { echo "Schema restore failed; transaction rolled back. Check compatibility of Supabase-managed objects."; tail -n 12 /tmp/schema-restore.log; exit 1; }
+      - name: Compare public schema object counts
+        shell: bash
+        run: |
+          set -euo pipefail
+          query="select (select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind in ('r','p')) || ',' || (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public') || ',' || (select count(*) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not t.tgisinternal)"
+          source=$(psql "$PROD_DATABASE_URL" -X -Atqc "$query")
+          target=$(psql "$TEST_DATABASE_URL" -X -Atqc "$query")
+          echo "Source table/function/trigger counts: $source"
+          echo "Target table/function/trigger counts: $target"
+          test "$source" = "$target" || { echo "Schema object counts differ"; exit 1; }
+      - name: Remove transient dump
+        if: always()
+        shell: bash
+        run: rm -f /tmp/petraplan-schema.sql /tmp/schema-restore.log
