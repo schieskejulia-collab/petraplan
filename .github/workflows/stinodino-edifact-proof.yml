@@ -1,0 +1,51 @@
+name: StinoDino EDIFACT proof
+
+on:
+  pull_request:
+    paths:
+      - 'tests/edifact/**'
+      - '.github/workflows/stinodino-edifact-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  edifact-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Run EDIFACT parser and mathematics safety gates
+        run: node --test tests/edifact/*.test.mjs
+      - name: Produce downloadable synthetic EDIFACT proof report
+        run: |
+          mkdir -p edifact-proof-output
+          node tests/edifact/stinodino-inspect.mjs tests/edifact/fixtures/orders-d96a-synthetic.edi edifact-proof-output/stinodino-proof.json
+      - name: Show StinoDino proof report in GitHub job log and summary
+        shell: bash
+        run: |
+          echo '=== StinoDino synthetic EDIFACT proof (read-only) ==='
+          cat edifact-proof-output/stinodino-proof.json
+          {
+            echo '## StinoDino EDIFACT – lesbarer Prüfbericht'
+            echo ''
+            echo '**Nur synthetische Testdaten. Keine fachliche Freigabe, keine authentifizierte Herkunft.**'
+            echo ''
+            echo '<details open><summary>JSON-Prüfbericht anzeigen</summary>'
+            echo ''
+            echo '\`\`\`json'
+            cat edifact-proof-output/stinodino-proof.json
+            echo '\`\`\`'
+            echo ''
+            echo '</details>'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload read-only EDIFACT proof artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stinodino-synthetic-proof
+          path: edifact-proof-output/stinodino-proof.json
+          if-no-files-found: error
+          retention-days: 7
