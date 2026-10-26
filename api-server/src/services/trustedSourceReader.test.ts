@@ -66,6 +66,8 @@ before(async()=>{
   if(req.url==='/redirect'){res.writeHead(302,{Location:'https://127.0.0.1/private'});res.end();return;}
   if(req.url==='/encoded'){res.writeHead(200,{'Content-Type':'text/plain','Content-Encoding':'gzip'});res.end(bytes);return;}
   if(req.url==='/large'){res.writeHead(200,{'Content-Type':'text/plain','Content-Length':99999});res.end();return;}
+  if(req.url==='/stream-large'){res.writeHead(200,{'Content-Type':'text/plain'});res.write(Buffer.alloc(1025));res.end();return;}
+  if(req.url==='/truncated'){res.writeHead(200,{'Content-Type':'text/plain','Content-Length':bytes.length+20});res.end(bytes);return;}
   res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Content-Length':bytes.length});res.end(bytes);
  });
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -82,8 +84,8 @@ test('real HTTPS transport validates the hostname/certificate and reads actual s
  assert.deepEqual(result.bytes,bytes);assert.match(result.tlsPeerSha256,/^[a-f0-9]{64}$/);
 });
 
-test('real HTTPS transport refuses redirects, compression and oversized responses',async()=>{
- for(const route of ['/redirect','/encoded','/large'])
+test('real HTTPS transport refuses redirects, compression, truncation and oversized responses',async()=>{
+ for(const route of ['/redirect','/encoded','/large','/stream-large','/truncated'])
   await assert.rejects(fetchPinnedHttps({...local(),source_url:`https://evidence.example:${port}${route}`},{address:'127.0.0.1',family:4},withTestCA));
 });
 
