@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { decideReleaseGate, selectAuthoritativeValidation } from './releaseGate.js';
+import { selectLatestCertificate, selectLatestReleaseHistory } from './certificateAuthority.js';
 
 export interface ReleaseReconciliationResult {
   transitioned: boolean;
@@ -10,16 +11,11 @@ export interface ReleaseReconciliationResult {
   reason: string | null;
 }
 
-async function rows<T>(promise: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
-  const { data, error } = await promise;
+async function rows<T>(promise: PromiseLike<{ data: T[] | null; error: { message: string } | null; count?: number | null }>): Promise<T[]> {
+  const { data, error, count } = await promise;
   if (error) throw new Error(error.message);
+  if (typeof count === 'number' && count > (data?.length ?? 0)) throw new Error('Incomplete decision-basis query result; release authority cannot be established.');
   return data ?? [];
-}
-
-async function one<T>(promise: PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>): Promise<T | null> {
-  const { data, error } = await promise;
-  if (error && error.code !== 'PGRST116') throw new Error(error.message);
-  return data ?? null;
 }
 
 /**
@@ -39,15 +35,20 @@ export async function reconcileReleaseGate(input: {
 }): Promise<ReleaseReconciliationResult> {
   const { supabase, recordId, actorUserId, triggerValidationId = null } = input;
 
-  const certificate = await one<any>(
+  const certificates = await rows<any>(
     supabase
       .from('release_certificates')
-      .select('*')
+      .select('*', { count: 'exact' })
       .eq('record_id', recordId)
-      .order('certified_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order('certified_at', { ascending: false }),
   );
+  const selection = selectLatestCertificate(certificates);
+  const certificate = selection.certificate;
+  if (selection.ambiguous) {
+    return { transitioned: false, previousStatus: null, effectiveStatus: 'blocked',
+      validationId: triggerValidationId, certificateId: null,
+      reason: 'Release certificate authority is ambiguous; no certificate was selected or changed.' };
+  }
 
   if (!certificate) {
     return {
@@ -60,26 +61,31 @@ export async function reconcileReleaseGate(input: {
     };
   }
 
-  const latestHistory = await one<any>(
+  const history = await rows<any>(
     supabase
       .from('release_status_history')
-      .select('new_status, created_at')
+      .select('new_status, created_at', { count: 'exact' })
       .eq('release_certificate_id', certificate.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order('created_at', { ascending: false }),
   );
+  const selectedHistory = selectLatestReleaseHistory(history);
+  if (selectedHistory.ambiguous) {
+    return { transitioned: false, previousStatus: null, effectiveStatus: 'blocked',
+      validationId: triggerValidationId, certificateId: certificate.id,
+      reason: 'Release status history is ambiguous; no transition was written.' };
+  }
+  const latestHistory = selectedHistory.entry;
   const previousStatus = String(latestHistory?.new_status ?? certificate.release_status ?? '') || null;
 
   const conflicts = await rows<any>(
-    supabase.from('conflicts').select('id').eq('record_id', recordId),
+    supabase.from('conflicts').select('id', { count: 'exact' }).eq('record_id', recordId),
   );
   const conflictIds = conflicts.map((item) => item.id);
   const validations = conflictIds.length
     ? await rows<any>(
         supabase
           .from('validation_results')
-          .select('id, status, created_at')
+          .select('id, status, created_at', { count: 'exact' })
           .in('conflict_id', conflictIds)
           .order('created_at'),
       )
@@ -90,10 +96,10 @@ export async function reconcileReleaseGate(input: {
     return {
       transitioned: false,
       previousStatus,
-      effectiveStatus: previousStatus,
+      effectiveStatus: 'blocked',
       validationId: triggerValidationId,
       certificateId: certificate.id,
-      reason: null,
+      reason: 'The certificate validation basis is missing or ambiguous; no transition was written.',
     };
   }
 
