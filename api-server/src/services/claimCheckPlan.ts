@@ -25,3 +25,25 @@ export function buildClaimCheckPlan(requirements: any[], observations: any[], ev
    evidence_available:matches.length>0,next_check_pending:next,acceptance_automatic:false};
  });
 }
+
+/** Walk from each current claim back to its declared checks. This is an open-world
+ * inventory: even an all-SUPPORTS report is never a proof of complete coverage. */
+export function buildBackwardGapReport(claims: any[], plan: any[]) {
+ return claims.filter(c => !['REJECTED','SUPERSEDED'].includes(String(c.status))).map(c => {
+  const checks = plan.filter(r => r.claim_id === c.id && r.status !== 'SUPERSEDED');
+  const gaps = checks.map(r => {
+   const kind = r.status === 'STALE' ? 'STALE_BASIS'
+    : r.status === 'CONTRADICTS' ? 'COUNTEREVIDENCE'
+    : r.status === 'MISSING' ? 'MISSING_INFORMATION'
+    : r.status === 'SUPPORTS' ? 'UNVERIFIED_SUPPORT'
+    : r.status === 'UNKNOWN' ? 'UNKNOWN' : 'UNASSESSED';
+   return {requirement_id:r.id,kind,question:r.question,required_information:r.required_information,
+    required_address:r.required_address,next_check:r.next_check_pending ?? null};
+  });
+  if (checks.length === 0) gaps.push({requirement_id:null,kind:'NO_REQUIREMENTS',
+   question:'Welche Voraussetzungen braucht diese Aussage?',required_information:null,required_address:null,
+   next_check:'Voraussetzungen und Gegenbedingungen vom Ergebnis aus rückwärts erfassen.'});
+  return {claim_id:c.id,statement:c.statement ?? null,claim_status:c.status,
+   coverage:'UNDETERMINED',gaps,planning_only:true};
+ });
+}

@@ -1,0 +1,7 @@
+# Rückwärtsprüfung: offene Voraussetzungen
+
+Vom bestehenden Claim aus zeigt `GET /api/cases/:recordId/claim-checks` unter `backward_gaps` die aktuell erfassten Prüfanforderungen und ihre offenen Schritte. Ein Claim ohne Anforderungen wird als `NO_REQUIREMENTS` sichtbar; ein ersetzter Eintrag zählt nicht als aktuelle Anforderung. `SUPPORTS` bleibt `UNVERIFIED_SUPPORT`, ein veralteter Bericht `STALE_BASIS`, ein Gegenbeleg `COUNTEREVIDENCE`. Der Bericht verwendet die bereits vorhandenen Claim- und Prüfdatensätze desselben Falls und enthält keine automatische Entscheidung.
+
+Die Vollständigkeit bleibt **UNDETERMINED**, auch wenn jede erfasste Anforderung als stützend berichtet wurde. Die Liste kann nur Lücken in deklarierten Anforderungen und das völlige Fehlen eines Plans zeigen. Weitere unbekannte Voraussetzungen müssen durch Rückwärtsfragen ergänzt und unabhängig geprüft werden. Die Funktion setzt weder einen universellen Satz von Geschäftsregeln voraus noch leitet sie aus Tabellenfeldern eine fachliche Bedeutung ab. Sie verändert keine Quelle, keine Validierung, keinen Claim und keine Freigabe.
+
+Härtetest: zuerst eine Zielaussage und ihre erwarteten Voraussetzungen unabhängig notieren; dann die Rückwärtsliste gegen diese Erwartung halten. Fehlende Voraussetzung, veralteten Beleg und Gegenbeleg jeweils separat einspielen. Anschließend den tatsächlichen Vorwärtsweg prüfen. Dieselben Regeln mit einem fachlich anderen Datensatz wiederholen, bevor eine allgemeine Fähigkeit behauptet wird.
