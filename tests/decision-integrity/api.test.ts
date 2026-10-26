@@ -4,15 +4,15 @@ import { createDecisionHandler } from '../../api/cases/[recordId]/decision.js';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const claimsBasis = 'a'.repeat(64);
-function setup(options: { ambiguousRelease?: boolean; stale?: boolean; claimStale?: boolean; unresolvedSemantic?: boolean; oldClaimsBasis?: boolean; rpcError?: {code:string;message:string}; freshnessRpcError?: {code:string;message:string}; basisRpcError?: {code:string;message:string}; noReviewRole?: boolean } = {}) {
+function setup(options: { reviewComplete?: boolean; certificates?: any[]; ambiguousRelease?: boolean; stale?: boolean; claimStale?: boolean; unresolvedSemantic?: boolean; oldClaimsBasis?: boolean; rpcError?: {code:string;message:string}; freshnessRpcError?: {code:string;message:string}; basisRpcError?: {code:string;message:string}; noReviewRole?: boolean } = {}) {
   const calls: Array<{name: string; args: any}> = [];
   const trace: any = {
     source: { ingestion: {id:id(2), status:'processed'} },
     validation: { authoritative: {id:id(3),status:'passed',resolution_record_id:id(4)} },
-    review: {current:{complete:true,decision:'approved',reviewer_authorized:true,
+    review: {current:{complete:options.reviewComplete??true,decision:'approved',reviewer_authorized:true,
       validation_result_id:options.stale?id(90):id(3),resolution_id:id(4),
       session_id:id(5),evidence_reference_ids:[`ingestion:${id(2)}`, ...(options.oldClaimsBasis?[]:[`claims:${claimsBasis}`])]}},
-    release: {effective_status:null,certificates:[],authority_ambiguous:options.ambiguousRelease ?? false},
+    release: {effective_status:null,certificates:options.certificates??[],authority_ambiguous:options.ambiguousRelease ?? false},
   };
   const client = {
     auth:{getUser:async()=>({data:{user:{id:id(6)}},error:null})},
@@ -44,6 +44,35 @@ function setup(options: { ambiguousRelease?: boolean; stale?: boolean; claimStal
   }
   return {request,calls};
 }
+
+test('review uses one atomic RPC with the verified actor and exact current basis',async()=>{
+ const {request,calls}=setup({reviewComplete:false});
+ const criteria={source_truth_checked:true,translation_trace_checked:true,blockers_resolved:true};
+ const res=await request('POST',{action:'approve_review',reason:'Explicit review',criteria,actor_id:id(99),authorization_level:'owner'});
+ assert.equal(res.statusCode,200);
+ const writes=calls.filter(c=>c.name==='bridge_commit_review');assert.equal(writes.length,1);
+ assert.equal(writes[0].args.p_actor_id,id(6));assert.equal(writes[0].args.p_snapshot_id,id(2));
+ assert.equal(writes[0].args.p_validation_id,id(3));assert.equal(writes[0].args.p_claims_basis,claimsBasis);
+ assert.deepEqual(writes[0].args.p_criteria,criteria);assert.equal(writes[0].args.p_decision,'approved');
+});
+
+test('failed or missing atomic review function never falls back to partial direct writes',async()=>{
+ for(const error of [{code:'23514',message:'Injected audit failure'},{code:'PGRST202',message:'Missing review function'}]) {
+  const {request,calls}=setup({reviewComplete:false,rpcError:error});
+  const res=await request('POST',{action:'reject_review',reason:'Explicit rejection'});
+  assert.equal(res.statusCode,error.code==='PGRST202'?503:500);assert.equal(res.body.trace,undefined);
+  assert.equal(calls.filter(c=>c.name==='bridge_commit_review').length,1);
+ }
+});
+
+test('manual revocation passes the uniquely selected certificate to one atomic RPC',async()=>{
+ const certificate={id:id(8),certified_at:'2026-10-01T12:00:00Z'};
+ const {request,calls}=setup({certificates:[certificate]});
+ const res=await request('POST',{action:'revoke',reason:'Explicit revocation',actor_id:id(99)});
+ assert.equal(res.statusCode,200);
+ const call=calls.find(c=>c.name==='bridge_revoke_case');assert.ok(call);
+ assert.equal(call.args.p_actor_id,id(6));assert.equal(call.args.p_certificate_id,id(8));assert.equal(call.args.p_mode,'manual');
+});
 
 test('ambiguous release history blocks readiness and every positive decision before writes', async()=>{
  const {request,calls}=setup({ambiguousRelease:true});
