@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getCaseTrace } from '../../../api-server/src/services/caseTrace.js';
 import { releaseBasisBlockers } from '../../../api-server/src/services/releaseBasis.js';
 import { claimFreshnessBlockers, unresolvedSemanticClaimBlockers } from '../../../api-server/src/services/claimFreshness.js';
+import { selectLatestCertificate } from '../../../api-server/src/services/certificateAuthority.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const LIVE_RULE = 'PetraPlan live bridge review';
@@ -35,6 +36,9 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const authoritative:any=trace.validation.authoritative;
     const review:any=trace.review.current;
     const releaseStatus=trace.release.effective_status;
+    const certificateSelection=selectLatestCertificate(trace.release.certificates);
+    const releaseAuthorityAmbiguous=trace.release.authority_ambiguous === true || certificateSelection.ambiguous;
+    const authorityBlockers=releaseAuthorityAmbiguous ? ['Die aktuelle Freigabegrundlage ist unvollständig oder ihre Reihenfolge nicht eindeutig.'] : [];
     const unresolvedCandidates=await many<any>(supabase.from('conversion_candidates').select('id').eq('record_id',recordId).eq('state','candidate'));
     const claims=await many<any>(supabase.from('claims').select('id,created_at,status,claim_type,subject_address').eq('record_id',recordId));
     const unresolvedCandidateCount=unresolvedCandidates.length;
@@ -57,6 +61,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
     const releaseAlreadyTrusted=releaseStatus==='trusted';
     const reviewBlockers=[
+      ...authorityBlockers,
       ...(!snapshotProcessed ? ['Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'] : []),
       ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
       ...(unresolvedCandidateCount>0 ? [`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount===1?' ist':'en sind'} noch offen.`] : []),
@@ -68,13 +73,13 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const releaseBlockers=[...reviewBlockers,...basisBlockers];
     const access={
       role:role.role_name, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
-      review_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
+      review_ready:Boolean(!releaseAuthorityAmbiguous && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
       review_rejection_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
       unresolved_candidate_count:unresolvedCandidateCount,
       review_blockers:reviewBlockers,
       release_ready:Boolean(!releaseAlreadyTrusted && role.can_release && releaseBlockers.length===0),
       release_blockers:releaseBlockers,
-      revoke_ready:Boolean(role.can_revoke && trace.release.certificates.length>0 && releaseStatus!=='revoked'),
+      revoke_ready:Boolean(!releaseAuthorityAmbiguous && role.can_revoke && certificateSelection.certificate && releaseStatus!=='revoked'),
     };
     if(req.method==='GET') return res.status(200).json({access});
 
@@ -94,6 +99,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
 
     if(action==='approve_review' || action==='reject_review') {
       if(!role.can_review) return res.status(403).json({error:'Review permission required'});
+      if(action==='approve_review' && releaseAuthorityAmbiguous) return res.status(409).json({error:authorityBlockers.join(' ')});
       if(!authoritative?.id || !authoritative?.resolution_record_id) return res.status(409).json({error:'No authoritative validation/resolution available for review'});
       if(releaseAlreadyTrusted) return res.status(409).json({error:'Der Fall ist bereits freigegeben. Für dieselbe Grundlage ist kein weiteres Review nötig.'});
       if(reviewAlreadyCompleteForValidation) return res.status(409).json({error:'Für diese maßgebliche Validierung ist das Review bereits abgeschlossen.'});
@@ -121,6 +127,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
 
     if(action==='release') {
       if(!role.can_release) return res.status(403).json({error:'Release permission required'});
+      if(releaseAuthorityAmbiguous) return res.status(409).json({error:authorityBlockers.join(' ')});
       if(releaseAlreadyTrusted) return res.status(409).json({error:'Der Fall ist bereits freigegeben.'});
       if(!authoritative?.id || !isPassing(authoritative.status)) return res.status(409).json({error:'Authoritative validation is not passing'});
       if(unresolvedCandidateCount>0) return res.status(409).json({error:`${unresolvedCandidateCount} Kandidat${unresolvedCandidateCount===1?' ist':'en sind'} noch offen.`});
@@ -134,7 +141,8 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     }
 
     if(!role.can_revoke) return res.status(403).json({error:'Revoke permission required'});
-    const certificate:any=trace.release.certificates.length?trace.release.certificates[trace.release.certificates.length-1]:null;
+    if(releaseAuthorityAmbiguous) return res.status(409).json({error:authorityBlockers.join(' ')});
+    const certificate:any=certificateSelection.certificate;
     if(!certificate) return res.status(409).json({error:'No release certificate exists to revoke'});
     if(releaseStatus!=='revoked') await supabase.from('release_status_history').insert({release_certificate_id:certificate.id,previous_status:releaseStatus,new_status:'revoked',changed_by:user.id,reason});
     await supabase.from('release_logs').insert({release_certificate_id:certificate.id,event_type:'authorized_mobile_revoke',message:'Release revoked in Live Bridge',details:{record_id:recordId}});

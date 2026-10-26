@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { selectLatestCertificate, selectLatestReleaseHistory } from './certificateAuthority.js';
 
 export interface ClaimReleaseInvalidationResult {
   transitioned: boolean;
@@ -9,10 +10,11 @@ export interface ClaimReleaseInvalidationResult {
   warnings: string[];
 }
 
-async function one<T>(promise: PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>): Promise<T | null> {
-  const { data, error } = await promise;
-  if (error && error.code !== 'PGRST116') throw new Error(error.message);
-  return data ?? null;
+async function rows<T>(promise: PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null; count?: number | null }>): Promise<T[]> {
+  const { data, error, count } = await promise;
+  if (error) throw new Error(error.message);
+  if (typeof count === 'number' && count > (data?.length ?? 0)) throw new Error('Incomplete decision-basis query result; release authority cannot be established.');
+  return data ?? [];
 }
 
 const RELEASED_STATUSES = new Set(['trusted', 'exception']);
@@ -34,15 +36,19 @@ export async function invalidateReleaseAfterNewClaim(input: {
 }): Promise<ClaimReleaseInvalidationResult> {
   const { supabase, recordId, claimId, actorUserId } = input;
 
-  const certificate = await one<any>(
+  const certificates = await rows<any>(
     supabase
       .from('release_certificates')
-      .select('id, release_status, validation_result_id, certified_at')
+      .select('id, release_status, validation_result_id, certified_at', { count: 'exact' })
       .eq('record_id', recordId)
-      .order('certified_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order('certified_at', { ascending: false }),
   );
+  const selection = selectLatestCertificate(certificates);
+  const certificate = selection.certificate;
+  if (selection.ambiguous) {
+    return { transitioned: false, previousStatus: null, effectiveStatus: 'blocked', certificateId: null,
+      reason: 'Release certificate authority is ambiguous.', warnings: ['No certificate was selected or changed.'] };
+  }
 
   if (!certificate?.id) {
     return {
@@ -55,15 +61,19 @@ export async function invalidateReleaseAfterNewClaim(input: {
     };
   }
 
-  const latestHistory = await one<any>(
+  const history = await rows<any>(
     supabase
       .from('release_status_history')
-      .select('new_status, created_at')
+      .select('new_status, created_at', { count: 'exact' })
       .eq('release_certificate_id', certificate.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+      .order('created_at', { ascending: false }),
   );
+  const selectedHistory = selectLatestReleaseHistory(history);
+  if (selectedHistory.ambiguous) {
+    return { transitioned: false, previousStatus: null, effectiveStatus: 'blocked', certificateId: certificate.id,
+      reason: 'Release status history is ambiguous.', warnings: ['No arbitrary status transition was written.'] };
+  }
+  const latestHistory = selectedHistory.entry;
 
   const previousStatus = String(latestHistory?.new_status ?? certificate.release_status ?? '').toLowerCase() || null;
   if (!previousStatus || !RELEASED_STATUSES.has(previousStatus)) {

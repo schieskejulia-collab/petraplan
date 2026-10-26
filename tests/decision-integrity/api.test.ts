@@ -4,7 +4,7 @@ import { createDecisionHandler } from '../../api/cases/[recordId]/decision.js';
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const claimsBasis = 'a'.repeat(64);
-function setup(options: { stale?: boolean; claimStale?: boolean; unresolvedSemantic?: boolean; oldClaimsBasis?: boolean; rpcError?: {code:string;message:string}; freshnessRpcError?: {code:string;message:string}; basisRpcError?: {code:string;message:string}; noReviewRole?: boolean } = {}) {
+function setup(options: { ambiguousRelease?: boolean; stale?: boolean; claimStale?: boolean; unresolvedSemantic?: boolean; oldClaimsBasis?: boolean; rpcError?: {code:string;message:string}; freshnessRpcError?: {code:string;message:string}; basisRpcError?: {code:string;message:string}; noReviewRole?: boolean } = {}) {
   const calls: Array<{name: string; args: any}> = [];
   const trace: any = {
     source: { ingestion: {id:id(2), status:'processed'} },
@@ -12,7 +12,7 @@ function setup(options: { stale?: boolean; claimStale?: boolean; unresolvedSeman
     review: {current:{complete:true,decision:'approved',reviewer_authorized:true,
       validation_result_id:options.stale?id(90):id(3),resolution_id:id(4),
       session_id:id(5),evidence_reference_ids:[`ingestion:${id(2)}`, ...(options.oldClaimsBasis?[]:[`claims:${claimsBasis}`])]}},
-    release: {effective_status:null,certificates:[]},
+    release: {effective_status:null,certificates:[],authority_ambiguous:options.ambiguousRelease ?? false},
   };
   const client = {
     auth:{getUser:async()=>({data:{user:{id:id(6)}},error:null})},
@@ -44,6 +44,20 @@ function setup(options: { stale?: boolean; claimStale?: boolean; unresolvedSeman
   }
   return {request,calls};
 }
+
+test('ambiguous release history blocks readiness and every positive decision before writes', async()=>{
+ const {request,calls}=setup({ambiguousRelease:true});
+ const get=await request('GET');
+ assert.equal(get.body.access.release_ready,false);
+ assert.equal(get.body.access.review_ready,false);
+ assert.equal(get.body.access.revoke_ready,false);
+ for(const action of ['approve_review','release','revoke']) {
+   const res=await request('POST',{action,reason:'Explicit decision'});
+   assert.equal(res.statusCode,409);
+   assert.match(res.body.error,/nicht eindeutig/);
+ }
+ assert.equal(calls.some(c=>c.name==='bridge_release_case'),false);
+});
 
 test('GET hides release when the review references an old validation',async()=>{
  const {request}=setup({stale:true}); const res=await request('GET');
