@@ -1,0 +1,49 @@
+name: Atomic Decision PostgreSQL 17
+
+on:
+  pull_request:
+    paths:
+      - 'api/cases/**'
+      - 'api-server/src/services/*Reconciliation.ts'
+      - 'api-server/src/services/claimReleaseInvalidation.ts'
+      - 'supabase/migrations/**'
+      - 'tests/decision-integrity/atomic-*'
+      - 'tests/postgres/**'
+      - 'docs/verification/*schema-observations.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/atomic-decision-postgres.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  postgres-atomic-decisions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17.6
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: isolated-ci-test-password
+          POSTGRES_DB: petraplan_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d petraplan_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PETRAPLAN_TEST_DATABASE_URL: postgresql://postgres:isolated-ci-test-password@127.0.0.1:5432/petraplan_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Run real PostgreSQL multi-connection decision races
+        run: node --test --test-concurrency=1 tests/postgres/atomic-review-concurrency.test.mjs
