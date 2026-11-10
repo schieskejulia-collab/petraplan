@@ -109,11 +109,16 @@ async function addValidationAndReview(claimsBasis) {
     [newSession, criterion]);
   return { validationId: newValidation, sessionId: newSession };
 }
-async function fails(fn, code) {
+async function fails(fn, code, message) {
   await db.exec('savepoint expected_failure');
-  await assert.rejects(fn, e => e.code === code);
-  await db.exec('rollback to expected_failure');
+  try {
+    await assert.rejects(fn, { code, ...(message ? { message } : {}) });
+  } finally {
+    await db.exec('rollback to expected_failure');
+  }
 }
+const certificates = async () => (await db.query(
+  'select id from release_certificates where record_id=$1', [record])).rows;
 const status = async cert => (await db.query(`select new_status from release_status_history
   where release_certificate_id=$1 order by created_at desc,id desc limit 1`, [cert])).rows[0].new_status;
 
@@ -160,6 +165,33 @@ test('an unresolved semantic claim cannot be approved after a fresh validation',
   assert.equal(await claimIsAfter(validation), false);
   await fails(() => addValidationAndReview(current), 'PT409');
   await fails(() => db.query(`insert into release_certificates (record_id) values ($1)`, [record]), 'PT409');
+  await fails(release, 'PT409');
+  assert.deepEqual(await certificates(), []);
+});
+
+async function confirmCandidate() {
+  const result = await db.query('select bridge_decide_candidate($1,$2,$3,$4,$5,$6,$7) as result',
+    [record, candidate, snapshot, actor, 'confirmed', 'Explicit test decision', 'order.ShippedDate']);
+  assert.equal(result.rows[0].result.state, 'confirmed');
+}
+
+test('candidate confirmation requires a fresh validation before a release can be issued', async () => {
+  await fails(release, 'PT409', /Open candidates block release/);
+  await confirmCandidate();
+  await fails(release, 'PT409');
+  assert.deepEqual(await certificates(), []);
+});
+
+test('a newer failed validation blocks release on both the old and the new basis', async () => {
+  await confirmCandidate();
+  const failedValidation = id(84);
+  await db.query(`insert into validation_results (id,conflict_id,resolution_record_id,status,created_at)
+    values ($1,$2,$3,'failed','2026-09-03T00:00:00Z')`, [failedValidation, conflict, resolution]);
+  await fails(release, 'PT409', /Validation changed/);
+  await fails(() => release(failedValidation), 'PT409', /Authoritative validation is not passing/);
+  assert.deepEqual(await certificates(), []);
+  const results = await db.query('select id, status from validation_results order by created_at');
+  assert.deepEqual(results.rows, [{ id: validation, status: 'passed' }, { id: failedValidation, status: 'failed' }]);
 });
 
 test('a confirmed claim created before validation is accepted by a later reviewed validation basis', async () => {
