@@ -14,6 +14,7 @@ const migrations = [
   '20261002141108_chinch64_revoked_release_terminal',
   '20261002141136_chinch64_claim_freshness_guard',
   '20261002173000_chinch64_unresolved_semantic_claim_guard',
+  '20261110183407_candidate_validation_freshness',
 ];
 
 before(async () => {
@@ -92,10 +93,10 @@ async function reviewedBasis() {
     [decision, [`claims:${current}`]]);
   return current;
 }
-async function addValidationAndReview(claimsBasis) {
+async function addValidationAndReview(claimsBasis, createdAt = '2026-09-03T00:00:00Z') {
   const newValidation = id(80), newReview = id(81), newSession = id(82), newDecision = id(83);
   await db.query(`insert into validation_results (id,conflict_id,resolution_record_id,status,created_at)
-    values ($1,$2,$3,'passed','2026-09-03T00:00:00Z')`, [newValidation, conflict, resolution]);
+    values ($1,$2,$3,'passed',$4)`, [newValidation, conflict, resolution, createdAt]);
   await db.query('insert into review_records values ($1,$2,$3)', [newReview, resolution, newValidation]);
   await db.query('insert into review_sessions (id,review_record_id,structure_id,validation_result_id) values ($1,$2,$3,$4)',
     [newSession, newReview, structure, newValidation]);
@@ -173,6 +174,8 @@ async function confirmCandidate() {
   const result = await db.query('select bridge_decide_candidate($1,$2,$3,$4,$5,$6,$7) as result',
     [record, candidate, snapshot, actor, 'confirmed', 'Explicit test decision', 'order.ShippedDate']);
   assert.equal(result.rows[0].result.state, 'confirmed');
+  return (await db.query(`select (changed_at + interval '1 second')::text as later
+    from candidate_state_history where id=$1`, [result.rows[0].result.history_id])).rows[0];
 }
 
 test('candidate confirmation requires a fresh validation before a release can be issued', async () => {
@@ -182,11 +185,31 @@ test('candidate confirmation requires a fresh validation before a release can be
   assert.deepEqual(await certificates(), []);
 });
 
+test('missing confirmation history and equal timestamps cannot establish validation freshness', async () => {
+  await db.query("update conversion_candidates set state='confirmed' where id=$1", [candidate]);
+  assert.equal(await claimIsAfter(validation), true);
+  await fails(release, 'PT409');
+  await db.query(`insert into candidate_state_history (candidate_id,snapshot_id,state,changed_by,changed_at,reason)
+    select $1,$2,'confirmed',$3,created_at,'Same instant' from validation_results where id=$4`,
+    [candidate, snapshot, actor, validation]);
+  assert.equal(await claimIsAfter(validation), true);
+  await fails(release, 'PT409');
+  assert.deepEqual(await certificates(), []);
+});
+
+test('an explicitly reviewed validation after confirmation can release', async () => {
+  const { later } = await confirmCandidate();
+  const { validationId, sessionId } = await addValidationAndReview(await basis(), later);
+  assert.equal(await claimIsAfter(validationId), false);
+  const result = await release(validationId, sessionId);
+  assert.deepEqual(await certificates(), [{ id: result.rows[0].result.certificate_id }]);
+});
+
 test('a newer failed validation blocks release on both the old and the new basis', async () => {
-  await confirmCandidate();
+  const { later } = await confirmCandidate();
   const failedValidation = id(84);
   await db.query(`insert into validation_results (id,conflict_id,resolution_record_id,status,created_at)
-    values ($1,$2,$3,'failed','2026-09-03T00:00:00Z')`, [failedValidation, conflict, resolution]);
+    values ($1,$2,$3,'failed',$4)`, [failedValidation, conflict, resolution, later]);
   await fails(release, 'PT409', /Validation changed/);
   await fails(() => release(failedValidation), 'PT409', /Authoritative validation is not passing/);
   assert.deepEqual(await certificates(), []);
