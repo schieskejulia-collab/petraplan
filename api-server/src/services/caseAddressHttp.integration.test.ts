@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { buildAddressClaimReadModel } from './addressClaimReadModel.js';
 import { claimFreshnessBlockers, unresolvedSemanticClaimBlockers } from './claimFreshness.js';
+import { buildRdfProvReadModel } from './rdfProvReadModel.js';
 
 // Execute the actual TypeScript HTTP handler with injected, read-only test doubles.
 // No Supabase connection, server startup, credentials or source-system writes.
@@ -36,21 +37,27 @@ function database() {
   };
 }
 
-function handlerFor(validation: Record<string, any> | null, releaseStatus = 'trusted') {
+function handlerFor(validation: Record<string, any> | null, releaseStatus = 'trusted', sourceReads: object[] = []) {
   const source = readFileSync(resolve(process.cwd(), 'api/cases/[recordId].ts'), 'utf8');
   const compiled = ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const module = { exports: {} as Record<string, any> };
   const trace = {
-    source: { ingestion: { id: snapshotId, source_system: 'Northwind', ingested_at: '2026-10-17T09:00:00Z' } },
+    source: { ingestion: {
+      id: snapshotId, source_system: 'Northwind', ingested_at: '2026-10-17T09:00:00Z',
+      raw_payload: { order: { status: '4' } }, source_hash: 'test-source-hash',
+    } },
     address_layer: { addresses: [{ address }], candidates: [], links: [] },
     validation: { authoritative: validation },
     release: { effective_status: releaseStatus, certificates: [{ validation_result_id: 'validation-1' }] },
   };
   const mocks: Record<string, any> = {
-    '../../api-server/src/services/caseTrace.js': { getCaseTrace: async () => trace },
-    '../../api-server/src/services/rdfProvReadModel.js': { buildRdfProvReadModel: () => ({}) },
+    '../../api-server/src/services/caseTrace.js': { getCaseTrace: async () => {
+      sourceReads.push(trace.source.ingestion);
+      return trace;
+    } },
+    '../../api-server/src/services/rdfProvReadModel.js': { buildRdfProvReadModel },
     '../../api-server/src/services/addressClaimReadModel.js': { buildAddressClaimReadModel },
     '../../api-server/src/services/claimFreshness.js': { claimFreshnessBlockers, unresolvedSemanticClaimBlockers },
     '../_lib/auth.js': { requireBridgeRole: async () => ({ supabase: database() }) },
@@ -96,4 +103,20 @@ test('HTTP case GET accepts a timestamped validation basis without silently conf
 test('HTTP case endpoint rejects write methods', async () => {
   const result = await request(handlerFor({ id: 'validation-1' }), 'POST');
   assert.equal(result.status, 405);
+});
+
+test('HTTP case GET projects actual provenance without changing the input snapshot', async () => {
+  const sourceReads: object[] = [];
+  const handler = handlerFor({ id: 'validation-1' }, 'trusted', sourceReads);
+  const result = await request(handler);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.rdf_prov.mode, 'READ_ONLY_PROJECTION');
+  assert.ok(result.body.rdf_prov.prov.links.some((link: { subject: string; predicate: string; object: string }) =>
+    link.subject === 'pp:claim:claim-1'
+      && link.predicate === 'prov:wasDerivedFrom'
+      && link.object === `pp:snapshot:${snapshotId}`));
+  assert.deepEqual(sourceReads, [{
+    id: snapshotId, source_system: 'Northwind', ingested_at: '2026-10-17T09:00:00Z',
+    raw_payload: { order: { status: '4' } }, source_hash: 'test-source-hash',
+  }]);
 });
