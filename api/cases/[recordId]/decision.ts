@@ -42,20 +42,20 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const unresolvedCandidateCount=unresolvedCandidates.length;
     const validationPassing=Boolean(authoritative?.id && isPassing(authoritative.status));
     const snapshotProcessed=trace.source.ingestion?.status === 'processed';
-    let claimAfterValidation=false;
+    let staleValidationBasis=false;
     if(authoritative?.id) {
       const {data,error}=await supabase.rpc('bridge_claims_after_validation',{
         p_record_id:recordId,p_validation_id:authoritative.id,
       });
-      if(error || typeof data!=='boolean') return res.status(503).json({error:'Claim-Freshness-Prüfung ist nicht verfügbar.'});
-      claimAfterValidation=data;
+      if(error || typeof data!=='boolean') return res.status(503).json({error:'Die Aktualität der Validierungsgrundlage konnte nicht geprüft werden.'});
+      staleValidationBasis=data;
     }
     const {data:claimsBasis,error:claimsBasisError}=await supabase.rpc('bridge_claims_basis',{p_record_id:recordId});
     if(claimsBasisError || typeof claimsBasis!=='string' || !/^[0-9a-f]{64}$/.test(claimsBasis)) return res.status(503).json({error:'Claims-Basis ist nicht verfügbar.'});
     const freshnessBlockers=claimFreshnessBlockers(claims,authoritative);
     const semanticBlockers=unresolvedSemanticClaimBlockers(claims);
-    if(claimAfterValidation && freshnessBlockers.length===0) freshnessBlockers.push('Ein aktiver Claim ist nach der maßgeblichen Validierung entstanden. Neuvalidierung ist erforderlich.');
-    const decisionBasisFresh=!claimAfterValidation && freshnessBlockers.length===0;
+    if(staleValidationBasis && freshnessBlockers.length===0) freshnessBlockers.push('Die maßgebliche Validierung deckt die aktuelle Claim- oder Kandidatengrundlage nicht ab. Neuvalidierung ist erforderlich.');
+    const decisionBasisFresh=!staleValidationBasis && freshnessBlockers.length===0;
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
     const releaseAlreadyTrusted=releaseStatus==='trusted';
     const reviewBlockers=[

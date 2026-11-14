@@ -2,6 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import { before, beforeEach, afterEach, after, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
+import { decideFromConstraints } from '../../frontend/mobile-app/src/lib/bridge-constraints.ts';
 
 const db = new PGlite();
 const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -14,6 +18,7 @@ const migrations = [
   '20261002141108_chinch64_revoked_release_terminal',
   '20261002141136_chinch64_claim_freshness_guard',
   '20261002173000_chinch64_unresolved_semantic_claim_guard',
+  '20261110183407_candidate_validation_freshness',
 ];
 
 before(async () => {
@@ -92,10 +97,10 @@ async function reviewedBasis() {
     [decision, [`claims:${current}`]]);
   return current;
 }
-async function addValidationAndReview(claimsBasis) {
+async function addValidationAndReview(claimsBasis, createdAt = '2026-09-03T00:00:00Z') {
   const newValidation = id(80), newReview = id(81), newSession = id(82), newDecision = id(83);
   await db.query(`insert into validation_results (id,conflict_id,resolution_record_id,status,created_at)
-    values ($1,$2,$3,'passed','2026-09-03T00:00:00Z')`, [newValidation, conflict, resolution]);
+    values ($1,$2,$3,'passed',$4)`, [newValidation, conflict, resolution, createdAt]);
   await db.query('insert into review_records values ($1,$2,$3)', [newReview, resolution, newValidation]);
   await db.query('insert into review_sessions (id,review_record_id,structure_id,validation_result_id) values ($1,$2,$3,$4)',
     [newSession, newReview, structure, newValidation]);
@@ -109,11 +114,16 @@ async function addValidationAndReview(claimsBasis) {
     [newSession, criterion]);
   return { validationId: newValidation, sessionId: newSession };
 }
-async function fails(fn, code) {
+async function fails(fn, code, message) {
   await db.exec('savepoint expected_failure');
-  await assert.rejects(fn, e => e.code === code);
-  await db.exec('rollback to expected_failure');
+  try {
+    await assert.rejects(fn, { code, ...(message ? { message } : {}) });
+  } finally {
+    await db.exec('rollback to expected_failure');
+  }
 }
+const certificates = async () => (await db.query(
+  'select id from release_certificates where record_id=$1', [record])).rows;
 const status = async cert => (await db.query(`select new_status from release_status_history
   where release_certificate_id=$1 order by created_at desc,id desc limit 1`, [cert])).rows[0].new_status;
 
@@ -160,6 +170,119 @@ test('an unresolved semantic claim cannot be approved after a fresh validation',
   assert.equal(await claimIsAfter(validation), false);
   await fails(() => addValidationAndReview(current), 'PT409');
   await fails(() => db.query(`insert into release_certificates (record_id) values ($1)`, [record]), 'PT409');
+  await fails(release, 'PT409');
+  assert.deepEqual(await certificates(), []);
+});
+
+async function confirmCandidate() {
+  const result = await db.query('select bridge_decide_candidate($1,$2,$3,$4,$5,$6,$7) as result',
+    [record, candidate, snapshot, actor, 'confirmed', 'Explicit test decision', 'order.ShippedDate']);
+  assert.equal(result.rows[0].result.state, 'confirmed');
+  return (await db.query(`select (changed_at + interval '1 second')::text as later
+    from candidate_state_history where id=$1`, [result.rows[0].result.history_id])).rows[0];
+}
+
+test('candidate confirmation requires a fresh validation before a release can be issued', async () => {
+  await fails(release, 'PT409', /Open candidates block release/);
+  await confirmCandidate();
+  await fails(release, 'PT409');
+  assert.deepEqual(await certificates(), []);
+});
+
+test('missing confirmation history and equal timestamps cannot establish validation freshness', async () => {
+  await db.query("update conversion_candidates set state='confirmed' where id=$1", [candidate]);
+  assert.equal(await claimIsAfter(validation), true);
+  await fails(release, 'PT409');
+  await db.query(`insert into candidate_state_history (candidate_id,snapshot_id,state,changed_by,changed_at,reason)
+    select $1,$2,'confirmed',$3,created_at,'Same instant' from validation_results where id=$4`,
+    [candidate, snapshot, actor, validation]);
+  assert.equal(await claimIsAfter(validation), true);
+  await fails(release, 'PT409');
+  assert.deepEqual(await certificates(), []);
+});
+
+test('an explicitly reviewed validation after confirmation can release', async () => {
+  const { later } = await confirmCandidate();
+  const { validationId, sessionId } = await addValidationAndReview(await basis(), later);
+  assert.equal(await claimIsAfter(validationId), false);
+  const result = await release(validationId, sessionId);
+  assert.deepEqual(await certificates(), [{ id: result.rows[0].result.certificate_id }]);
+});
+
+test('a newer failed validation blocks release on both the old and the new basis', async () => {
+  const { later } = await confirmCandidate();
+  const failedValidation = id(84);
+  await db.query(`insert into validation_results (id,conflict_id,resolution_record_id,status,created_at)
+    values ($1,$2,$3,'failed',$4)`, [failedValidation, conflict, resolution, later]);
+  await fails(release, 'PT409', /Validation changed/);
+  await fails(() => release(failedValidation), 'PT409', /Authoritative validation is not passing/);
+  assert.deepEqual(await certificates(), []);
+  const results = await db.query('select id, status from validation_results order by created_at');
+  assert.deepEqual(results.rows, [{ id: validation, status: 'passed' }, { id: failedValidation, status: 'failed' }]);
+});
+
+// Run with PETRAPLAN_PEPPOL_R051_DIR pointing to the pinned OpenPeppol checkout.
+// This opt-in proof needs Python 3 with lxml and does not download during tests.
+const peppolSource = process.env.PETRAPLAN_PEPPOL_R051_DIR;
+test('OpenPeppol R051/04 produces a new failed validation and blocks release on both bases', {
+  skip: peppolSource ? false : 'Set PETRAPLAN_PEPPOL_R051_DIR to the pinned OpenPeppol checkout',
+}, async () => {
+  const evaluator = fileURLToPath(new URL('./peppol-r051-proof.py', import.meta.url));
+  const proof = (command, input) => JSON.parse(execFileSync('python3', [evaluator, command, peppolSource], {
+    encoding: 'utf8', input, timeout: 10_000,
+  }));
+  const cases = proof('extract');
+  const control = proof('evaluate', cases[1].xml);
+  assert.equal(cases[1].expected, 'success');
+  assert.equal(control.checked, 5);
+  assert.deepEqual(control.failures, []);
+  assert.equal(cases[4].expected, 'error');
+
+  const hash = createHash('sha256').update(cases[4].xml).digest('hex');
+  await db.query('update ingestion_logs set raw_payload=$2, source_hash=$3 where id=$1',
+    [snapshot, { xml: cases[4].xml }, hash]);
+  const readSource = async () => (await db.query(
+    'select raw_payload, source_hash from ingestion_logs where id=$1', [snapshot])).rows[0];
+  await confirmCandidate();
+  await fails(release, 'PT409');
+  const source = await readSource();
+  assert.deepEqual(source, { raw_payload: { xml: cases[4].xml }, source_hash: hash });
+
+  const result = proof('evaluate', source.raw_payload.xml);
+  assert.equal(result.rule, 'PEPPOL-EN16931-R051');
+  assert.equal(result.flag, 'fatal');
+  assert.equal(result.checked, 5);
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0].path, /\/cac:LegalMonetaryTotal\/cbc:PayableAmount$/);
+  assert.equal(result.failures[0].value, '100');
+  assert.equal(result.failures[0].expected, 'EUR');
+  assert.equal(result.failures[0].observed, 'NOK');
+
+  const constraints = [{
+    id: result.rule, sequence: 1, severity: 'blocking', passed: result.failures.length === 0,
+    resolutionProposal: 'Review the payable amount currency at its source',
+  }];
+  const decision = decideFromConstraints(constraints);
+  assert.deepEqual(decision.failedConstraintIds, [result.rule]);
+  const failedValidation = id(84);
+  await db.exec('alter table validation_results add column evidence jsonb');
+  const evidence = {
+    source_snapshot_id: snapshot, source_hash: hash, result,
+    rule_commit: '261c458474e27d58a25be629cccac28883171c92',
+  };
+  await db.query(`insert into validation_results (id,conflict_id,resolution_record_id,status,created_at,evidence)
+    values ($1,$2,$3,$4,clock_timestamp(),$5)`, [failedValidation, conflict, resolution,
+    decision.releaseAllowed ? 'passed' : 'failed', evidence]);
+
+  const stored = (await db.query(`select c.record_id, v.status, v.evidence
+    from validation_results v join conflicts c on c.id=v.conflict_id where v.id=$1`,
+    [failedValidation])).rows[0];
+  assert.deepEqual(stored, { record_id: record, status: 'failed', evidence });
+  assert.equal(await claimIsAfter(failedValidation), false);
+  await fails(release, 'PT409', /Validation changed/);
+  await fails(() => release(failedValidation), 'PT409', /Authoritative validation is not passing/);
+  assert.deepEqual(await certificates(), []);
+  assert.deepEqual(await readSource(), source);
 });
 
 test('a confirmed claim created before validation is accepted by a later reviewed validation basis', async () => {

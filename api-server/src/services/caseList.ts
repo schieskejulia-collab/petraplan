@@ -5,6 +5,7 @@ import {
   type ReleaseStatus,
 } from './releaseGate.js';
 import { selectLatestCertificate, selectLatestReleaseHistory } from './certificateAuthority.js';
+import { verifyDisplayedRelease } from './releaseReadBasis.js';
 
 export interface CaseListItem {
   id: string;
@@ -112,7 +113,7 @@ export async function listCases(
   const validationsByConflict = groupBy(validations, (item) => String(item.conflict_id));
   const historyByCertificate = groupBy(releaseStatusHistory, (item) => String(item.release_certificate_id));
 
-  return records.map(({ metadata: _metadata, ...record }) => {
+  return Promise.all(records.map(async ({ metadata: _metadata, ...record }) => {
     const recordAnchors = conflictsByRecord.get(String(record.id)) ?? [];
     const recordValidations = recordAnchors.flatMap(
       (anchor) => validationsByConflict.get(String(anchor.id)) ?? [],
@@ -129,7 +130,7 @@ export async function listCases(
       certificate,
     );
     const validationUnavailable = (Boolean(certificate) || recordValidations.length > 0) && !authoritativeValidation;
-    const gate = authoritativeValidation
+    const validationGate = authoritativeValidation
       ? decideReleaseGate({
           latestValidationStatus: authoritativeValidation.status,
           latestValidationId: authoritativeValidation.id,
@@ -138,11 +139,12 @@ export async function listCases(
           hasReleaseCertificate: Boolean(certificate),
         })
       : null;
+    const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
 
     return {
       ...record,
       conflict_count: recordAnchors.filter((item) => item.conflict === true).length,
       release_status: selection.ambiguous || history.ambiguous || validationUnavailable ? 'blocked' : (gate?.effectiveStatus ?? releaseStatus),
     } as CaseListItem;
-  });
+  }));
 }
