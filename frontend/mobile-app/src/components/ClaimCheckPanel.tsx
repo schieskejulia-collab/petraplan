@@ -3,6 +3,7 @@ import {CLAIM_CHECK_TEMPLATES} from '@/lib/claim-check-templates';
 import {currentAccessToken} from '@/lib/bridge-auth';
 type Requirement = {id:string;claim_id:string;question:string;required_information:string;required_address:string;check_condition:string;counter_condition:string;coverage_requirement:string;next_check:string;status:string;next_check_pending:string|null;available_evidence_ids:string[];history:Array<{id:string;result:string;reason:string;recorded_at:string;recorded_by:string;coverage_status:string;coverage_reference:string|null;representation_evidence_id:string|null;evidence_snapshot:unknown}>};
 type Evidence = {id:string;field_address:string;source_path:string;raw_representation:unknown;evidence_hash:string;ingestion_log_id:string};
+type BackwardGap = {claim_id:string;statement:string|null;coverage:'UNDETERMINED';gaps:Array<{requirement_id:string|null;kind:string;question:string;next_check:string|null}>};
 const fields = [['question','Prüffrage'],['required_information','Benötigte Information'],['required_address','Fundstelle / Feldadresse'],['check_condition','Was würde die Aussage stützen?'],['counter_condition','Was würde ihr widersprechen?'],['coverage_requirement','Was muss vollständig vorliegen?'],['next_check','Nächster Prüfschritt']] as const;
 const empty=()=>Object.fromEntries(fields.map(([key])=>[key,''])) as Record<string,string>;
 const labels:Record<string,string>={UNASSESSED:'Noch nicht geprüft',MISSING:'Information fehlt',UNKNOWN:'Ungeklärt',SUPPORTS:'Als stützend berichtet',CONTRADICTS:'Als widersprechend berichtet',STALE:'Grundlage verändert',SUPERSEDED:'Ersetzt'};
@@ -13,13 +14,14 @@ async function request(recordId:string,body?:Record<string,unknown>) {
 }
 export function ClaimCheckPanel({recordId,claims}:{recordId:string;claims:Array<Record<string,unknown>>}) {
  const [requirements,setRequirements]=useState<Requirement[]>([]),[evidence,setEvidence]=useState<Evidence[]>([]);
+ const [backwardGaps,setBackwardGaps]=useState<BackwardGap[]>([]);
  const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const [claimId,setClaimId]=useState(''),[previous,setPrevious]=useState<string|null>(null),[draft,setDraft]=useState(empty);
  const [templateId,setTemplateId]=useState('');
  const template=CLAIM_CHECK_TEMPLATES.find(t=>t.id===templateId);
  const [reports,setReports]=useState<Record<string,Record<string,string>>>({});
- useEffect(()=>{let active=true;void request(recordId).then(data=>{if(active){setRequirements(data.requirements);setEvidence(data.evidence);setReady(true);}}).catch(err=>{if(active)setError(err.message);});return()=>{active=false;};},[recordId]);
- const save=async(body:Record<string,unknown>)=>{setBusy(true);setError('');try{await request(recordId,body);const data=await request(recordId);setRequirements(data.requirements);setEvidence(data.evidence);if(body.action==='add'){setDraft(empty());setPrevious(null);setClaimId('');}setReports({});}catch(err){setError(err instanceof Error?err.message:'Prüfung konnte nicht gespeichert werden.');}finally{setBusy(false);}};
+ useEffect(()=>{let active=true;void request(recordId).then(data=>{if(active){setRequirements(data.requirements);setEvidence(data.evidence);setBackwardGaps(data.backward_gaps);setReady(true);}}).catch(err=>{if(active)setError(err.message);});return()=>{active=false;};},[recordId]);
+ const save=async(body:Record<string,unknown>)=>{setBusy(true);setError('');try{await request(recordId,body);const data=await request(recordId);setRequirements(data.requirements);setEvidence(data.evidence);setBackwardGaps(data.backward_gaps);if(body.action==='add'){setDraft(empty());setPrevious(null);setClaimId('');}setReports({});}catch(err){setError(err instanceof Error?err.message:'Prüfung konnte nicht gespeichert werden.');}finally{setBusy(false);}};
  const report=(id:string)=>reports[id]??{result:'UNKNOWN',coverage_status:'UNKNOWN',coverage_reference:'',representation_evidence_id:'',reason:''};
  const update=(id:string,key:string,value:string)=>setReports(old=>({...old,[id]:{...report(id),[key]:value}}));
  return <section className="bridge-proof-form mb-4 rounded-xl border p-4 space-y-4">
@@ -28,6 +30,14 @@ export function ClaimCheckPanel({recordId,claims}:{recordId:string;claims:Array<
   {error&&<p role="alert" className="text-red-700">{error}</p>}
   {!ready&&!error&&<p>Lade Prüfanforderungen …</p>}
   {ready&&<>
+   <div className="border rounded-lg p-3 space-y-2" aria-label="Rückwärtsprüfung der Aussagen">
+    <h3 className="font-semibold">Vom Ergebnis rückwärts: offene Voraussetzungen</h3>
+    <p>Diese Liste sucht Lücken in bereits erfassten Prüfanforderungen. Auch wenn alle Einträge stützen, bleibt die Vollständigkeit ungeklärt. Keine automatische Freigabe.</p>
+    {backwardGaps.length===0&&<p>Keine aktiven Aussagen im Fall; daraus folgt keine vollständige Prüfung.</p>}
+    {backwardGaps.map(c=><div key={c.claim_id} className="border-t pt-2"><p className="font-medium">{c.statement??c.claim_id}</p>
+     <ul className="list-disc pl-5">{c.gaps.map((g,i)=><li key={g.requirement_id??i}>{g.question} · {({NO_REQUIREMENTS:'Noch keine Voraussetzungen erfasst',STALE_BASIS:'Grundlage verändert',COUNTEREVIDENCE:'Gegenbeleg offen',MISSING_INFORMATION:'Information fehlt',UNVERIFIED_SUPPORT:'Stützung noch unabhängig zu verifizieren',UNKNOWN:'Ungeklärt',UNASSESSED:'Noch nicht geprüft'} as Record<string,string>)[g.kind]??g.kind}{g.next_check&&<> · Nächster Schritt: {g.next_check}</>}</li>)}</ul>
+    </div>)}
+   </div>
    {requirements.length===0&&<p>Noch keine Prüfanforderungen hinterlegt. Das bedeutet nicht, dass alle Voraussetzungen geprüft sind.</p>}
    {requirements.map(r=><article key={r.id} className="border rounded-lg p-3 space-y-2">
     <h3 className="font-semibold">{r.question}</h3><p>{labels[r.status]??r.status}</p>
