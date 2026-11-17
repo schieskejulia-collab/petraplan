@@ -17,7 +17,7 @@ python3 -m backend.ingestion.invoice rechnung.xml \
 
 `--save-report` ist optional und legt eine neue Datei an. Der Leser bindet den erzeugten Bericht über den darin enthaltenen SHA‑256 an die gelesene XML und dokumentiert Engine, Szenario, Meldungen, Prüfresultate und die Hashes von Bericht sowie lokaler Validator-Konfiguration. Die Ausgabe meldet bei einer erfolgreichen technischen Prüfung `READY_FOR_REVIEW`. Fehlende oder ablehnende Prüfevidenz ergibt `BLOCKED`. BR‑DE‑TMP‑32 bleibt eine Hinweismeldung. Der Rückgabecode ist bei einem blockierten Lauf 1.
 
-Dieser erste Durchstich arbeitet lokal. Er speichert keine Fälle und erteilt keine Freigaben. Für den produktiven Weg muss die vorhandene Fall- und Freigabekette den Rechnungsvertrag und seinen Prüfbeleg übernehmen.
+Dieser reine Leseaufruf speichert keine Fälle. Der lokale Fallimport weiter unten bindet Rechnungen an die bestehende Entscheidungskette.
 
 ## Prüfungen
 
@@ -39,3 +39,22 @@ python3 -m unittest backend.tests.test_invoice -v
 ```
 
 Der Integrationstest vergleicht die Zuordnung in UBL und CII, prüft die Berichtbindung und testet einen geänderten Zahlbetrag als Negativfall.
+
+## Fall speichern und eine Revision prüfen
+
+Der lokale Fallimport verwendet denselben XML-Leser und startet KoSIT selbst. Er speichert Original-XML, KoSIT-Bericht, Fundstellen und Validierung zusammen. Er braucht die Migration `20261117100000_invoice_case_evidence.sql` auf einer Testdatenbank mit PetraPlan-Schema, einen vertrauenswürdigen lokalen Dienstzugang und die ID eines aktiven Reviewers. Verwende für den ersten Import eine neue Fall-UUID. Für eine Revision gib den aktuellen Snapshot desselben Falls an.
+
+```sh
+export PETRAPLAN_INVOICE_DATABASE_URL='postgresql://…@localhost:5432/…'
+export PETRAPLAN_KOSIT_JAR=/pfad/validator-1.6.3-standalone.jar
+export PETRAPLAN_KOSIT_SCENARIOS=/pfad/xrechnung/scenarios.xml
+node scripts/capture-invoice-case.mjs rechnung.xml <fall-uuid> <reviewer-uuid> [bisherige-snapshot-uuid]
+```
+
+Das Ergebnis enthält Fall-, Snapshot- und Validierungs-ID für die bestehende Review- und Freigabekette. Der Import selbst stellt kein Zertifikat aus. Ist die Grundlage einer aktiven Freigabe durch eine Revision ersetzt worden, widerruft derselbe Datenbankvorgang die alte Freigabe. Dafür braucht der Akteur auch Widerrufsrechte. Fehlen sie oder ist der aktuelle Snapshot inzwischen weitergerückt, wird kein neuer Stand gespeichert. Ein wiederholter KoSIT-Lauf mit demselben Befund wird wiederverwendet, auch wenn der Zeitstempel im XML-Bericht sich ändert. Ein Abbruch vor Erzeugung eines prüfbaren KoSIT-Berichts wird als Importfehler ausgegeben und erzeugt keine Fallrevision.
+
+Der Datenbanktest läuft gegen ein isoliertes PGlite-Teilschema. Mit den KoSIT-Umgebungsvariablen und den Originaldateien prüft er Freigabe, Widerruf, Rückabwicklung, Wiederholung und erneute Freigabe nach ausdrücklichem Review.
+
+```sh
+node --test tests/decision-integrity/invoice-case.test.mjs
+```
