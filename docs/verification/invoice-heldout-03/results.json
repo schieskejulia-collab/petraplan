@@ -1,0 +1,853 @@
+{
+  "baseline": "129fa9a04cceff800f6f251ccb304785a45459aa",
+  "startedAt": "2026-11-17T21:02:49.258Z",
+  "results": [
+    {
+      "filename": "0114-ubl.xml",
+      "recordId": "00000000-0000-4000-8000-000000009000",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review does not release automatically",
+          "passed": true
+        },
+        {
+          "name": "explicit release appears in case projection",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "READY_FOR_REVIEW",
+        "record_id": "00000000-0000-4000-8000-000000009000",
+        "revocation": null,
+        "snapshot_id": "e75995ae-f48b-44c3-b101-f24d8a8d93e5",
+        "validation_id": "378e3fdb-137f-4562-a5da-4caff532302c"
+      },
+      "decision": {
+        "status": "READY_FOR_REVIEW",
+        "releaseAllowed": false,
+        "blockers": []
+      },
+      "technicalAccepted": true,
+      "validatorMessages": [],
+      "pdfComparison": null,
+      "review": {
+        "accepted": true,
+        "sessionId": "e9af53c8-5ec6-4b03-8831-d398b6a0fd50"
+      },
+      "release": {
+        "reused": false,
+        "certificate_id": "8015d11b-211e-4b4f-bc73-96ff73faf089"
+      },
+      "finalStatus": "trusted"
+    },
+    {
+      "filename": "0114-uncefact.xml",
+      "recordId": "00000000-0000-4000-8000-000000009001",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review does not release automatically",
+          "passed": true
+        },
+        {
+          "name": "explicit release appears in case projection",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "READY_FOR_REVIEW",
+        "record_id": "00000000-0000-4000-8000-000000009001",
+        "revocation": null,
+        "snapshot_id": "8aa16895-6010-433a-b2b2-0d1a000b3a43",
+        "validation_id": "fb96f673-e519-4c4b-8eb4-0244f56e6a7a"
+      },
+      "decision": {
+        "status": "READY_FOR_REVIEW",
+        "releaseAllowed": false,
+        "blockers": []
+      },
+      "technicalAccepted": true,
+      "validatorMessages": [],
+      "pdfComparison": null,
+      "review": {
+        "accepted": true,
+        "sessionId": "1ea167df-c566-4b8b-b87b-e0a25a8e817f"
+      },
+      "release": {
+        "reused": false,
+        "certificate_id": "b8809ff0-d8c4-436b-81f7-f07fd92ace3b"
+      },
+      "finalStatus": "trusted"
+    },
+    {
+      "filename": "0203-ubl.xml",
+      "recordId": "00000000-0000-4000-8000-000000009002",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review does not release automatically",
+          "passed": true
+        },
+        {
+          "name": "explicit release appears in case projection",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "READY_FOR_REVIEW",
+        "record_id": "00000000-0000-4000-8000-000000009002",
+        "revocation": null,
+        "snapshot_id": "b00d8a48-04c0-42c5-a7b7-4e8f7be844d2",
+        "validation_id": "1e46c5aa-c3bf-4ea9-ac36-ff1960fff3e9"
+      },
+      "decision": {
+        "status": "READY_FOR_REVIEW",
+        "releaseAllowed": false,
+        "blockers": []
+      },
+      "technicalAccepted": true,
+      "validatorMessages": [],
+      "pdfComparison": null,
+      "review": {
+        "accepted": true,
+        "sessionId": "a0b39e46-45b2-4c9a-b6db-3e9dd8426403"
+      },
+      "release": {
+        "reused": false,
+        "certificate_id": "17f3f127-4672-4096-bd34-1b0221205062"
+      },
+      "finalStatus": "trusted"
+    },
+    {
+      "filename": "0203-uncefact.xml",
+      "recordId": "00000000-0000-4000-8000-000000009003",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review does not release automatically",
+          "passed": true
+        },
+        {
+          "name": "explicit release appears in case projection",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "READY_FOR_REVIEW",
+        "record_id": "00000000-0000-4000-8000-000000009003",
+        "revocation": null,
+        "snapshot_id": "c37a755e-73b0-4f26-8f16-d2629f9db686",
+        "validation_id": "0af931f2-d48a-4542-af69-0d968325cda2"
+      },
+      "decision": {
+        "status": "READY_FOR_REVIEW",
+        "releaseAllowed": false,
+        "blockers": []
+      },
+      "technicalAccepted": true,
+      "validatorMessages": [],
+      "pdfComparison": null,
+      "review": {
+        "accepted": true,
+        "sessionId": "ee2f31f0-cbb6-41d9-9cab-129578c7b6d8"
+      },
+      "release": {
+        "reused": false,
+        "certificate_id": "bea33b22-4a04-4534-853b-10f3698d501b"
+      },
+      "finalStatus": "trusted"
+    },
+    {
+      "filename": "0301-ubl.xml",
+      "recordId": "00000000-0000-4000-8000-000000009004",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review does not release automatically",
+          "passed": true
+        },
+        {
+          "name": "explicit release appears in case projection",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "READY_FOR_REVIEW",
+        "record_id": "00000000-0000-4000-8000-000000009004",
+        "revocation": null,
+        "snapshot_id": "58fb1043-ef3a-4d61-8c02-26eb12457aa3",
+        "validation_id": "5a76b2de-de4c-4866-9914-036175305c7f"
+      },
+      "decision": {
+        "status": "READY_FOR_REVIEW",
+        "releaseAllowed": false,
+        "blockers": []
+      },
+      "technicalAccepted": true,
+      "validatorMessages": [],
+      "pdfComparison": null,
+      "review": {
+        "accepted": true,
+        "sessionId": "8e7b53bf-a67b-4ba6-ac4d-620ee4592c54"
+      },
+      "release": {
+        "reused": false,
+        "certificate_id": "e5018d20-2258-4447-bc49-3b31b92e5c7c"
+      },
+      "finalStatus": "trusted"
+    },
+    {
+      "filename": "0301-uncefact.xml",
+      "recordId": "00000000-0000-4000-8000-000000009005",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review does not release automatically",
+          "passed": true
+        },
+        {
+          "name": "explicit release appears in case projection",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "READY_FOR_REVIEW",
+        "record_id": "00000000-0000-4000-8000-000000009005",
+        "revocation": null,
+        "snapshot_id": "5fb0c7e6-ac09-4105-a58b-360a86e0d20f",
+        "validation_id": "3c242269-07af-4354-9fe4-c15a08c013e8"
+      },
+      "decision": {
+        "status": "READY_FOR_REVIEW",
+        "releaseAllowed": false,
+        "blockers": []
+      },
+      "technicalAccepted": true,
+      "validatorMessages": [],
+      "pdfComparison": null,
+      "review": {
+        "accepted": true,
+        "sessionId": "3c20a059-f535-423e-915c-eb949e8dd9eb"
+      },
+      "release": {
+        "reused": false,
+        "certificate_id": "44443a48-3172-4523-9c00-ce734f1e7a26"
+      },
+      "finalStatus": "trusted"
+    },
+    {
+      "filename": "cen-creditnote.xml",
+      "recordId": "00000000-0000-4000-8000-000000009006",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "rejected import creates no case",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 422,
+      "import": {
+        "error": "Originaldatei konnte nicht vollständig geprüft werden."
+      }
+    },
+    {
+      "filename": "cen-huf-cii.xml",
+      "recordId": "00000000-0000-4000-8000-000000009007",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review outcome matches eligibility",
+          "passed": true,
+          "detail": "Approval requires a processed source and passing validation"
+        },
+        {
+          "name": "blocked input retains no certificate",
+          "passed": true
+        },
+        {
+          "name": "invalid exception basis denied",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "BLOCKED",
+        "record_id": "00000000-0000-4000-8000-000000009007",
+        "revocation": null,
+        "snapshot_id": "713cb5c1-5766-45ba-9415-17e63818d829",
+        "validation_id": "79d98fff-de1b-4db0-97b8-ab1c34c16178"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "releaseAllowed": false,
+        "blockers": [
+          "KOSIT_NOT_ACCEPTED"
+        ]
+      },
+      "technicalAccepted": false,
+      "validatorMessages": [],
+      "pdfComparison": null,
+      "review": {
+        "accepted": false,
+        "code": "PT409",
+        "message": "Approval requires a processed source and passing validation"
+      },
+      "exceptionAttempt": {
+        "code": "PT409",
+        "message": "Exception requires accepted XML and only an unresolved PDF representation"
+      }
+    },
+    {
+      "filename": "facturx-invoice.pdf",
+      "recordId": "00000000-0000-4000-8000-000000009008",
+      "checks": [
+        {
+          "name": "expected import outcome",
+          "passed": true
+        },
+        {
+          "name": "no automatic certificate",
+          "passed": true
+        },
+        {
+          "name": "XML hash binds original",
+          "passed": true
+        },
+        {
+          "name": "report hash matches bytes",
+          "passed": true
+        },
+        {
+          "name": "original input retained",
+          "passed": true
+        },
+        {
+          "name": "no automatic release flag",
+          "passed": true
+        },
+        {
+          "name": "expected technical eligibility",
+          "passed": true
+        },
+        {
+          "name": "selected terms preserve original values",
+          "passed": true
+        },
+        {
+          "name": "invoice line count",
+          "passed": true
+        },
+        {
+          "name": "case projection binds current snapshot",
+          "passed": true
+        },
+        {
+          "name": "case projection payable",
+          "passed": true
+        },
+        {
+          "name": "review outcome matches eligibility",
+          "passed": true,
+          "detail": "Approval requires a processed source and passing validation"
+        },
+        {
+          "name": "blocked input retains no certificate",
+          "passed": true
+        },
+        {
+          "name": "invalid exception basis denied",
+          "passed": true
+        }
+      ],
+      "termMismatches": [],
+      "httpStatus": 201,
+      "import": {
+        "reused": false,
+        "status": "BLOCKED",
+        "record_id": "00000000-0000-4000-8000-000000009008",
+        "revocation": null,
+        "snapshot_id": "8720e840-c40f-4482-ad00-543d76772a59",
+        "validation_id": "612534a5-0fad-41db-9e04-fa8212ec30d1"
+      },
+      "decision": {
+        "status": "BLOCKED",
+        "releaseAllowed": false,
+        "blockers": [
+          "KOSIT_NOT_ACCEPTED",
+          "PDF_VISUAL_AMOUNT_CONFLICT"
+        ]
+      },
+      "technicalAccepted": false,
+      "validatorMessages": [],
+      "pdfComparison": {
+        "pdfSha256": "e340194b514ed7d01dfc7dca60ddc81bbee718756e29830dda227d65fe6de7f0",
+        "method": "whole-page-rendered-ocr",
+        "pages": 1,
+        "status": "NOT_COMPARABLE",
+        "xmlPayable": "104.90",
+        "candidates": []
+      },
+      "review": {
+        "accepted": false,
+        "code": "PT409",
+        "message": "Approval requires a processed source and passing validation"
+      },
+      "exceptionAttempt": {
+        "code": "PT409",
+        "message": "Exception requires accepted XML and only an unresolved PDF representation"
+      }
+    }
+  ],
+  "revisionProbe": {
+    "repeated": {
+      "reused": true,
+      "status": "READY_FOR_REVIEW",
+      "record_id": "00000000-0000-4000-8000-000000009000",
+      "snapshot_id": "e75995ae-f48b-44c3-b101-f24d8a8d93e5",
+      "validation_id": "378e3fdb-137f-4562-a5da-4caff532302c"
+    },
+    "repeatedHttp": 200,
+    "revised": {
+      "reused": false,
+      "status": "READY_FOR_REVIEW",
+      "record_id": "00000000-0000-4000-8000-000000009000",
+      "revocation": {
+        "reason": "Rechnungsgrundlage ersetzt durch Snapshot 0b263f12-32d9-490b-a375-8b3b3a816ada",
+        "transitioned": true,
+        "validationId": "378e3fdb-137f-4562-a5da-4caff532302c",
+        "certificateId": "8015d11b-211e-4b4f-bc73-96ff73faf089",
+        "previousStatus": "trusted",
+        "effectiveStatus": "revoked"
+      },
+      "snapshot_id": "0b263f12-32d9-490b-a375-8b3b3a816ada",
+      "validation_id": "9bdad22f-c15e-449a-8560-02ffefa2b359"
+    },
+    "revisedHttp": 201,
+    "oldRelease": {
+      "ambiguous": false,
+      "certified_at": "2026-11-17T22:02:53.439+01:00",
+      "validation_id": "378e3fdb-137f-4562-a5da-4caff532302c",
+      "certificate_id": "8015d11b-211e-4b4f-bc73-96ff73faf089",
+      "effective_status": "revoked"
+    },
+    "oldReleaseRevoked": true,
+    "exactRepeatReused": true,
+    "newOriginalRequiresReview": true
+  },
+  "frozenSourcesUnchanged": true,
+  "finishedAt": "2026-11-17T21:03:37.732Z",
+  "preregistrationCommit": "ef85fda962cbde5006c01cea882cca115e363429",
+  "diagnostics": [
+    {
+      "input": "cen-huf-cii.xml",
+      "exitCode": 0,
+      "stdoutTail": "n|Acceptance|Error/Description   |\n|/workspace/scratch/af57fd60668e/heldout-03/inputs/cen-huf...|   Y   |    Y     |ACCEPTABLE|                    |\n|i.xml                                                       |       |          |          |                    |\n----------------------------------------------------------------------------------------------------------------\nAcceptable:  1  Rejected:  0\n\n\n##############################\n#   Validation successful!   #\n##############################\n",
+      "stderrTail": ""
+    },
+    {
+      "input": "pdf-embedded-oracle.xml",
+      "exitCode": 0,
+      "stdoutTail": "n|Acceptance|Error/Description   |\n|/workspace/scratch/af57fd60668e/heldout-03/pdf-embedded-o...|   Y   |    Y     |ACCEPTABLE|                    |\n|le.xml                                                      |       |          |          |                    |\n----------------------------------------------------------------------------------------------------------------\nAcceptable:  1  Rejected:  0\n\n\n##############################\n#   Validation successful!   #\n##############################\n",
+      "stderrTail": ""
+    }
+  ],
+  "mobileRendering": [
+    {
+      "file": "0203-ubl.xml.trace-after.json",
+      "amount": "0 EUR",
+      "status": "Freigegeben",
+      "passed": true
+    },
+    {
+      "file": "0301-uncefact.xml.trace-after.json",
+      "amount": "-225.14 EUR",
+      "status": "Freigegeben",
+      "passed": true
+    },
+    {
+      "file": "cen-huf-cii.xml.trace-before.json",
+      "amount": "87859.00 HUF",
+      "status": null,
+      "passed": true
+    },
+    {
+      "file": "facturx-invoice.pdf.trace-before.json",
+      "amount": "104.90 EUR",
+      "status": null,
+      "passed": true
+    },
+    {
+      "file": "revision.trace.json",
+      "amount": "12829.69 EUR",
+      "status": "Widerrufen",
+      "passed": true
+    }
+  ],
+  "findings": [
+    {
+      "id": "F03-01",
+      "type": "functional_overblocking_and_misattribution",
+      "inputs": [
+        "cen-huf-cii.xml",
+        "facturx-invoice.pdf"
+      ],
+      "kositDecision": "accept",
+      "bridgeAccepted": false,
+      "cause": "read_kosit_report requires val-sch.2 even in the general EN16931 CII scenario",
+      "expectationReasonCorrected": true,
+      "productChanged": false
+    },
+    {
+      "id": "F03-02",
+      "type": "ocr_language_layout_limit",
+      "input": "facturx-invoice.pdf",
+      "visibleAmount": "104.90 EUR",
+      "xmlAmount": "104.90 EUR",
+      "bridgePdfStatus": "NOT_COMPARABLE",
+      "productChanged": false
+    }
+  ],
+  "summary": {
+    "inputs": 9,
+    "storedCases": 8,
+    "unsupportedRejected": 1,
+    "scriptedExplicitReleases": 6,
+    "blockedDespiteKositAccept": 2,
+    "recordedChecksPassed": 109,
+    "selectedTermComparisons": 72,
+    "sourceInvoiceLines": 42,
+    "termMismatches": 0,
+    "mobileRenderProbes": 5,
+    "productRulesChanged": false
+  }
+}
