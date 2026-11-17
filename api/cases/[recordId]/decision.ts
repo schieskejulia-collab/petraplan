@@ -58,7 +58,11 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const decisionBasisFresh=!staleValidationBasis && freshnessBlockers.length===0;
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
     const releaseAlreadyTrusted=releaseStatus==='trusted'||releaseStatus==='exception';
+    const invoiceException=trace.invoice?.snapshots.find(snapshot=>snapshot.current)?.exception;
+    const exceptionActionAllowed=!invoiceException?.validationId
+      || (invoiceException.usable && invoiceException.decidedBy===user.id);
     const reviewBlockers=[
+      ...(!exceptionActionAllowed ? ['Review und Freigabe dieser Ausnahme benötigen die aktuell berechtigte unabhängige Entscheidungsperson.'] : []),
       ...authorityBlockers,
       ...(!snapshotProcessed ? ['Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'] : []),
       ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
@@ -71,8 +75,8 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const releaseBlockers=[...reviewBlockers,...basisBlockers];
     const access={
       role:role.role_name, can_approve_invoice_exception:role.can_approve_invoice_exception === true, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
-      review_ready:Boolean(!releaseAuthorityAmbiguous && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
-      review_rejection_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
+      review_ready:Boolean(exceptionActionAllowed && !releaseAuthorityAmbiguous && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
+      review_rejection_ready:Boolean(exceptionActionAllowed && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
       unresolved_candidate_count:unresolvedCandidateCount,
       review_blockers:reviewBlockers,
       release_ready:Boolean(!releaseAlreadyTrusted && role.can_release && releaseBlockers.length===0),
@@ -89,6 +93,8 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
         || req.body?.expected_validation_id !== authoritative?.id)) {
       return res.status(409).json({error:'Rechnungsfassung wurde geändert. Öffne den Fall erneut.'});
     }
+    if(!exceptionActionAllowed && ['approve_review','reject_review','release'].includes(action))
+      return res.status(403).json({error:'Die aktuell berechtigte unabhängige Entscheidungsperson muss Review und Freigabe ausführen.'});
     if(reason.length<3) return res.status(400).json({error:'A reason is required'});
     if(!snapshotProcessed && action!=='revoke' && action!=='reject_review') return res.status(409).json({error:'Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'});
 

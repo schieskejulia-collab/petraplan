@@ -30,9 +30,9 @@ Entfällt die Ausnahmeberechtigung oder ändert sich ihr dokumentierter Bezug, b
 | Originalfehler und Pflicht zum Leistungszeitraum-Beleg bleiben erhalten | Derselbe Test; Änderung/Löschung der Entscheidungshistorie scheitert |
 | Revision widerruft aktive Ausnahmefreigabe | Derselbe Test; alte Validierung lässt sich nicht wieder freigeben |
 | Mobile Oberfläche bis zur Ausnahmefreigabe | Lokale Browserprobe bei 390 px: kontrolliertes PDF mit 337,90 EUR sichtbar und 336,90 EUR im eingebetteten akzeptierten CII, echte lokale KoSIT-/OCR-Verarbeitung, lokale Handler und PGlite. Zwei Testidentitäten; Testadapter statt echtem Login. Kein unverbrauchter Fremddatenlauf und kein CI-Browsernachweis. |
-| Gleichzeitige Ausnahmeentscheidungen / neue Fassung gegen wartende Genehmigung | `tests/postgres/invoice-exception-concurrency.test.mjs`; eigener PostgreSQL-17-CI-Nachweis erforderlich, Ergebnis nach dem Lauf ergänzen. |
+| Gleichzeitige Ausnahmeentscheidungen / neue Fassung gegen wartende Genehmigung | `tests/postgres/invoice-exception-concurrency.test.mjs`; beide Rennen im [PostgreSQL-17-Lauf 44173127641](https://github.com/schieskejulia-collab/petraplan/actions/runs/44173127641) bestanden. Insgesamt 21 Tests, keine Fehler oder Auslassungen, Implementierungscommit `06676717cffb48e412bd46cb25fe040d97a54012`. |
 
-Backend-Build, mobile Typprüfung und Produktionsbuild sind lokal erfolgreich. Die vier neuen Datenbank-/API-Tests sind lokal grün. Die Regression vor dem zusätzlichen vierten Test hatte 254 erfolgreiche Tests und drei übersprungene optionale Tests; keine Fehler. Maßgeblich für den endgültigen Commit sind zusätzlich dessen CI-Ergebnisse.
+Backend-Build, mobile Typprüfung und Produktionsbuild sind lokal erfolgreich. Die vier neuen Datenbank-/API-Tests sind lokal grün. Die lokale Entscheidungsregression hat 255 erfolgreiche Tests und drei übersprungene optionale Integrationstests; keine Fehler. Der separate Backend-Testlauf hat 180 erfolgreiche Tests. [PetraPlan CI 44173127587](https://github.com/schieskejulia-collab/petraplan/actions/runs/44173127587) hat API und mobile Prüfungen für Implementierungscommit `06676717cffb48e412bd46cb25fe040d97a54012` bestanden. Die zusätzliche API-Rechteprojektion wird im anschließenden Commit nochmals durch CI geprüft.
 
 ## Bekannte Grenzen gegenüber Kunden
 
