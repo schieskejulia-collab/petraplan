@@ -1,0 +1,10 @@
+**
+!backend/
+!backend/ingestion/
+!backend/ingestion/invoice.py
+!backend/ingestion/invoice_pdf.py
+!scripts/
+!scripts/capture-invoice-case.mjs
+!scripts/invoice-worker/
+!scripts/invoice-worker/protocol.mjs
+!scripts/invoice-worker/server.mjs

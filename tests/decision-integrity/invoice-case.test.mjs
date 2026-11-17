@@ -1,3 +1,5 @@
+import { once } from 'node:events';
+import { createInvoiceWorker } from '../../scripts/invoice-worker/server.mjs';
 import { createInvoicePdfHandler } from '../../api/cases/[recordId]/invoice-pdf.js';
 import { createInvoiceUploadHandler } from '../../api/bridge/invoice-upload.js';
 import { createHash } from 'node:crypto';
@@ -110,6 +112,24 @@ test('real invoice validation, review, release and atomic revocation preserve bo
       }
     },
   } });
+  const workerToken = 'local-test-worker-token';
+  const worker = createInvoiceWorker({ ...config, token: workerToken,
+    allowPdf: process.env.PETRAPLAN_PDF_TEST_UPLOADS === '1' });
+  worker.listen(0, '127.0.0.1');
+  await once(worker, 'listening');
+  t.after(() => new Promise((resolve, reject) => worker.close(error => error ? reject(error) : resolve())));
+  const configuredWorker = {
+    PETRAPLAN_INVOICE_WORKER_URL: `http://127.0.0.1:${worker.address().port}`,
+    PETRAPLAN_INVOICE_WORKER_TOKEN: workerToken,
+  };
+  const previousWorker = Object.fromEntries(Object.keys(configuredWorker).map(key => [key, process.env[key]]));
+  Object.assign(process.env, configuredWorker);
+  t.after(() => {
+    for (const [key, value] of Object.entries(previousWorker)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
   const handleUpload = createInvoiceUploadHandler(authenticate);
   async function upload(bytes, caseId, expectedSnapshotId = null) {
     const request = { method: 'POST', body: { recordId: caseId, expectedSnapshotId, contentBase64: bytes.toString('base64') } };
@@ -119,6 +139,10 @@ test('real invoice validation, review, release and atomic revocation preserve bo
     await handleUpload(request, response);
     return { status, body };
   }
+  process.env.PETRAPLAN_INVOICE_WORKER_TOKEN = 'wrong-token';
+  assert.equal((await upload(original, recordId)).status, 503);
+  assert.equal((await db.query('select id from records where id=$1', [recordId])).rows.length, 0);
+  process.env.PETRAPLAN_INVOICE_WORKER_TOKEN = workerToken;
   const uploaded = await upload(original, recordId);
   assert.equal(uploaded.status, 201, JSON.stringify(uploaded.body));
   const initial = uploaded.body;
@@ -206,8 +230,11 @@ test('real invoice validation, review, release and atomic revocation preserve bo
   assert.equal((await activeRelease(db)).effective_status, 'trusted');
 
   const parallelVariant = Buffer.from(original.toString().replace('</cbc:PayableAmount>', '2</cbc:PayableAmount>'));
+  delete process.env.PETRAPLAN_INVOICE_WORKER_URL;
+  delete process.env.PETRAPLAN_INVOICE_WORKER_TOKEN;
   const parallel = await Promise.all([upload(altered, recordId, corrected.snapshot_id),
     upload(parallelVariant, recordId, corrected.snapshot_id)]);
+  Object.assign(process.env, configuredWorker);
   assert.deepEqual(parallel.map(item => item.status).sort(), [201, 409]);
   const last = parallel.find(item => item.status === 201).body;
   assert.equal((await db.query('select ingestion_log_id from records where id=$1', [recordId])).rows[0].ingestion_log_id, last.snapshot_id);

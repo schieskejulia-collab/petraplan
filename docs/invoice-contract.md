@@ -68,3 +68,29 @@ In der Fallliste startet „Rechnung importieren“ einen neuen Fall. In der Rec
 Für lokale PDF-Proben kann `PETRAPLAN_PDF_TEST_UPLOADS=1` in der Testumgebung gesetzt werden. Der Worker benötigt zusätzlich PyMuPDF und Tesseract mit Sprachmodell `eng`. Er behält Original-PDF und eingebettetes CII getrennt und vergleicht den XML-Zahlbetrag mit Kandidaten aus den vollständig gerenderten Seiten. Ein abweichender, unlesbarer oder mehrdeutiger Sichtbetrag bleibt gesperrt. Bei einem eindeutigen OCR-Treffer und bestandener XML-Prüfung kann ein berechtigter Mensch das Original-PDF laden, alle Seiten sichten und den gesehenen Betrag sowie die Währung im Review eingeben. Die Datenbank bindet die Bestätigung an die PDF- und XML-Prüfsummen derselben Fassung. Die normale Freigabe ist eine separate Entscheidung. Eine neue Fassung erfordert eine neue Bestätigung. KoSIT beurteilt ausschließlich die eingebettete XML nach dem eingerichteten Szenario. Ein ZUGFeRD-Profil außerhalb dieser Konfiguration kann deshalb eine negative technische XML-Prüfung haben.
 
 Die lokalen API- und Datenbanktests verwenden die vorhandenen KoSIT-Testvariablen. Die optionalen Variablen `PETRAPLAN_PDF_MISMATCH`, `PETRAPLAN_PDF_OUTSIDE_WINDOW` und `PETRAPLAN_PDF_CONTROL` verweisen auf die drei PDF-Proben mit abweichendem Betrag, zusätzlicher Zahlbetragszeile und übereinstimmendem Betrag. `PETRAPLAN_PDF_POSITIVE` verweist auf die zusätzliche positive Probe mit einem von KoSIT akzeptierten CII-Anhang, einem eindeutigen sichtbaren Zahlbetrag von 336,90 EUR und dem zugehörigen OCR-Treffer. Der gehostete Lauf braucht eine bereitgestellte Worker-Laufzeit mit Python, Java und KoSIT sowie den passenden Datenbankstand.
+
+## Getrennter KoSIT-Worker für die Testumgebung
+
+Der Upload prüft Anmeldung und Review-Berechtigung in der PetraPlan-API. Diese API gibt die Originalbytes an den KoSIT-Worker weiter. Der Worker braucht keine Supabase-Zugangsdaten. PetraPlan prüft XML- und Berichtprüfsummen vor dem Datenbankschreibvorgang. Bei PDF bindet PetraPlan zusätzlich die Prüfsumme des hochgeladenen Originals.
+
+### Worker starten
+
+```sh
+export PETRAPLAN_INVOICE_WORKER_TOKEN="$(openssl rand -hex 32)"
+export PETRAPLAN_KOSIT_JAR=/pfad/validator-1.6.3-standalone.jar
+export PETRAPLAN_KOSIT_SCENARIOS=/pfad/xrechnung/scenarios.xml
+node scripts/invoice-worker/server.mjs
+```
+
+Für eine Container-Umgebung enthält `scripts/invoice-worker/Dockerfile` Node, Python, Java, PyMuPDF und Tesseract. Das lokale KoSIT-Verzeichnis muss `validator.jar` und `config/scenarios.xml` sowie die Regelressourcen enthalten.
+
+```sh
+docker build -f scripts/invoice-worker/Dockerfile -t petraplan-invoice-worker .
+docker run --rm -p 127.0.0.1:8080:8080 -e PETRAPLAN_INVOICE_WORKER_TOKEN \
+  --mount type=bind,src=/pfad/kosit,dst=/opt/kosit,readonly petraplan-invoice-worker
+curl --fail http://127.0.0.1:8080/health
+```
+
+Die PetraPlan-API erhält `PETRAPLAN_INVOICE_WORKER_URL` als Dienst-Origin und denselben `PETRAPLAN_INVOICE_WORKER_TOKEN` ausschließlich als serverseitige Variablen. Über HTTP ist nur der lokale Rechner zulässig. Für die bereitgestellte Testumgebung wird HTTPS benötigt. PDF-Tests erfordern weiterhin `PETRAPLAN_PDF_TEST_UPLOADS=1` in API und Worker. Der Worker bearbeitet pro Instanz eine KoSIT-Prüfung zur selben Zeit. Bei laufender Prüfung gibt er HTTP 503 zurück. Die Testumgebung muss genug Zeit für KoSIT und gegebenenfalls OCR zulassen.
+
+Der Vercel-Pfad unterstützt in diesem Upload-Format Dateien bis 3 MiB, da die JSON-Anfrage inklusive Base64 den [Grenzwert der Funktion](https://vercel.com/docs/functions/limitations#request-body-size) einhalten muss. Lokal bleiben bis zu 8 MiB möglich. Für die gehostete Abnahme zuerst eine kleine XML-Testrechnung mit echtem Login hochladen, ihren KoSIT-Bericht in der Fallansicht prüfen und das Review und die separate Freigabe ausführen. Danach die Revision einspielen und den Widerruf in der Historie nachprüfen.

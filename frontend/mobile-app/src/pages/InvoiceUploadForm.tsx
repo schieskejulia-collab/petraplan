@@ -30,8 +30,10 @@ export default function InvoiceUploadForm({ revision, onSaved }: {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ recordId, expectedSnapshotId: revision?.snapshotId ?? null, contentBase64 }),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? "Import fehlgeschlagen.");
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.record_id) {
+        throw new Error(result?.error ?? (response.status === 413 ? "Datei überschreitet das Upload-Limit der App." : "Import fehlgeschlagen."));
+      }
       setFile(null);
       onSaved(result.record_id);
     } catch (failure) {

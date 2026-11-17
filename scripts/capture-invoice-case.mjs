@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import pg from 'pg';
 
 const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -94,6 +93,7 @@ async function main() {
     throw new Error('The invoice CLI requires a local test database');
   }
   const artifact = await inspectInvoiceFile(file, { jar: PETRAPLAN_KOSIT_JAR, scenarios: PETRAPLAN_KOSIT_SCENARIOS });
+  const { default: pg } = await import('pg');
   const client = new pg.Client({ connectionString: database.href });
   await client.connect();
   try {
