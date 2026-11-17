@@ -1,0 +1,2198 @@
+{
+  "observedAt": "2026-10-26",
+  "project": "yxhllviostywckxoehgf",
+  "method": "Read-only pg_catalog definitions; no live DDL or data writes.",
+  "columns": [
+    {
+      "name": "user_id",
+      "type": "uuid",
+      "table": "bridge_actor_roles",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "role_name",
+      "type": "text",
+      "table": "bridge_actor_roles",
+      "default": "'reviewer'::text",
+      "required": true
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "table": "bridge_actor_roles",
+      "default": "true",
+      "required": true
+    },
+    {
+      "name": "can_review",
+      "type": "boolean",
+      "table": "bridge_actor_roles",
+      "default": "false",
+      "required": true
+    },
+    {
+      "name": "can_release",
+      "type": "boolean",
+      "table": "bridge_actor_roles",
+      "default": "false",
+      "required": true
+    },
+    {
+      "name": "can_revoke",
+      "type": "boolean",
+      "table": "bridge_actor_roles",
+      "default": "false",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "bridge_actor_roles",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "updated_at",
+      "type": "timestamp with time zone",
+      "table": "bridge_actor_roles",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "bridge_decision_audit",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "bridge_decision_audit",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "record_id",
+      "type": "uuid",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "actor_user_id",
+      "type": "uuid",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "action",
+      "type": "text",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "validation_result_id",
+      "type": "uuid",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "review_record_id",
+      "type": "uuid",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "review_decision_id",
+      "type": "uuid",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "release_certificate_id",
+      "type": "uuid",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "previous_release_status",
+      "type": "text",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "new_release_status",
+      "type": "text",
+      "table": "bridge_decision_audit",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "details",
+      "type": "jsonb",
+      "table": "bridge_decision_audit",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "claim_evidence_links",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "claim_id",
+      "type": "uuid",
+      "table": "claim_evidence_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "evidence_type",
+      "type": "text",
+      "table": "claim_evidence_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "evidence_reference",
+      "type": "text",
+      "table": "claim_evidence_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "relation",
+      "type": "text",
+      "table": "claim_evidence_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "directness",
+      "type": "text",
+      "table": "claim_evidence_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "scope",
+      "type": "jsonb",
+      "table": "claim_evidence_links",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "linked_by",
+      "type": "text",
+      "table": "claim_evidence_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "linked_at",
+      "type": "timestamp with time zone",
+      "table": "claim_evidence_links",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "note",
+      "type": "text",
+      "table": "claim_evidence_links",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "claims",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "claim_family_id",
+      "type": "uuid",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "claim_version",
+      "type": "integer",
+      "table": "claims",
+      "default": "1",
+      "required": true
+    },
+    {
+      "name": "claim_type",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "subject_address",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "predicate",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "object_value",
+      "type": "jsonb",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "statement",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "scope_type",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "scope_payload",
+      "type": "jsonb",
+      "table": "claims",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "source_system",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "snapshot_id",
+      "type": "uuid",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "record_id",
+      "type": "uuid",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "field_address",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "created_by",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "claims",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "producer_role",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "confirmed_by",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "confirmed_at",
+      "type": "timestamp with time zone",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "confirmer_role",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "confirmation_reason",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "valid_from",
+      "type": "timestamp with time zone",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "valid_to",
+      "type": "timestamp with time zone",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "supersedes_claim_id",
+      "type": "uuid",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "supersede_reason",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "rule_id",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "rule_version",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "candidate_id",
+      "type": "uuid",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "claim_payload_hash",
+      "type": "text",
+      "table": "claims",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "conflicts",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "conflicts",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "record_id",
+      "type": "uuid",
+      "table": "conflicts",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "operation_id",
+      "type": "uuid",
+      "table": "conflicts",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "conflicts",
+      "default": "'warning'::text",
+      "required": true
+    },
+    {
+      "name": "conflict",
+      "type": "boolean",
+      "table": "conflicts",
+      "default": "true",
+      "required": true
+    },
+    {
+      "name": "conflict_type",
+      "type": "text",
+      "table": "conflicts",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "conflicts",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "affected_fields",
+      "type": "text[]",
+      "table": "conflicts",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "possible_match",
+      "type": "boolean",
+      "table": "conflicts",
+      "default": "false",
+      "required": true
+    },
+    {
+      "name": "automatic_merge",
+      "type": "boolean",
+      "table": "conflicts",
+      "default": "false",
+      "required": true
+    },
+    {
+      "name": "resolution_status",
+      "type": "text",
+      "table": "conflicts",
+      "default": "'unresolved'::text",
+      "required": true
+    },
+    {
+      "name": "resolved_by",
+      "type": "uuid",
+      "table": "conflicts",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "resolved_at",
+      "type": "timestamp with time zone",
+      "table": "conflicts",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "resolution_note",
+      "type": "text",
+      "table": "conflicts",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "ingestion_logs",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "source_system",
+      "type": "text",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "raw_payload",
+      "type": "jsonb",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "extracted_schema",
+      "type": "jsonb",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "ingestion_logs",
+      "default": "'pending'::text",
+      "required": true
+    },
+    {
+      "name": "error_message",
+      "type": "text",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "ingestion_logs",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "source_reference",
+      "type": "text",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "source_hash",
+      "type": "text",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "ingested_at",
+      "type": "timestamp with time zone",
+      "table": "ingestion_logs",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "correlation_id",
+      "type": "uuid",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "causation_id",
+      "type": "uuid",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "trace_id",
+      "type": "uuid",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "span_id",
+      "type": "uuid",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "parent_span_id",
+      "type": "uuid",
+      "table": "ingestion_logs",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "records",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "records",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "ingestion_log_id",
+      "type": "uuid",
+      "table": "records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "source_system",
+      "type": "text",
+      "table": "records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "source_reference",
+      "type": "text",
+      "table": "records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "title",
+      "type": "text",
+      "table": "records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "description",
+      "type": "text",
+      "table": "records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "category",
+      "type": "text",
+      "table": "records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "type",
+      "type": "text",
+      "table": "records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "metadata",
+      "type": "jsonb",
+      "table": "records",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "meaning",
+      "type": "text",
+      "table": "records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "records",
+      "default": "'valid'::text",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "release_certificates",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "record_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "conflict_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "resolution_record_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "validation_result_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "review_record_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "review_decision_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "release_status",
+      "type": "text",
+      "table": "release_certificates",
+      "default": "'trusted'::text",
+      "required": true
+    },
+    {
+      "name": "certified_by_type",
+      "type": "text",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "certified_by",
+      "type": "text",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "certified_at",
+      "type": "timestamp with time zone",
+      "table": "release_certificates",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "truth_snapshot",
+      "type": "jsonb",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "certificate_hash",
+      "type": "text",
+      "table": "release_certificates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "correlation_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "causation_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "trace_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "span_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "parent_span_id",
+      "type": "uuid",
+      "table": "release_certificates",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "release_logs",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "release_logs",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "release_certificate_id",
+      "type": "uuid",
+      "table": "release_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "event_type",
+      "type": "text",
+      "table": "release_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "message",
+      "type": "text",
+      "table": "release_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "details",
+      "type": "jsonb",
+      "table": "release_logs",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "release_status_history",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "release_status_history",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "release_certificate_id",
+      "type": "uuid",
+      "table": "release_status_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "previous_status",
+      "type": "text",
+      "table": "release_status_history",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "new_status",
+      "type": "text",
+      "table": "release_status_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "changed_by",
+      "type": "text",
+      "table": "release_status_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "release_status_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "resolution_records",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "resolution_records",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "conflict_id",
+      "type": "uuid",
+      "table": "resolution_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "resolution_action_id",
+      "type": "uuid",
+      "table": "resolution_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "decision",
+      "type": "text",
+      "table": "resolution_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "selected_source_id",
+      "type": "uuid",
+      "table": "resolution_records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "resolution_reason",
+      "type": "text",
+      "table": "resolution_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "resolved_by_type",
+      "type": "text",
+      "table": "resolution_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "resolved_by",
+      "type": "text",
+      "table": "resolution_records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "previous_status",
+      "type": "text",
+      "table": "resolution_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "new_status",
+      "type": "text",
+      "table": "resolution_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "verified_at",
+      "type": "timestamp with time zone",
+      "table": "resolution_records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_criteria",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_criteria",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "structure_id",
+      "type": "uuid",
+      "table": "review_criteria",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "criterion_key",
+      "type": "text",
+      "table": "review_criteria",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "description",
+      "type": "text",
+      "table": "review_criteria",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "required",
+      "type": "boolean",
+      "table": "review_criteria",
+      "default": "true",
+      "required": true
+    },
+    {
+      "name": "expected_type",
+      "type": "text",
+      "table": "review_criteria",
+      "default": "'boolean'::text",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_criterion_results",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_criterion_results",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "review_session_id",
+      "type": "uuid",
+      "table": "review_criterion_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "criterion_id",
+      "type": "uuid",
+      "table": "review_criterion_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "result",
+      "type": "jsonb",
+      "table": "review_criterion_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "passed",
+      "type": "boolean",
+      "table": "review_criterion_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "evidence",
+      "type": "jsonb",
+      "table": "review_criterion_results",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "checked_by",
+      "type": "text",
+      "table": "review_criterion_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_decisions",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_decisions",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "review_session_id",
+      "type": "uuid",
+      "table": "review_decisions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "decision",
+      "type": "text",
+      "table": "review_decisions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "review_decisions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "decided_by",
+      "type": "text",
+      "table": "review_decisions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reviewer_type",
+      "type": "text",
+      "table": "review_decisions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "final",
+      "type": "boolean",
+      "table": "review_decisions",
+      "default": "true",
+      "required": true
+    },
+    {
+      "name": "reviewer_id",
+      "type": "uuid",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "reviewer_authorized",
+      "type": "boolean",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "authorization_level",
+      "type": "text",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "evidence_checked",
+      "type": "boolean",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "evidence_refs",
+      "type": "text[]",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "criteria_checked",
+      "type": "boolean",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "decided_at",
+      "type": "timestamp with time zone",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "runtime_log_id",
+      "type": "uuid",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "validation_result_id",
+      "type": "uuid",
+      "table": "review_decisions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_logs",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_logs",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "review_session_id",
+      "type": "uuid",
+      "table": "review_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "event_type",
+      "type": "text",
+      "table": "review_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "message",
+      "type": "text",
+      "table": "review_logs",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "details",
+      "type": "jsonb",
+      "table": "review_logs",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_records",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_records",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "resolution_record_id",
+      "type": "uuid",
+      "table": "review_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "validation_result_id",
+      "type": "uuid",
+      "table": "review_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reviewer_id",
+      "type": "text",
+      "table": "review_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reviewer_type",
+      "type": "text",
+      "table": "review_records",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "review_status",
+      "type": "text",
+      "table": "review_records",
+      "default": "'pending'::text",
+      "required": true
+    },
+    {
+      "name": "review_reason",
+      "type": "text",
+      "table": "review_records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "reviewed_at",
+      "type": "timestamp with time zone",
+      "table": "review_records",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_rules",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_rules",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "name",
+      "type": "text",
+      "table": "review_rules",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "description",
+      "type": "text",
+      "table": "review_rules",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "active",
+      "type": "boolean",
+      "table": "review_rules",
+      "default": "true",
+      "required": true
+    },
+    {
+      "name": "rule_scope",
+      "type": "text",
+      "table": "review_rules",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "conditions",
+      "type": "jsonb",
+      "table": "review_rules",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "required_reviewer_type",
+      "type": "text",
+      "table": "review_rules",
+      "default": "'human'::text",
+      "required": true
+    },
+    {
+      "name": "required",
+      "type": "boolean",
+      "table": "review_rules",
+      "default": "true",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_sessions",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "review_record_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "rule_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "structure_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "review_sessions",
+      "default": "'pending'::text",
+      "required": true
+    },
+    {
+      "name": "started_at",
+      "type": "timestamp with time zone",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "completed_at",
+      "type": "timestamp with time zone",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "reviewer_authorized",
+      "type": "boolean",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "authorization_level",
+      "type": "text",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "evidence_checked",
+      "type": "boolean",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "evidence_refs",
+      "type": "text[]",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "criteria_checked",
+      "type": "boolean",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "runtime_log_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "validation_result_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "correlation_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "causation_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "trace_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "span_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "parent_span_id",
+      "type": "uuid",
+      "table": "review_sessions",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_status_history",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_status_history",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "review_session_id",
+      "type": "uuid",
+      "table": "review_status_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "previous_status",
+      "type": "text",
+      "table": "review_status_history",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "new_status",
+      "type": "text",
+      "table": "review_status_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "changed_by",
+      "type": "text",
+      "table": "review_status_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "review_status_history",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "review_structures",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "review_structures",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "rule_id",
+      "type": "uuid",
+      "table": "review_structures",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "name",
+      "type": "text",
+      "table": "review_structures",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "required_fields",
+      "type": "text[]",
+      "table": "review_structures",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "structure_schema",
+      "type": "jsonb",
+      "table": "review_structures",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "validation_results",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "conflict_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "resolution_record_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "operation_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "validation_type",
+      "type": "text",
+      "table": "validation_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "status",
+      "type": "text",
+      "table": "validation_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "validation_results",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "evidence",
+      "type": "jsonb",
+      "table": "validation_results",
+      "default": "'{}'::jsonb",
+      "required": true
+    },
+    {
+      "name": "correlation_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "causation_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "trace_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "span_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "parent_span_id",
+      "type": "uuid",
+      "table": "validation_results",
+      "default": null,
+      "required": false
+    }
+  ],
+  "triggers": [
+    {
+      "name": "bridge_guard_review_claim_freshness",
+      "table": "review_decisions",
+      "function": "bridge_guard_review_claim_freshness",
+      "definition": "CREATE TRIGGER bridge_guard_review_claim_freshness BEFORE INSERT OR UPDATE OF decision, review_session_id, validation_result_id, evidence_refs ON public.review_decisions FOR EACH ROW EXECUTE FUNCTION bridge_guard_review_claim_freshness()"
+    },
+    {
+      "name": "bridge_guard_unresolved_semantic_review",
+      "table": "review_decisions",
+      "function": "bridge_guard_unresolved_semantic_review",
+      "definition": "CREATE TRIGGER bridge_guard_unresolved_semantic_review BEFORE INSERT OR UPDATE OF decision, review_session_id ON public.review_decisions FOR EACH ROW EXECUTE FUNCTION bridge_guard_unresolved_semantic_review()"
+    },
+    {
+      "name": "bridge_lock_review_decision_basis",
+      "table": "review_decisions",
+      "function": "bridge_lock_decision_basis",
+      "definition": "CREATE TRIGGER bridge_lock_review_decision_basis BEFORE INSERT ON public.review_decisions FOR EACH ROW EXECUTE FUNCTION bridge_lock_decision_basis()"
+    },
+    {
+      "name": "trg_review_decision_integrity",
+      "table": "review_decisions",
+      "function": "enforce_review_decision_integrity",
+      "definition": "CREATE TRIGGER trg_review_decision_integrity BEFORE INSERT ON public.review_decisions FOR EACH ROW EXECUTE FUNCTION enforce_review_decision_integrity()"
+    },
+    {
+      "name": "trg_enforce_review_truth",
+      "table": "review_records",
+      "function": "enforce_review_truth",
+      "definition": "CREATE TRIGGER trg_enforce_review_truth BEFORE INSERT OR UPDATE ON public.review_records FOR EACH ROW EXECUTE FUNCTION enforce_review_truth()"
+    },
+    {
+      "name": "bridge_lock_review_session_basis",
+      "table": "review_sessions",
+      "function": "bridge_lock_decision_basis",
+      "definition": "CREATE TRIGGER bridge_lock_review_session_basis BEFORE INSERT ON public.review_sessions FOR EACH ROW EXECUTE FUNCTION bridge_lock_decision_basis()"
+    },
+    {
+      "name": "bridge_trace_review_session_before_insert",
+      "table": "review_sessions",
+      "function": "bridge_trace_review_session",
+      "definition": "CREATE TRIGGER bridge_trace_review_session_before_insert BEFORE INSERT ON public.review_sessions FOR EACH ROW EXECUTE FUNCTION bridge_trace_review_session()"
+    }
+  ],
+  "functions": [
+    {
+      "name": "enforce_review_truth",
+      "definition": "CREATE OR REPLACE FUNCTION public.enforce_review_truth()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\ndeclare\n  v_validation_status text;\n  v_validation_resolution uuid;\nbegin\n  select status, resolution_record_id\n  into v_validation_status, v_validation_resolution\n  from public.validation_results\n  where id = new.validation_result_id;\n\n  if v_validation_resolution is null then\n    raise exception 'Review Truth violation: validation result does not exist';\n  end if;\n\n  if v_validation_resolution <> new.resolution_record_id then\n    raise exception 'Review Truth violation: validation result belongs to another resolution';\n  end if;\n\n  if new.review_status = 'approved' and v_validation_status <> 'passed' then\n    raise exception 'Review Truth violation: approval requires passed validation';\n  end if;\n\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "name": "enforce_review_decision_integrity",
+      "definition": "CREATE OR REPLACE FUNCTION public.enforce_review_decision_integrity()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_session public.review_sessions%rowtype;\n  v_required int;\n  v_checked int;\n  v_failed int;\n  v_expected_reviewer text;\nbegin\n  select * into v_session from public.review_sessions where id = new.review_session_id;\n  if not found then raise exception 'Review session not found'; end if;\n\n  select count(*) into v_required\n  from public.review_criteria c\n  where c.structure_id = v_session.structure_id and c.required = true;\n\n  select count(*) into v_checked\n  from public.review_criterion_results r\n  join public.review_criteria c on c.id = r.criterion_id\n  where r.review_session_id = new.review_session_id and c.required = true;\n\n  select count(*) into v_failed\n  from public.review_criterion_results r\n  join public.review_criteria c on c.id = r.criterion_id\n  where r.review_session_id = new.review_session_id and c.required = true and r.passed = false;\n\n  select required_reviewer_type into v_expected_reviewer from public.review_rules where id = v_session.rule_id;\n\n  if new.reviewer_type <> v_expected_reviewer then\n    raise exception 'Reviewer type % does not satisfy required reviewer type %', new.reviewer_type, v_expected_reviewer;\n  end if;\n\n  if v_checked < v_required then\n    raise exception 'Cannot decide review: required criteria incomplete (% of % checked)', v_checked, v_required;\n  end if;\n\n  if new.decision = 'approved' and v_failed > 0 then\n    raise exception 'Cannot approve review: one or more required criteria failed';\n  end if;\n\n  update public.review_sessions\n  set status = new.decision,\n      completed_at = case when new.final then now() else completed_at end\n  where id = new.review_session_id;\n\n  return new;\nend $function$\n"
+    },
+    {
+      "name": "bridge_lock_decision_basis",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_lock_decision_basis()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_record uuid;\nbegin\n  case tg_table_name\n    when 'conversion_candidates' then\n      v_record := new.record_id;\n    when 'validation_results' then\n      select record_id into v_record from public.conflicts where id = new.conflict_id;\n    when 'review_sessions' then\n      select c.record_id into v_record from public.review_records r\n        join public.resolution_records rr on rr.id = r.resolution_record_id\n        join public.conflicts c on c.id = rr.conflict_id where r.id = new.review_record_id;\n    when 'review_decisions' then\n      select c.record_id into v_record from public.review_sessions s\n        join public.review_records r on r.id = s.review_record_id\n        join public.resolution_records rr on rr.id = r.resolution_record_id\n        join public.conflicts c on c.id = rr.conflict_id where s.id = new.review_session_id;\n  end case;\n  if v_record is null then raise sqlstate 'PT409' using message = 'Decision basis has no case reference'; end if;\n  perform 1 from public.records where id = v_record for update;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "name": "bridge_trace_review_session",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_trace_review_session()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_validation public.validation_results%rowtype;\nbegin\n  if new.validation_result_id is not null then\n    select * into v_validation from public.validation_results where id = new.validation_result_id;\n  end if;\n\n  new.correlation_id := coalesce(new.correlation_id, v_validation.correlation_id, gen_random_uuid());\n  new.trace_id := coalesce(new.trace_id, v_validation.trace_id, gen_random_uuid());\n  new.span_id := coalesce(new.span_id, gen_random_uuid());\n\n  if v_validation.id is not null then\n    new.parent_span_id := coalesce(new.parent_span_id, v_validation.span_id);\n    new.causation_id := coalesce(new.causation_id, v_validation.span_id);\n  end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "name": "bridge_claims_basis",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_claims_basis(p_record_id uuid)\n RETURNS text\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select encode(sha256(convert_to(\n    coalesce(jsonb_agg(\n      jsonb_build_object(\n        'claim', to_jsonb(c),\n        'evidence', coalesce(\n          (select jsonb_agg(to_jsonb(e) order by e.id)\n           from public.claim_evidence_links e where e.claim_id = c.id),\n          '[]'::jsonb\n        )\n      ) order by c.id\n    ), '[]'::jsonb)::text, 'UTF8')), 'hex')\n  from public.claims c\n  where c.record_id = p_record_id and c.status <> 'SUPERSEDED';\n$function$\n"
+    },
+    {
+      "name": "bridge_claims_after_validation",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_claims_after_validation(p_record_id uuid, p_validation_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select case\n    when not exists (\n      select 1 from public.validation_results v\n      join public.conflicts c on c.id = v.conflict_id\n      where c.record_id = p_record_id and v.id = p_validation_id\n    ) then true\n    else exists (\n      select 1 from public.claims claim\n      join public.validation_results v on v.id = p_validation_id\n      join public.conflicts c on c.id = v.conflict_id\n      where c.record_id = p_record_id\n        and claim.record_id = p_record_id\n        and claim.status in ('UNPROVEN', 'SUPPORTED', 'CONFIRMED', 'CONTESTED')\n        and claim.created_at > v.created_at\n    )\n  end;\n$function$\n"
+    },
+    {
+      "name": "bridge_guard_review_claim_freshness",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_guard_review_claim_freshness()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_record uuid; v_claims_basis text;\nbegin\n  if lower(coalesce(new.decision, '')) <> 'approved' then return new; end if;\n  select c.record_id into v_record\n  from public.review_sessions s\n  join public.review_records r on r.id = s.review_record_id\n  join public.resolution_records rr on rr.id = r.resolution_record_id\n  join public.conflicts c on c.id = rr.conflict_id\n  where s.id = new.review_session_id;\n  if v_record is null or new.validation_result_id is null then\n    raise sqlstate 'PT409' using message = 'Review lacks a case or validation basis';\n  end if;\n  perform 1 from public.records where id = v_record for update;\n  if public.bridge_claims_after_validation(v_record, new.validation_result_id) then\n    raise sqlstate 'PT409' using message = 'An active claim was created after this validation; create a new validation and review';\n  end if;\n  v_claims_basis := public.bridge_claims_basis(v_record);\n  if not coalesce(new.evidence_refs @> array['claims:' || v_claims_basis], false) then\n    raise sqlstate 'PT409' using message = 'Claims changed before review approval; reload the case';\n  end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "name": "bridge_has_unresolved_semantic_claim",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_has_unresolved_semantic_claim(p_record_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE\n SET search_path TO ''\nAS $function$\n  select exists (\n    select 1 from public.claims c\n    where c.record_id = p_record_id\n      and c.claim_type = 'SEMANTIC_MAPPING'\n      and c.status in ('DRAFT', 'UNPROVEN', 'SUPPORTED', 'CONTESTED')\n  );\n$function$\n"
+    },
+    {
+      "name": "bridge_guard_unresolved_semantic_review",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_guard_unresolved_semantic_review()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_record uuid;\nbegin\n  if lower(coalesce(new.decision, '')) <> 'approved' then return new; end if;\n  select c.record_id into v_record\n  from public.review_sessions s\n  join public.review_records r on r.id = s.review_record_id\n  join public.resolution_records rr on rr.id = r.resolution_record_id\n  join public.conflicts c on c.id = rr.conflict_id\n  where s.id = new.review_session_id;\n  if v_record is null then\n    raise sqlstate 'PT409' using message = 'Review lacks a case';\n  end if;\n  perform 1 from public.records where id = v_record for update;\n  if public.bridge_has_unresolved_semantic_claim(v_record) then\n    raise sqlstate 'PT409' using message = 'An unresolved semantic mapping claim blocks review and release';\n  end if;\n  return new;\nend;\n$function$\n"
+    }
+  ],
+  "constraints": [
+    {
+      "name": "bridge_decision_audit_action_check",
+      "table": "bridge_decision_audit",
+      "definition": "CHECK ((action = ANY (ARRAY['approve_review'::text, 'reject_review'::text, 'release'::text, 'revoke'::text])))"
+    },
+    {
+      "name": "bridge_decision_audit_actor_or_automatic_claim_change",
+      "table": "bridge_decision_audit",
+      "definition": "CHECK (((actor_user_id IS NOT NULL) OR ((action = 'revoke'::text) AND (COALESCE((details ->> 'automatic'::text), ''::text) = 'true'::text) AND (COALESCE((details ->> 'source'::text), ''::text) = 'claim_freshness_invalidation'::text))))"
+    },
+    {
+      "name": "bridge_decision_audit_actor_user_id_fkey",
+      "table": "bridge_decision_audit",
+      "definition": "FOREIGN KEY (actor_user_id) REFERENCES auth.users(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "bridge_decision_audit_pkey",
+      "table": "bridge_decision_audit",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "bridge_decision_audit_record_id_fkey",
+      "table": "bridge_decision_audit",
+      "definition": "FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "bridge_decision_audit_release_certificate_id_fkey",
+      "table": "bridge_decision_audit",
+      "definition": "FOREIGN KEY (release_certificate_id) REFERENCES release_certificates(id) ON DELETE SET NULL"
+    },
+    {
+      "name": "bridge_decision_audit_review_decision_id_fkey",
+      "table": "bridge_decision_audit",
+      "definition": "FOREIGN KEY (review_decision_id) REFERENCES review_decisions(id) ON DELETE SET NULL"
+    },
+    {
+      "name": "bridge_decision_audit_review_record_id_fkey",
+      "table": "bridge_decision_audit",
+      "definition": "FOREIGN KEY (review_record_id) REFERENCES review_records(id) ON DELETE SET NULL"
+    },
+    {
+      "name": "bridge_decision_audit_validation_result_id_fkey",
+      "table": "bridge_decision_audit",
+      "definition": "FOREIGN KEY (validation_result_id) REFERENCES validation_results(id) ON DELETE SET NULL"
+    },
+    {
+      "name": "release_logs_details_check",
+      "table": "release_logs",
+      "definition": "CHECK ((jsonb_typeof(details) = 'object'::text))"
+    },
+    {
+      "name": "release_logs_event_type_check",
+      "table": "release_logs",
+      "definition": "CHECK ((event_type = ANY (ARRAY['gate_checked'::text, 'certificate_issued'::text, 'revoked'::text, 'superseded'::text, 'error'::text])))"
+    },
+    {
+      "name": "release_logs_message_check",
+      "table": "release_logs",
+      "definition": "CHECK ((length(TRIM(BOTH FROM message)) > 0))"
+    },
+    {
+      "name": "release_logs_pkey",
+      "table": "release_logs",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "release_logs_release_certificate_id_fkey",
+      "table": "release_logs",
+      "definition": "FOREIGN KEY (release_certificate_id) REFERENCES release_certificates(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "release_status_history_changed_by_check",
+      "table": "release_status_history",
+      "definition": "CHECK ((length(TRIM(BOTH FROM changed_by)) > 0))"
+    },
+    {
+      "name": "release_status_history_new_status_check",
+      "table": "release_status_history",
+      "definition": "CHECK ((new_status = ANY (ARRAY['trusted'::text, 'revoked'::text, 'superseded'::text])))"
+    },
+    {
+      "name": "release_status_history_pkey",
+      "table": "release_status_history",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "release_status_history_reason_check",
+      "table": "release_status_history",
+      "definition": "CHECK ((length(TRIM(BOTH FROM reason)) > 0))"
+    },
+    {
+      "name": "release_status_history_release_certificate_id_fkey",
+      "table": "release_status_history",
+      "definition": "FOREIGN KEY (release_certificate_id) REFERENCES release_certificates(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "review_criteria_criterion_key_check",
+      "table": "review_criteria",
+      "definition": "CHECK ((length(TRIM(BOTH FROM criterion_key)) > 0))"
+    },
+    {
+      "name": "review_criteria_description_check",
+      "table": "review_criteria",
+      "definition": "CHECK ((length(TRIM(BOTH FROM description)) > 0))"
+    },
+    {
+      "name": "review_criteria_expected_type_check",
+      "table": "review_criteria",
+      "definition": "CHECK ((expected_type = ANY (ARRAY['boolean'::text, 'text'::text, 'number'::text, 'json'::text])))"
+    },
+    {
+      "name": "review_criteria_pkey",
+      "table": "review_criteria",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_criteria_structure_id_criterion_key_key",
+      "table": "review_criteria",
+      "definition": "UNIQUE (structure_id, criterion_key)"
+    },
+    {
+      "name": "review_criteria_structure_id_fkey",
+      "table": "review_criteria",
+      "definition": "FOREIGN KEY (structure_id) REFERENCES review_structures(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_criterion_results_checked_by_check",
+      "table": "review_criterion_results",
+      "definition": "CHECK ((length(TRIM(BOTH FROM checked_by)) > 0))"
+    },
+    {
+      "name": "review_criterion_results_criterion_id_fkey",
+      "table": "review_criterion_results",
+      "definition": "FOREIGN KEY (criterion_id) REFERENCES review_criteria(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "review_criterion_results_evidence_check",
+      "table": "review_criterion_results",
+      "definition": "CHECK ((jsonb_typeof(evidence) = 'object'::text))"
+    },
+    {
+      "name": "review_criterion_results_pkey",
+      "table": "review_criterion_results",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_criterion_results_review_session_id_criterion_id_key",
+      "table": "review_criterion_results",
+      "definition": "UNIQUE (review_session_id, criterion_id)"
+    },
+    {
+      "name": "review_criterion_results_review_session_id_fkey",
+      "table": "review_criterion_results",
+      "definition": "FOREIGN KEY (review_session_id) REFERENCES review_sessions(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_decisions_decided_by_check",
+      "table": "review_decisions",
+      "definition": "CHECK ((length(TRIM(BOTH FROM decided_by)) > 0))"
+    },
+    {
+      "name": "review_decisions_decision_check",
+      "table": "review_decisions",
+      "definition": "CHECK ((decision = ANY (ARRAY['approved'::text, 'rejected'::text, 'needs_changes'::text])))"
+    },
+    {
+      "name": "review_decisions_pkey",
+      "table": "review_decisions",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_decisions_reason_check",
+      "table": "review_decisions",
+      "definition": "CHECK ((length(TRIM(BOTH FROM reason)) > 0))"
+    },
+    {
+      "name": "review_decisions_review_session_id_fkey",
+      "table": "review_decisions",
+      "definition": "FOREIGN KEY (review_session_id) REFERENCES review_sessions(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_decisions_reviewer_type_check",
+      "table": "review_decisions",
+      "definition": "CHECK ((reviewer_type = ANY (ARRAY['human'::text, 'system'::text, 'rule_engine'::text])))"
+    },
+    {
+      "name": "review_logs_details_check",
+      "table": "review_logs",
+      "definition": "CHECK ((jsonb_typeof(details) = 'object'::text))"
+    },
+    {
+      "name": "review_logs_event_type_check",
+      "table": "review_logs",
+      "definition": "CHECK ((event_type = ANY (ARRAY['rule_matched'::text, 'review_started'::text, 'criterion_checked'::text, 'decision_attempted'::text, 'decision_committed'::text, 'status_changed'::text, 'error'::text])))"
+    },
+    {
+      "name": "review_logs_message_check",
+      "table": "review_logs",
+      "definition": "CHECK ((length(TRIM(BOTH FROM message)) > 0))"
+    },
+    {
+      "name": "review_logs_pkey",
+      "table": "review_logs",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_logs_review_session_id_fkey",
+      "table": "review_logs",
+      "definition": "FOREIGN KEY (review_session_id) REFERENCES review_sessions(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_completed_requires_timestamp",
+      "table": "review_records",
+      "definition": "CHECK ((((review_status = 'pending'::text) AND (reviewed_at IS NULL)) OR ((review_status <> 'pending'::text) AND (reviewed_at IS NOT NULL))))"
+    },
+    {
+      "name": "review_records_pkey",
+      "table": "review_records",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_records_resolution_record_id_fkey",
+      "table": "review_records",
+      "definition": "FOREIGN KEY (resolution_record_id) REFERENCES resolution_records(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_records_review_status_check",
+      "table": "review_records",
+      "definition": "CHECK ((review_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text, 'needs_changes'::text])))"
+    },
+    {
+      "name": "review_records_reviewer_id_check",
+      "table": "review_records",
+      "definition": "CHECK ((length(TRIM(BOTH FROM reviewer_id)) > 0))"
+    },
+    {
+      "name": "review_records_reviewer_type_check",
+      "table": "review_records",
+      "definition": "CHECK ((reviewer_type = ANY (ARRAY['human'::text, 'system'::text, 'rule_engine'::text])))"
+    },
+    {
+      "name": "review_records_validation_result_id_fkey",
+      "table": "review_records",
+      "definition": "FOREIGN KEY (validation_result_id) REFERENCES validation_results(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "review_rules_conditions_check",
+      "table": "review_rules",
+      "definition": "CHECK ((jsonb_typeof(conditions) = 'object'::text))"
+    },
+    {
+      "name": "review_rules_description_check",
+      "table": "review_rules",
+      "definition": "CHECK ((length(TRIM(BOTH FROM description)) > 0))"
+    },
+    {
+      "name": "review_rules_name_check",
+      "table": "review_rules",
+      "definition": "CHECK ((length(TRIM(BOTH FROM name)) > 0))"
+    },
+    {
+      "name": "review_rules_pkey",
+      "table": "review_rules",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_rules_required_reviewer_type_check",
+      "table": "review_rules",
+      "definition": "CHECK ((required_reviewer_type = ANY (ARRAY['human'::text, 'system'::text, 'rule_engine'::text])))"
+    },
+    {
+      "name": "review_rules_rule_scope_check",
+      "table": "review_rules",
+      "definition": "CHECK ((rule_scope = ANY (ARRAY['identity'::text, 'semantic'::text, 'source_consistency'::text, 'relationship'::text, 'business_rule'::text, 'all'::text])))"
+    },
+    {
+      "name": "review_sessions_pkey",
+      "table": "review_sessions",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_sessions_review_record_id_fkey",
+      "table": "review_sessions",
+      "definition": "FOREIGN KEY (review_record_id) REFERENCES review_records(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_sessions_review_record_id_key",
+      "table": "review_sessions",
+      "definition": "UNIQUE (review_record_id)"
+    },
+    {
+      "name": "review_sessions_rule_id_fkey",
+      "table": "review_sessions",
+      "definition": "FOREIGN KEY (rule_id) REFERENCES review_rules(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "review_sessions_status_check",
+      "table": "review_sessions",
+      "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'in_review'::text, 'approved'::text, 'rejected'::text, 'needs_changes'::text])))"
+    },
+    {
+      "name": "review_sessions_structure_id_fkey",
+      "table": "review_sessions",
+      "definition": "FOREIGN KEY (structure_id) REFERENCES review_structures(id) ON DELETE RESTRICT"
+    },
+    {
+      "name": "review_status_history_changed_by_check",
+      "table": "review_status_history",
+      "definition": "CHECK ((length(TRIM(BOTH FROM changed_by)) > 0))"
+    },
+    {
+      "name": "review_status_history_new_status_check",
+      "table": "review_status_history",
+      "definition": "CHECK ((new_status = ANY (ARRAY['pending'::text, 'in_review'::text, 'approved'::text, 'rejected'::text, 'needs_changes'::text])))"
+    },
+    {
+      "name": "review_status_history_pkey",
+      "table": "review_status_history",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_status_history_review_session_id_fkey",
+      "table": "review_status_history",
+      "definition": "FOREIGN KEY (review_session_id) REFERENCES review_sessions(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_structures_name_check",
+      "table": "review_structures",
+      "definition": "CHECK ((length(TRIM(BOTH FROM name)) > 0))"
+    },
+    {
+      "name": "review_structures_pkey",
+      "table": "review_structures",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "review_structures_required_fields_check",
+      "table": "review_structures",
+      "definition": "CHECK ((cardinality(required_fields) > 0))"
+    },
+    {
+      "name": "review_structures_rule_id_fkey",
+      "table": "review_structures",
+      "definition": "FOREIGN KEY (rule_id) REFERENCES review_rules(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "review_structures_structure_schema_check",
+      "table": "review_structures",
+      "definition": "CHECK ((jsonb_typeof(structure_schema) = 'object'::text))"
+    }
+  ]
+}

@@ -1,0 +1,507 @@
+{
+  "columns": [
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "address_registry",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "source_id",
+      "type": "text",
+      "table": "address_registry",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "first_snapshot_id",
+      "type": "uuid",
+      "table": "address_registry",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "first_record_id",
+      "type": "uuid",
+      "table": "address_registry",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "address",
+      "type": "text",
+      "table": "address_registry",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "parent_address_id",
+      "type": "uuid",
+      "table": "address_registry",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "kind",
+      "type": "text",
+      "table": "address_registry",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "source_path",
+      "type": "text",
+      "table": "address_registry",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "registered_at",
+      "type": "timestamp with time zone",
+      "table": "address_registry",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "address_registry",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "candidate_state_history",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "candidate_id",
+      "type": "uuid",
+      "table": "candidate_state_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "snapshot_id",
+      "type": "uuid",
+      "table": "candidate_state_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "state",
+      "type": "text",
+      "table": "candidate_state_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "changed_by",
+      "type": "text",
+      "table": "candidate_state_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "changed_at",
+      "type": "timestamp with time zone",
+      "table": "candidate_state_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "table": "candidate_state_history",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "evidence_reference",
+      "type": "text",
+      "table": "candidate_state_history",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "candidate_state_history",
+      "default": "now()",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "conversion_candidates",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "candidate_key",
+      "type": "text",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "record_id",
+      "type": "uuid",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "snapshot_id",
+      "type": "uuid",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "source_address_id",
+      "type": "uuid",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "source_path",
+      "type": "text",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "observed_value",
+      "type": "jsonb",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "proposed_value",
+      "type": "jsonb",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": false
+    },
+    {
+      "name": "conversion_kind",
+      "type": "text",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "evidence",
+      "type": "text",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "state",
+      "type": "text",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "conversion_candidates",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "uuid",
+      "table": "impact_links",
+      "default": "gen_random_uuid()",
+      "required": true
+    },
+    {
+      "name": "candidate_id",
+      "type": "uuid",
+      "table": "impact_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "address_id",
+      "type": "uuid",
+      "table": "impact_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "link_type",
+      "type": "text",
+      "table": "impact_links",
+      "default": null,
+      "required": true
+    },
+    {
+      "name": "created_at",
+      "type": "timestamp with time zone",
+      "table": "impact_links",
+      "default": "now()",
+      "required": true
+    }
+  ],
+  "triggers": [
+    {
+      "name": "bridge_lock_claim_evidence_basis",
+      "table": "claim_evidence_links",
+      "function": "bridge_lock_claim_evidence_basis",
+      "definition": "CREATE TRIGGER bridge_lock_claim_evidence_basis BEFORE INSERT OR DELETE OR UPDATE ON public.claim_evidence_links FOR EACH ROW EXECUTE FUNCTION bridge_lock_claim_evidence_basis()"
+    },
+    {
+      "name": "bridge_revoke_release_on_claim_evidence_change",
+      "table": "claim_evidence_links",
+      "function": "bridge_revoke_release_on_claim_basis_change",
+      "definition": "CREATE TRIGGER bridge_revoke_release_on_claim_evidence_change AFTER INSERT OR DELETE OR UPDATE ON public.claim_evidence_links FOR EACH ROW EXECUTE FUNCTION bridge_revoke_release_on_claim_basis_change()"
+    },
+    {
+      "name": "bridge_lock_claim_basis",
+      "table": "claims",
+      "function": "bridge_lock_claim_basis",
+      "definition": "CREATE TRIGGER bridge_lock_claim_basis BEFORE INSERT OR DELETE OR UPDATE ON public.claims FOR EACH ROW EXECUTE FUNCTION bridge_lock_claim_basis()"
+    },
+    {
+      "name": "bridge_revoke_release_on_claim_basis_change",
+      "table": "claims",
+      "function": "bridge_revoke_release_on_claim_basis_change",
+      "definition": "CREATE TRIGGER bridge_revoke_release_on_claim_basis_change AFTER INSERT OR DELETE OR UPDATE ON public.claims FOR EACH ROW EXECUTE FUNCTION bridge_revoke_release_on_claim_basis_change()"
+    }
+  ],
+  "functions": [
+    {
+      "name": "bridge_lock_claim_basis",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_lock_claim_basis()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_old uuid; v_new uuid; v_record uuid;\nbegin\n  if tg_op <> 'INSERT' then v_old := old.record_id; end if;\n  if tg_op <> 'DELETE' then v_new := new.record_id; end if;\n  for v_record in\n    select distinct x from unnest(array[v_old, v_new]) as x where x is not null order by x\n  loop\n    perform 1 from public.records where id = v_record for update;\n  end loop;\n  if tg_op = 'DELETE' then return old; end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "name": "bridge_lock_claim_evidence_basis",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_lock_claim_evidence_basis()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_old uuid; v_new uuid; v_record uuid;\nbegin\n  if tg_op <> 'INSERT' then\n    select record_id into v_old from public.claims where id = old.claim_id;\n  end if;\n  if tg_op <> 'DELETE' then\n    select record_id into v_new from public.claims where id = new.claim_id;\n  end if;\n  for v_record in\n    select distinct x from unnest(array[v_old, v_new]) as x where x is not null order by x\n  loop\n    perform 1 from public.records where id = v_record for update;\n  end loop;\n  if tg_op = 'DELETE' then return old; end if;\n  return new;\nend;\n$function$\n"
+    },
+    {
+      "name": "bridge_revoke_release_for_claim_change",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_revoke_release_for_claim_change(p_record_id uuid, p_claim_id uuid, p_actor text, p_change text)\n RETURNS void\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare\n  v_cert public.release_certificates%rowtype;\n  v_previous text;\n  v_actor uuid;\n  v_reason text;\nbegin\n  if p_record_id is null then return; end if;\n  select * into v_cert from public.release_certificates\n    where record_id = p_record_id order by certified_at desc, id desc limit 1;\n  if v_cert.id is null then return; end if;\n  if exists (\n    select 1 from public.release_status_history\n    where release_certificate_id = v_cert.id and lower(new_status) in ('revoked', 'superseded')\n  ) then return; end if;\n  select new_status into v_previous from public.release_status_history\n    where release_certificate_id = v_cert.id order by created_at desc, id desc limit 1;\n  v_previous := lower(coalesce(v_previous, v_cert.release_status, ''));\n  if v_previous not in ('trusted', 'exception') then return; end if;\n  -- Claim producers may be system names, while the audit table requires a real\n  -- auth user. A Bridge role is FK-bound to auth.users; use the release actor\n  -- as fallback for an automatic revocation, and keep the producer in details.\n  select user_id into v_actor from public.bridge_actor_roles\n    where user_id::text = lower(p_actor) limit 1;\n  if v_actor is null then\n    select user_id into v_actor from public.bridge_actor_roles\n      where user_id::text = lower(v_cert.certified_by) limit 1;\n  end if;\n  v_reason := 'Claim ' || p_claim_id::text || ' oder dessen Beleg wurde nach der geprüften Freigabe geändert (' ||\n    p_change || '). Neuvalidierung, neues Review und eine neue explizite Freigabe sind erforderlich.';\n  insert into public.release_status_history\n    (release_certificate_id, previous_status, new_status, changed_by, reason)\n    values (v_cert.id, v_previous, 'revoked', 'claim_freshness_invalidation', v_reason);\n  insert into public.release_logs (release_certificate_id, event_type, message, details)\n    values (v_cert.id, 'revoked', 'Release automatically revoked after claim basis changed',\n      jsonb_build_object('automatic', true, 'source', 'claim_freshness_invalidation',\n        'record_id', p_record_id, 'claim_id', p_claim_id, 'change', p_change,\n        'claim_producer', p_actor,\n        'validation_result_id', v_cert.validation_result_id,\n        'previous_release_status', v_previous, 'new_release_status', 'revoked'));\n  insert into public.bridge_decision_audit\n    (record_id, actor_user_id, action, reason, validation_result_id, release_certificate_id,\n     previous_release_status, new_release_status, details)\n    values (p_record_id, v_actor, 'revoke', v_reason, v_cert.validation_result_id, v_cert.id,\n      v_previous, 'revoked', jsonb_build_object(\n        'automatic', true, 'source', 'claim_freshness_invalidation',\n        'claim_id', p_claim_id, 'change', p_change, 'claim_producer', p_actor,\n        'audit_actor_from_release', v_actor is not null and v_actor::text is distinct from p_actor));\nend;\n$function$\n"
+    },
+    {
+      "name": "bridge_revoke_release_on_claim_basis_change",
+      "definition": "CREATE OR REPLACE FUNCTION public.bridge_revoke_release_on_claim_basis_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_old uuid; v_new uuid; v_claim uuid; v_actor text; v_record uuid;\nbegin\n  if tg_table_name = 'claims' then\n    if tg_op <> 'INSERT' then v_old := old.record_id; end if;\n    if tg_op <> 'DELETE' then v_new := new.record_id; end if;\n    v_claim := case when tg_op = 'DELETE' then old.id else new.id end;\n    v_actor := case when tg_op = 'DELETE' then old.created_by else new.created_by end;\n  else\n    if tg_op <> 'INSERT' then\n      select record_id into v_old from public.claims where id = old.claim_id;\n    end if;\n    if tg_op <> 'DELETE' then\n      select record_id into v_new from public.claims where id = new.claim_id;\n    end if;\n    v_claim := case when tg_op = 'DELETE' then old.claim_id else new.claim_id end;\n    v_actor := case when tg_op = 'DELETE' then old.linked_by else new.linked_by end;\n  end if;\n  for v_record in\n    select distinct x from unnest(array[v_old, v_new]) as x where x is not null order by x\n  loop\n    perform public.bridge_revoke_release_for_claim_change(v_record, v_claim, v_actor, tg_table_name || ':' || tg_op);\n  end loop;\n  if tg_op = 'DELETE' then return old; end if;\n  return new;\nend;\n$function$\n"
+    }
+  ],
+  "constraints": [
+    {
+      "name": "address_registry_first_record_id_fkey",
+      "table": "address_registry",
+      "definition": "FOREIGN KEY (first_record_id) REFERENCES records(id)"
+    },
+    {
+      "name": "address_registry_first_snapshot_id_fkey",
+      "table": "address_registry",
+      "definition": "FOREIGN KEY (first_snapshot_id) REFERENCES ingestion_logs(id)"
+    },
+    {
+      "name": "address_registry_kind_check",
+      "table": "address_registry",
+      "definition": "CHECK ((kind = ANY (ARRAY['object'::text, 'field'::text, 'collection'::text, 'bridge_field'::text])))"
+    },
+    {
+      "name": "address_registry_not_own_parent",
+      "table": "address_registry",
+      "definition": "CHECK (((parent_address_id IS NULL) OR (parent_address_id <> id)))"
+    },
+    {
+      "name": "address_registry_parent_address_id_fkey",
+      "table": "address_registry",
+      "definition": "FOREIGN KEY (parent_address_id) REFERENCES address_registry(id)"
+    },
+    {
+      "name": "address_registry_pkey",
+      "table": "address_registry",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "address_registry_source_id_address_key",
+      "table": "address_registry",
+      "definition": "UNIQUE (source_id, address)"
+    },
+    {
+      "name": "candidate_state_history_candidate_id_changed_at_state_key",
+      "table": "candidate_state_history",
+      "definition": "UNIQUE (candidate_id, changed_at, state)"
+    },
+    {
+      "name": "candidate_state_history_candidate_id_fkey",
+      "table": "candidate_state_history",
+      "definition": "FOREIGN KEY (candidate_id) REFERENCES conversion_candidates(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "candidate_state_history_pkey",
+      "table": "candidate_state_history",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "candidate_state_history_snapshot_id_fkey",
+      "table": "candidate_state_history",
+      "definition": "FOREIGN KEY (snapshot_id) REFERENCES ingestion_logs(id)"
+    },
+    {
+      "name": "candidate_state_history_state_check",
+      "table": "candidate_state_history",
+      "definition": "CHECK ((state = ANY (ARRAY['candidate'::text, 'confirmed'::text, 'rejected'::text])))"
+    },
+    {
+      "name": "claim_evidence_links_claim_id_evidence_type_evidence_refere_key",
+      "table": "claim_evidence_links",
+      "definition": "UNIQUE (claim_id, evidence_type, evidence_reference, relation)"
+    },
+    {
+      "name": "claim_evidence_links_claim_id_fkey",
+      "table": "claim_evidence_links",
+      "definition": "FOREIGN KEY (claim_id) REFERENCES claims(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "claim_evidence_links_directness_check",
+      "table": "claim_evidence_links",
+      "definition": "CHECK ((directness = ANY (ARRAY['DIRECT'::text, 'INDIRECT'::text])))"
+    },
+    {
+      "name": "claim_evidence_links_pkey",
+      "table": "claim_evidence_links",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "claim_evidence_links_relation_check",
+      "table": "claim_evidence_links",
+      "definition": "CHECK ((relation = ANY (ARRAY['SUPPORTS'::text, 'CONTRADICTS'::text, 'QUALIFIES'::text, 'DERIVED_FROM'::text, 'SUPERSEDES'::text])))"
+    },
+    {
+      "name": "claims_candidate_id_fkey",
+      "table": "claims",
+      "definition": "FOREIGN KEY (candidate_id) REFERENCES conversion_candidates(id)"
+    },
+    {
+      "name": "claims_check",
+      "table": "claims",
+      "definition": "CHECK (((valid_to IS NULL) OR (valid_from IS NULL) OR (valid_to >= valid_from)))"
+    },
+    {
+      "name": "claims_check1",
+      "table": "claims",
+      "definition": "CHECK (((status <> 'CONFIRMED'::text) OR ((confirmed_by IS NOT NULL) AND (confirmed_at IS NOT NULL))))"
+    },
+    {
+      "name": "claims_check2",
+      "table": "claims",
+      "definition": "CHECK (((status <> 'SUPERSEDED'::text) OR (supersedes_claim_id IS NOT NULL)))"
+    },
+    {
+      "name": "claims_claim_family_id_claim_version_key",
+      "table": "claims",
+      "definition": "UNIQUE (claim_family_id, claim_version)"
+    },
+    {
+      "name": "claims_claim_type_check",
+      "table": "claims",
+      "definition": "CHECK ((claim_type = ANY (ARRAY['SOURCE'::text, 'STRUCTURE'::text, 'REPRESENTATION'::text, 'SEMANTIC'::text, 'SEMANTIC_MAPPING'::text, 'MAPPING'::text, 'AGGREGATION'::text, 'CONTEXT'::text, 'BEHAVIOR'::text, 'VALIDATION'::text, 'DECISION'::text, 'AUTHORIZATION'::text])))"
+    },
+    {
+      "name": "claims_claim_version_check",
+      "table": "claims",
+      "definition": "CHECK ((claim_version > 0))"
+    },
+    {
+      "name": "claims_pkey",
+      "table": "claims",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "claims_record_id_fkey",
+      "table": "claims",
+      "definition": "FOREIGN KEY (record_id) REFERENCES records(id)"
+    },
+    {
+      "name": "claims_scope_type_check",
+      "table": "claims",
+      "definition": "CHECK ((scope_type = ANY (ARRAY['CASE_ONLY'::text, 'SNAPSHOT_ONLY'::text, 'SOURCE_FIELD'::text, 'SOURCE_SYSTEM'::text, 'DATASET_ONLY'::text, 'PROCESS_CONTEXT'::text, 'ORGANIZATION_CONTEXT'::text, 'SYSTEM_VERSION'::text, 'GLOBAL'::text])))"
+    },
+    {
+      "name": "claims_snapshot_id_fkey",
+      "table": "claims",
+      "definition": "FOREIGN KEY (snapshot_id) REFERENCES ingestion_logs(id)"
+    },
+    {
+      "name": "claims_status_check",
+      "table": "claims",
+      "definition": "CHECK ((status = ANY (ARRAY['DRAFT'::text, 'UNPROVEN'::text, 'SUPPORTED'::text, 'CONFIRMED'::text, 'CONTESTED'::text, 'REJECTED'::text, 'SUPERSEDED'::text])))"
+    },
+    {
+      "name": "claims_supersedes_claim_id_fkey",
+      "table": "claims",
+      "definition": "FOREIGN KEY (supersedes_claim_id) REFERENCES claims(id)"
+    },
+    {
+      "name": "conversion_candidates_pkey",
+      "table": "conversion_candidates",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "name": "conversion_candidates_record_id_fkey",
+      "table": "conversion_candidates",
+      "definition": "FOREIGN KEY (record_id) REFERENCES records(id)"
+    },
+    {
+      "name": "conversion_candidates_snapshot_id_candidate_key_key",
+      "table": "conversion_candidates",
+      "definition": "UNIQUE (snapshot_id, candidate_key)"
+    },
+    {
+      "name": "conversion_candidates_snapshot_id_fkey",
+      "table": "conversion_candidates",
+      "definition": "FOREIGN KEY (snapshot_id) REFERENCES ingestion_logs(id)"
+    },
+    {
+      "name": "conversion_candidates_source_address_id_fkey",
+      "table": "conversion_candidates",
+      "definition": "FOREIGN KEY (source_address_id) REFERENCES address_registry(id)"
+    },
+    {
+      "name": "conversion_candidates_state_check",
+      "table": "conversion_candidates",
+      "definition": "CHECK ((state = ANY (ARRAY['candidate'::text, 'confirmed'::text, 'rejected'::text])))"
+    },
+    {
+      "name": "impact_links_address_id_fkey",
+      "table": "impact_links",
+      "definition": "FOREIGN KEY (address_id) REFERENCES address_registry(id)"
+    },
+    {
+      "name": "impact_links_candidate_id_address_id_link_type_key",
+      "table": "impact_links",
+      "definition": "UNIQUE (candidate_id, address_id, link_type)"
+    },
+    {
+      "name": "impact_links_candidate_id_fkey",
+      "table": "impact_links",
+      "definition": "FOREIGN KEY (candidate_id) REFERENCES conversion_candidates(id) ON DELETE CASCADE"
+    },
+    {
+      "name": "impact_links_link_type_check",
+      "table": "impact_links",
+      "definition": "CHECK ((link_type = 'impacts'::text))"
+    },
+    {
+      "name": "impact_links_pkey",
+      "table": "impact_links",
+      "definition": "PRIMARY KEY (id)"
+    }
+  ]
+}

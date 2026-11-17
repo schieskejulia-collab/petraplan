@@ -1,0 +1,392 @@
+{
+  "observedAt": "2026-10-26",
+  "project": "yxhllviostywckxoehgf",
+  "method": "Read-only pg_catalog and information_schema query. No behavioral or authenticated browser proof.",
+  "rls": [
+    {
+      "table": "address_observations",
+      "forced": false,
+      "enabled": true
+    },
+    {
+      "table": "address_registry",
+      "forced": false,
+      "enabled": true
+    },
+    {
+      "table": "claims",
+      "forced": false,
+      "enabled": true
+    },
+    {
+      "table": "impact_links",
+      "forced": false,
+      "enabled": true
+    },
+    {
+      "table": "ingestion_logs",
+      "forced": false,
+      "enabled": true
+    },
+    {
+      "table": "release_certificates",
+      "forced": false,
+      "enabled": true
+    }
+  ],
+  "policies": [
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "address_observations",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to address_observations",
+      "schemaname": "public",
+      "with_check": "false"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "address_registry",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to address_registry",
+      "schemaname": "public",
+      "with_check": "false"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "claim_evidence_links",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to claim_evidence_links",
+      "schemaname": "public",
+      "with_check": "false"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "claims",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to claims",
+      "schemaname": "public",
+      "with_check": "false"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "impact_links",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to impact_links",
+      "schemaname": "public",
+      "with_check": "false"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "ingestion_logs",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to ingestion_logs",
+      "schemaname": "public",
+      "with_check": "false"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "release_certificates",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to release_certificates",
+      "schemaname": "public",
+      "with_check": "false"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "false",
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "tablename": "release_status_history",
+      "permissive": "PERMISSIVE",
+      "policyname": "deny direct client access to release_status_history",
+      "schemaname": "public",
+      "with_check": "false"
+    }
+  ],
+  "triggers": [
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.prevent_address_reference_rewrite()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\nbegin\n  raise exception '% is append-only; record a new evidenced observation/decision instead', tg_table_name;\nend;\n$function$\n",
+      "name": "trg_address_observations_append_only",
+      "table": "address_observations",
+      "function": "prevent_address_reference_rewrite",
+      "definition": "CREATE TRIGGER trg_address_observations_append_only BEFORE DELETE OR UPDATE ON public.address_observations FOR EACH ROW EXECUTE FUNCTION prevent_address_reference_rewrite()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.audit_row_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\ndeclare\n  v_record_id uuid;\nbegin\n  if tg_op = 'INSERT' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'insert', to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'UPDATE' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'update', to_jsonb(old), to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'DELETE' then\n    v_record_id := nullif((to_jsonb(old)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, source)\n    values ('system', tg_table_name, v_record_id, 'delete', to_jsonb(old), 'database_trigger');\n    return old;\n  end if;\n  return null;\nend;\n$function$\n",
+      "name": "trg_audit_address_observations",
+      "table": "address_observations",
+      "function": "audit_row_change",
+      "definition": "CREATE TRIGGER trg_audit_address_observations AFTER INSERT ON public.address_observations FOR EACH ROW EXECUTE FUNCTION audit_row_change()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.check_address_parent_source()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\nbegin\n  if new.parent_address_id is not null and not exists (\n    select 1 from public.address_registry parent\n    where parent.id = new.parent_address_id and parent.source_id = new.source_id\n  ) then\n    raise exception 'Parent address must exist in the same source';\n  end if;\n  return new;\nend;\n$function$\n",
+      "name": "trg_address_parent_source",
+      "table": "address_registry",
+      "function": "check_address_parent_source",
+      "definition": "CREATE TRIGGER trg_address_parent_source BEFORE INSERT ON public.address_registry FOR EACH ROW EXECUTE FUNCTION check_address_parent_source()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.prevent_address_reference_rewrite()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\nbegin\n  raise exception '% is append-only; record a new evidenced observation/decision instead', tg_table_name;\nend;\n$function$\n",
+      "name": "trg_address_registry_append_only",
+      "table": "address_registry",
+      "function": "prevent_address_reference_rewrite",
+      "definition": "CREATE TRIGGER trg_address_registry_append_only BEFORE DELETE OR UPDATE ON public.address_registry FOR EACH ROW EXECUTE FUNCTION prevent_address_reference_rewrite()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.audit_row_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\ndeclare\n  v_record_id uuid;\nbegin\n  if tg_op = 'INSERT' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'insert', to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'UPDATE' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'update', to_jsonb(old), to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'DELETE' then\n    v_record_id := nullif((to_jsonb(old)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, source)\n    values ('system', tg_table_name, v_record_id, 'delete', to_jsonb(old), 'database_trigger');\n    return old;\n  end if;\n  return null;\nend;\n$function$\n",
+      "name": "trg_audit_address_registry",
+      "table": "address_registry",
+      "function": "audit_row_change",
+      "definition": "CREATE TRIGGER trg_audit_address_registry AFTER INSERT ON public.address_registry FOR EACH ROW EXECUTE FUNCTION audit_row_change()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_lock_claim_evidence_basis()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_old uuid; v_new uuid; v_record uuid;\nbegin\n  if tg_op <> 'INSERT' then\n    select record_id into v_old from public.claims where id = old.claim_id;\n  end if;\n  if tg_op <> 'DELETE' then\n    select record_id into v_new from public.claims where id = new.claim_id;\n  end if;\n  for v_record in\n    select distinct x from unnest(array[v_old, v_new]) as x where x is not null order by x\n  loop\n    perform 1 from public.records where id = v_record for update;\n  end loop;\n  if tg_op = 'DELETE' then return old; end if;\n  return new;\nend;\n$function$\n",
+      "name": "bridge_lock_claim_evidence_basis",
+      "table": "claim_evidence_links",
+      "function": "bridge_lock_claim_evidence_basis",
+      "definition": "CREATE TRIGGER bridge_lock_claim_evidence_basis BEFORE INSERT OR DELETE OR UPDATE ON public.claim_evidence_links FOR EACH ROW EXECUTE FUNCTION bridge_lock_claim_evidence_basis()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_revoke_release_on_claim_basis_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_old uuid; v_new uuid; v_claim uuid; v_actor text; v_record uuid;\nbegin\n  if tg_table_name = 'claims' then\n    if tg_op <> 'INSERT' then v_old := old.record_id; end if;\n    if tg_op <> 'DELETE' then v_new := new.record_id; end if;\n    v_claim := case when tg_op = 'DELETE' then old.id else new.id end;\n    v_actor := case when tg_op = 'DELETE' then old.created_by else new.created_by end;\n  else\n    if tg_op <> 'INSERT' then\n      select record_id into v_old from public.claims where id = old.claim_id;\n    end if;\n    if tg_op <> 'DELETE' then\n      select record_id into v_new from public.claims where id = new.claim_id;\n    end if;\n    v_claim := case when tg_op = 'DELETE' then old.claim_id else new.claim_id end;\n    v_actor := case when tg_op = 'DELETE' then old.linked_by else new.linked_by end;\n  end if;\n  for v_record in\n    select distinct x from unnest(array[v_old, v_new]) as x where x is not null order by x\n  loop\n    perform public.bridge_revoke_release_for_claim_change(v_record, v_claim, v_actor, tg_table_name || ':' || tg_op);\n  end loop;\n  if tg_op = 'DELETE' then return old; end if;\n  return new;\nend;\n$function$\n",
+      "name": "bridge_revoke_release_on_claim_evidence_change",
+      "table": "claim_evidence_links",
+      "function": "bridge_revoke_release_on_claim_basis_change",
+      "definition": "CREATE TRIGGER bridge_revoke_release_on_claim_evidence_change AFTER INSERT OR DELETE OR UPDATE ON public.claim_evidence_links FOR EACH ROW EXECUTE FUNCTION bridge_revoke_release_on_claim_basis_change()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_lock_claim_basis()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_old uuid; v_new uuid; v_record uuid;\nbegin\n  if tg_op <> 'INSERT' then v_old := old.record_id; end if;\n  if tg_op <> 'DELETE' then v_new := new.record_id; end if;\n  for v_record in\n    select distinct x from unnest(array[v_old, v_new]) as x where x is not null order by x\n  loop\n    perform 1 from public.records where id = v_record for update;\n  end loop;\n  if tg_op = 'DELETE' then return old; end if;\n  return new;\nend;\n$function$\n",
+      "name": "bridge_lock_claim_basis",
+      "table": "claims",
+      "function": "bridge_lock_claim_basis",
+      "definition": "CREATE TRIGGER bridge_lock_claim_basis BEFORE INSERT OR DELETE OR UPDATE ON public.claims FOR EACH ROW EXECUTE FUNCTION bridge_lock_claim_basis()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_revoke_release_on_claim_basis_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_old uuid; v_new uuid; v_claim uuid; v_actor text; v_record uuid;\nbegin\n  if tg_table_name = 'claims' then\n    if tg_op <> 'INSERT' then v_old := old.record_id; end if;\n    if tg_op <> 'DELETE' then v_new := new.record_id; end if;\n    v_claim := case when tg_op = 'DELETE' then old.id else new.id end;\n    v_actor := case when tg_op = 'DELETE' then old.created_by else new.created_by end;\n  else\n    if tg_op <> 'INSERT' then\n      select record_id into v_old from public.claims where id = old.claim_id;\n    end if;\n    if tg_op <> 'DELETE' then\n      select record_id into v_new from public.claims where id = new.claim_id;\n    end if;\n    v_claim := case when tg_op = 'DELETE' then old.claim_id else new.claim_id end;\n    v_actor := case when tg_op = 'DELETE' then old.linked_by else new.linked_by end;\n  end if;\n  for v_record in\n    select distinct x from unnest(array[v_old, v_new]) as x where x is not null order by x\n  loop\n    perform public.bridge_revoke_release_for_claim_change(v_record, v_claim, v_actor, tg_table_name || ':' || tg_op);\n  end loop;\n  if tg_op = 'DELETE' then return old; end if;\n  return new;\nend;\n$function$\n",
+      "name": "bridge_revoke_release_on_claim_basis_change",
+      "table": "claims",
+      "function": "bridge_revoke_release_on_claim_basis_change",
+      "definition": "CREATE TRIGGER bridge_revoke_release_on_claim_basis_change AFTER INSERT OR DELETE OR UPDATE ON public.claims FOR EACH ROW EXECUTE FUNCTION bridge_revoke_release_on_claim_basis_change()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.audit_row_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\ndeclare\n  v_record_id uuid;\nbegin\n  if tg_op = 'INSERT' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'insert', to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'UPDATE' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'update', to_jsonb(old), to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'DELETE' then\n    v_record_id := nullif((to_jsonb(old)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, source)\n    values ('system', tg_table_name, v_record_id, 'delete', to_jsonb(old), 'database_trigger');\n    return old;\n  end if;\n  return null;\nend;\n$function$\n",
+      "name": "trg_audit_impact_links",
+      "table": "impact_links",
+      "function": "audit_row_change",
+      "definition": "CREATE TRIGGER trg_audit_impact_links AFTER INSERT ON public.impact_links FOR EACH ROW EXECUTE FUNCTION audit_row_change()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.prevent_address_reference_rewrite()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\nbegin\n  raise exception '% is append-only; record a new evidenced observation/decision instead', tg_table_name;\nend;\n$function$\n",
+      "name": "trg_impact_links_append_only",
+      "table": "impact_links",
+      "function": "prevent_address_reference_rewrite",
+      "definition": "CREATE TRIGGER trg_impact_links_append_only BEFORE DELETE OR UPDATE ON public.impact_links FOR EACH ROW EXECUTE FUNCTION prevent_address_reference_rewrite()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_trace_root_ingestion()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\nbegin\n  new.correlation_id := coalesce(new.correlation_id, gen_random_uuid());\n  new.trace_id := coalesce(new.trace_id, gen_random_uuid());\n  new.span_id := coalesce(new.span_id, gen_random_uuid());\n  return new;\nend;\n$function$\n",
+      "name": "bridge_trace_root_ingestion_before_insert",
+      "table": "ingestion_logs",
+      "function": "bridge_trace_root_ingestion",
+      "definition": "CREATE TRIGGER bridge_trace_root_ingestion_before_insert BEFORE INSERT ON public.ingestion_logs FOR EACH ROW EXECUTE FUNCTION bridge_trace_root_ingestion()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.audit_row_change()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\ndeclare\n  v_record_id uuid;\nbegin\n  if tg_op = 'INSERT' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'insert', to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'UPDATE' then\n    v_record_id := nullif((to_jsonb(new)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, after_data, source)\n    values ('system', tg_table_name, v_record_id, 'update', to_jsonb(old), to_jsonb(new), 'database_trigger');\n    return new;\n  elsif tg_op = 'DELETE' then\n    v_record_id := nullif((to_jsonb(old)->>'id'), '')::uuid;\n    insert into public.audit_log(actor_type, table_name, record_id, action, before_data, source)\n    values ('system', tg_table_name, v_record_id, 'delete', to_jsonb(old), 'database_trigger');\n    return old;\n  end if;\n  return null;\nend;\n$function$\n",
+      "name": "trg_audit_ingestion_logs",
+      "table": "ingestion_logs",
+      "function": "audit_row_change",
+      "definition": "CREATE TRIGGER trg_audit_ingestion_logs AFTER INSERT OR DELETE OR UPDATE ON public.ingestion_logs FOR EACH ROW EXECUTE FUNCTION audit_row_change()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.prevent_ingestion_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\nbegin\n  if old.raw_payload is distinct from new.raw_payload then\n    raise exception 'raw_payload is immutable';\n  end if;\n  if old.source_hash is distinct from new.source_hash then\n    raise exception 'source_hash is immutable';\n  end if;\n  if old.source_system is distinct from new.source_system then\n    raise exception 'source_system is immutable';\n  end if;\n  if old.source_reference is distinct from new.source_reference then\n    raise exception 'source_reference is immutable';\n  end if;\n  return new;\nend;\n$function$\n",
+      "name": "trg_prevent_ingestion_mutation",
+      "table": "ingestion_logs",
+      "function": "prevent_ingestion_mutation",
+      "definition": "CREATE TRIGGER trg_prevent_ingestion_mutation BEFORE UPDATE ON public.ingestion_logs FOR EACH ROW EXECUTE FUNCTION prevent_ingestion_mutation()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_guard_unresolved_semantic_release()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  perform 1 from public.records where id = new.record_id for update;\n  if public.bridge_has_unresolved_semantic_claim(new.record_id) then\n    raise sqlstate 'PT409' using message = 'An unresolved semantic mapping claim blocks release';\n  end if;\n  return new;\nend;\n$function$\n",
+      "name": "bridge_guard_unresolved_semantic_release",
+      "table": "release_certificates",
+      "function": "bridge_guard_unresolved_semantic_release",
+      "definition": "CREATE TRIGGER bridge_guard_unresolved_semantic_release BEFORE INSERT ON public.release_certificates FOR EACH ROW EXECUTE FUNCTION bridge_guard_unresolved_semantic_release()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_trace_release_certificate()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public'\nAS $function$\ndeclare\n  v_session public.review_sessions%rowtype;\n  v_validation public.validation_results%rowtype;\nbegin\n  if new.review_decision_id is not null then\n    select s.* into v_session\n    from public.review_decisions d\n    join public.review_sessions s on s.id = d.review_session_id\n    where d.id = new.review_decision_id;\n  end if;\n\n  if new.validation_result_id is not null then\n    select * into v_validation from public.validation_results where id = new.validation_result_id;\n  end if;\n\n  new.correlation_id := coalesce(new.correlation_id, v_session.correlation_id, v_validation.correlation_id, gen_random_uuid());\n  new.trace_id := coalesce(new.trace_id, v_session.trace_id, v_validation.trace_id, gen_random_uuid());\n  new.span_id := coalesce(new.span_id, gen_random_uuid());\n\n  if v_session.id is not null then\n    new.parent_span_id := coalesce(new.parent_span_id, v_session.span_id);\n    new.causation_id := coalesce(new.causation_id, v_session.span_id);\n  elsif v_validation.id is not null then\n    new.parent_span_id := coalesce(new.parent_span_id, v_validation.span_id);\n    new.causation_id := coalesce(new.causation_id, v_validation.span_id);\n  end if;\n  return new;\nend;\n$function$\n",
+      "name": "bridge_trace_release_certificate_before_insert",
+      "table": "release_certificates",
+      "function": "bridge_trace_release_certificate",
+      "definition": "CREATE TRIGGER bridge_trace_release_certificate_before_insert BEFORE INSERT ON public.release_certificates FOR EACH ROW EXECUTE FUNCTION bridge_trace_release_certificate()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.prevent_release_certificate_mutation()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\nbegin\n  raise exception 'Release certificates are immutable; append status history instead';\nend;\n$function$\n",
+      "name": "release_certificate_immutable",
+      "table": "release_certificates",
+      "function": "prevent_release_certificate_mutation",
+      "definition": "CREATE TRIGGER release_certificate_immutable BEFORE DELETE OR UPDATE ON public.release_certificates FOR EACH ROW EXECUTE FUNCTION prevent_release_certificate_mutation()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.enforce_release_truth_gate()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO 'public', 'pg_catalog'\nAS $function$\ndeclare\n  v_conflict_record_id uuid;\n  v_resolution_conflict_id uuid;\n  v_validation_status text;\n  v_validation_resolution_id uuid;\n  v_validation_conflict_id uuid;\n  v_review_status text;\n  v_review_resolution_id uuid;\n  v_review_validation_id uuid;\n  v_session_review_record_id uuid;\n  v_session_status text;\n  v_decision text;\n  v_decision_final boolean;\n  v_required_count integer;\n  v_passed_count integer;\nbegin\n  select record_id into v_conflict_record_id from public.conflicts where id = new.conflict_id;\n  if v_conflict_record_id is null or v_conflict_record_id <> new.record_id then\n    raise exception 'Release Truth gate failed: conflict does not belong to record';\n  end if;\n\n  select conflict_id into v_resolution_conflict_id from public.resolution_records where id = new.resolution_record_id;\n  if v_resolution_conflict_id is null or v_resolution_conflict_id <> new.conflict_id then\n    raise exception 'Release Truth gate failed: resolution does not belong to conflict';\n  end if;\n\n  select status, resolution_record_id, conflict_id\n    into v_validation_status, v_validation_resolution_id, v_validation_conflict_id\n  from public.validation_results where id = new.validation_result_id;\n  if v_validation_status <> 'passed'\n     or v_validation_resolution_id <> new.resolution_record_id\n     or v_validation_conflict_id <> new.conflict_id then\n    raise exception 'Release Truth gate failed: validation must be passed and match resolution/conflict';\n  end if;\n\n  select review_status, resolution_record_id, validation_result_id\n    into v_review_status, v_review_resolution_id, v_review_validation_id\n  from public.review_records where id = new.review_record_id;\n  if v_review_status <> 'approved'\n     or v_review_resolution_id <> new.resolution_record_id\n     or v_review_validation_id <> new.validation_result_id then\n    raise exception 'Release Truth gate failed: review must be approved and match validation/resolution';\n  end if;\n\n  select rs.review_record_id, rs.status, rd.decision, rd.final\n    into v_session_review_record_id, v_session_status, v_decision, v_decision_final\n  from public.review_decisions rd\n  join public.review_sessions rs on rs.id = rd.review_session_id\n  where rd.id = new.review_decision_id;\n  if v_session_review_record_id is null\n     or v_session_review_record_id <> new.review_record_id\n     or v_session_status <> 'approved'\n     or v_decision <> 'approved'\n     or v_decision_final is not true then\n    raise exception 'Release Truth gate failed: structured review must have a final approved decision';\n  end if;\n\n  select count(*) into v_required_count\n  from public.review_criteria rc\n  join public.review_sessions rs on rs.structure_id = rc.structure_id\n  where rs.review_record_id = new.review_record_id and rc.required = true;\n\n  select count(distinct rcr.criterion_id) into v_passed_count\n  from public.review_criterion_results rcr\n  join public.review_sessions rs on rs.id = rcr.review_session_id\n  join public.review_criteria rc on rc.id = rcr.criterion_id\n  where rs.review_record_id = new.review_record_id\n    and rc.required = true and rcr.passed = true;\n\n  if v_required_count = 0 or v_passed_count <> v_required_count then\n    raise exception 'Release Truth gate failed: all required review criteria must exist and pass';\n  end if;\n\n  new.truth_snapshot := jsonb_build_object(\n    'record_id', new.record_id,\n    'conflict_id', new.conflict_id,\n    'resolution_record_id', new.resolution_record_id,\n    'validation_result_id', new.validation_result_id,\n    'validation_status', v_validation_status,\n    'review_record_id', new.review_record_id,\n    'review_status', v_review_status,\n    'review_decision_id', new.review_decision_id,\n    'review_decision', v_decision,\n    'required_review_criteria', v_required_count,\n    'passed_review_criteria', v_passed_count\n  );\n\n  new.certificate_hash := encode(\n    extensions.digest(\n      concat_ws('|', new.record_id::text, new.conflict_id::text, new.resolution_record_id::text,\n        new.validation_result_id::text, new.review_record_id::text, new.review_decision_id::text,\n        new.truth_snapshot::text),\n      'sha256'\n    ),\n    'hex'\n  );\n  return new;\nend;\n$function$\n",
+      "name": "release_truth_gate_before_insert",
+      "table": "release_certificates",
+      "function": "enforce_release_truth_gate",
+      "definition": "CREATE TRIGGER release_truth_gate_before_insert BEFORE INSERT ON public.release_certificates FOR EACH ROW EXECUTE FUNCTION enforce_release_truth_gate()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_guard_semantic_rule_decision()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_rule public.semantic_rule_versions%rowtype; v_authority public.semantic_rule_authorities%rowtype;\n  v_status text; v_snapshot uuid;\nbegin\n  select * into v_rule from public.semantic_rule_versions where id = new.rule_version_id;\n  if v_rule.id is null then raise sqlstate 'PT404' using message = 'Rule version not found'; end if;\n  perform 1 from public.records where id = v_rule.record_id for update;\n  v_status := public.bridge_semantic_rule_status(v_rule.id);\n  -- Only a persisted administrator-side revocation may generate this event.\n  -- The public RPC has no parameter for source and cannot mint it.\n  if new.source = 'authority_revocation' then\n    if new.decision <> 'REVOKED' or v_status <> 'APPROVED' or not exists (\n      select 1 from public.semantic_rule_authority_revocations ar\n      join public.semantic_rule_decisions d on d.authority_id = ar.authority_id\n      where ar.authority_id = new.authority_id and ar.revoked_by = new.actor_id\n        and ar.reason = new.reason and d.rule_version_id = v_rule.id and d.decision = 'APPROVED'\n        and d.sequence = (select max(sequence) from public.semantic_rule_decisions where rule_version_id = v_rule.id)) then\n      raise sqlstate 'PT403' using message = 'Automatic authority revocation requires its persisted administrator event';\n    end if;\n    return new;\n  end if;\n  if not exists(select 1 from public.bridge_actor_roles where user_id = new.actor_id and active and can_review) then\n    raise sqlstate 'PT403' using message = 'Rule decision requires an active reviewer';\n  end if;\n  select * into v_authority from public.semantic_rule_authorities where id = new.authority_id;\n  if v_authority.id is null or v_authority.user_id <> new.actor_id or v_authority.record_id <> v_rule.record_id\n    or v_authority.snapshot_id <> v_rule.snapshot_id or v_authority.target_address <> v_rule.target_address\n    or v_authority.granted_at > clock_timestamp() or v_authority.valid_until <= clock_timestamp()\n    or exists(select 1 from public.semantic_rule_authority_revocations where authority_id = v_authority.id) then\n    raise sqlstate 'PT403' using message = 'Documented semantic authority for this case, snapshot and target is required';\n  end if;\n  v_status := public.bridge_semantic_rule_status(v_rule.id);\n  if not ((v_status = 'PROPOSED' and new.decision in ('APPROVED','REJECTED'))\n    or (v_status = 'APPROVED' and new.decision in ('REVOKED','SUPERSEDED'))) then\n    raise sqlstate 'PT409' using message = 'This rule decision is terminal; append a new rule version';\n  end if;\n  if new.decision = 'APPROVED' then\n    select ingestion_log_id into v_snapshot from public.records where id = v_rule.record_id;\n    if v_snapshot is distinct from v_rule.snapshot_id then raise sqlstate 'PT409' using message = 'Rule snapshot is no longer current'; end if;\n    if not exists(select 1 from public.conversion_candidates c join public.claims cl on cl.id = v_rule.claim_id\n      where c.id = v_rule.candidate_id and c.state = 'confirmed' and c.record_id = v_rule.record_id\n      and c.snapshot_id = v_rule.snapshot_id and c.source_path = v_rule.source_path\n      and c.proposed_value is not distinct from v_rule.proposed_value\n      and cl.record_id = v_rule.record_id and cl.snapshot_id = v_rule.snapshot_id\n      and cl.candidate_id = c.id and cl.subject_address = v_rule.target_address\n      and cl.status not in ('REJECTED','SUPERSEDED')\n      and public.bridge_semantic_claim_basis(cl.id) = v_rule.claim_basis) then\n      raise sqlstate 'PT409' using message = 'The candidate or Claim basis changed after the proposal';\n    end if;\n    if jsonb_array_length(v_rule.unresolved_items) > 0 then raise sqlstate 'PT409' using message = 'Open semantic questions prevent approval'; end if;\n    if not exists(select 1 from jsonb_array_elements(v_rule.evidence) e where e->>'kind' = 'MEANING') then\n      raise sqlstate 'PT409' using message = 'Source values alone are not meaning evidence';\n    end if;\n    if not (new.criteria @> '{\"identities_checked\":true,\"meaning_evidence_checked\":true,\"source_coverage_checked\":true,\"counterexamples_checked\":true,\"scope_checked\":true}'::jsonb) then\n      raise sqlstate 'PT409' using message = 'All semantic review criteria require explicit confirmation';\n    end if;\n    if exists(select 1 from public.semantic_rule_versions r where r.rule_id = v_rule.rule_id and r.version > v_rule.version) then\n      raise sqlstate 'PT409' using message = 'Only the latest version may be approved';\n    end if;\n    if exists(select 1 from public.semantic_rule_versions r where r.id <> v_rule.id\n      and (r.rule_id = v_rule.rule_id or (r.candidate_id = v_rule.candidate_id and r.target_address = v_rule.target_address))\n      and public.bridge_semantic_rule_status(r.id) = 'APPROVED') then\n      raise sqlstate 'PT409' using message = 'Revoke or supersede the currently approved rule before approving another version';\n    end if;\n  end if;\n  return new;\nend;\n$function$\n",
+      "name": "semantic_rule_decision_guard",
+      "table": "semantic_rule_decisions",
+      "function": "bridge_guard_semantic_rule_decision",
+      "definition": "CREATE TRIGGER semantic_rule_decision_guard BEFORE INSERT ON public.semantic_rule_decisions FOR EACH ROW EXECUTE FUNCTION bridge_guard_semantic_rule_decision()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_semantic_rule_immutable()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  raise sqlstate 'PT409' using message = 'Rule definitions, authority grants and decisions are immutable; append a new version or decision';\nend;\n$function$\n",
+      "name": "semantic_rule_decisions_immutable",
+      "table": "semantic_rule_decisions",
+      "function": "bridge_semantic_rule_immutable",
+      "definition": "CREATE TRIGGER semantic_rule_decisions_immutable BEFORE DELETE OR UPDATE ON public.semantic_rule_decisions FOR EACH ROW EXECUTE FUNCTION bridge_semantic_rule_immutable()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_semantic_rule_negative_impact()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_rule public.semantic_rule_versions%rowtype; v_claim public.claims%rowtype;\nbegin\n  if new.decision not in ('REVOKED','SUPERSEDED') then return new; end if;\n  select * into v_rule from public.semantic_rule_versions where id = new.rule_version_id;\n  for v_claim in select * from public.claims\n    where rule_id = v_rule.rule_id::text and rule_version = v_rule.version::text order by record_id, id\n  loop\n    insert into public.claim_evidence_links\n      (claim_id,evidence_type,evidence_reference,relation,directness,scope,linked_by,note)\n    values(v_claim.id,'SEMANTIC_RULE_DECISION','semantic_rule_decision:' || new.id::text,'QUALIFIES','DIRECT',\n      jsonb_build_object('record_id',v_claim.record_id,'snapshot_id',v_claim.snapshot_id,\n        'rule_id',v_rule.rule_id,'rule_version',v_rule.version),new.actor_id::text,\n      'Rule ' || new.decision || ': ' || new.reason);\n  end loop;\n  return new;\nend;\n$function$\n",
+      "name": "semantic_rule_negative_impact",
+      "table": "semantic_rule_decisions",
+      "function": "bridge_semantic_rule_negative_impact",
+      "definition": "CREATE TRIGGER semantic_rule_negative_impact AFTER INSERT ON public.semantic_rule_decisions FOR EACH ROW EXECUTE FUNCTION bridge_semantic_rule_negative_impact()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_guard_semantic_rule_version()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\ndeclare v_candidate public.conversion_candidates%rowtype; v_claim public.claims%rowtype;\n  v_previous public.semantic_rule_versions%rowtype; v_snapshot uuid; v_source text;\nbegin\n  perform 1 from public.records where id = new.record_id for update;\n  select ingestion_log_id into v_snapshot from public.records where id = new.record_id;\n  if v_snapshot is distinct from new.snapshot_id or not exists (\n    select 1 from public.ingestion_logs where id = new.snapshot_id and status = 'processed') then\n    raise sqlstate 'PT409' using message = 'Rule requires the current processed case snapshot';\n  end if;\n  if not exists (select 1 from public.bridge_actor_roles where user_id = new.proposed_by and active and can_review) then\n    raise sqlstate 'PT403' using message = 'Rule proposal requires an active reviewer';\n  end if;\n  select * into v_candidate from public.conversion_candidates where id = new.candidate_id;\n  select * into v_claim from public.claims where id = new.claim_id;\n  if v_candidate.id is null or v_claim.id is null or v_candidate.record_id is distinct from new.record_id\n    or v_candidate.snapshot_id is distinct from new.snapshot_id or v_candidate.state <> 'confirmed'\n    or v_claim.record_id is distinct from new.record_id or v_claim.snapshot_id is distinct from new.snapshot_id\n    or v_claim.candidate_id is distinct from new.candidate_id or v_claim.scope_type <> 'CASE_ONLY'\n    or v_claim.status in ('REJECTED', 'SUPERSEDED')\n    or not (v_claim.scope_payload @> jsonb_build_object('record_id',new.record_id,'snapshot_id',new.snapshot_id,'candidate_id',new.candidate_id)) then\n    raise sqlstate 'PT409' using message = 'Rule must reference an active case Claim and its confirmed candidate in the same snapshot';\n  end if;\n  if v_claim.claim_type not in ('SEMANTIC', 'SEMANTIC_MAPPING', 'MAPPING', 'AGGREGATION') then\n    raise sqlstate 'PT409' using message = 'Rule requires a semantic or aggregation Claim';\n  end if;\n  select address into v_source from public.address_registry where id = v_candidate.source_address_id;\n  if v_source is null then raise sqlstate 'PT409' using message = 'Rule source address is missing'; end if;\n  new.source_address := v_source;\n  new.source_path := v_candidate.source_path;\n  new.target_address := v_claim.subject_address;\n  new.proposed_value := v_candidate.proposed_value;\n  new.claim_basis := public.bridge_semantic_claim_basis(new.claim_id);\n  if new.previous_version_id is null then\n    if new.version <> 1 or exists(select 1 from public.semantic_rule_versions where rule_id = new.rule_id) then\n      raise sqlstate 'PT409' using message = 'A new rule family must start at version 1';\n    end if;\n  else\n    select * into v_previous from public.semantic_rule_versions where id = new.previous_version_id;\n    if v_previous.id is null or v_previous.rule_id <> new.rule_id or v_previous.record_id <> new.record_id\n      or v_previous.snapshot_id <> new.snapshot_id or v_previous.candidate_id <> new.candidate_id\n      or v_previous.claim_id <> new.claim_id or v_previous.target_address is distinct from new.target_address\n      or v_previous.source_address is distinct from new.source_address or v_previous.source_path is distinct from new.source_path\n      or new.version <> v_previous.version + 1\n      or exists(select 1 from public.semantic_rule_versions where rule_id = new.rule_id and version > v_previous.version) then\n      raise sqlstate 'PT409' using message = 'Revision must append to the latest version in the same scope';\n    end if;\n  end if;\n  if exists(select 1 from jsonb_array_elements(new.evidence) e\n    where jsonb_typeof(e) <> 'object' or coalesce(e->>'kind','') not in ('SOURCE','MEANING','AUTHORITY')\n      or length(trim(coalesce(e->>'reference',''))) = 0 or length(trim(coalesce(e->>'summary',''))) < 8) then\n    raise sqlstate 'PT400' using message = 'Evidence needs kind, reference and an explanatory summary';\n  end if;\n  if exists(select 1 from jsonb_array_elements(new.unresolved_items || new.limitations || new.exceptions) e\n    where jsonb_typeof(e) <> 'string' or length(trim(e #>> '{}')) = 0) then\n    raise sqlstate 'PT400' using message = 'Open questions, limitations and exceptions must be nonempty text items';\n  end if;\n  return new;\nend;\n$function$\n",
+      "name": "semantic_rule_version_guard",
+      "table": "semantic_rule_versions",
+      "function": "bridge_guard_semantic_rule_version",
+      "definition": "CREATE TRIGGER semantic_rule_version_guard BEFORE INSERT ON public.semantic_rule_versions FOR EACH ROW EXECUTE FUNCTION bridge_guard_semantic_rule_version()"
+    },
+    {
+      "body": "CREATE OR REPLACE FUNCTION public.bridge_semantic_rule_immutable()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\nbegin\n  raise sqlstate 'PT409' using message = 'Rule definitions, authority grants and decisions are immutable; append a new version or decision';\nend;\n$function$\n",
+      "name": "semantic_rule_versions_immutable",
+      "table": "semantic_rule_versions",
+      "function": "bridge_semantic_rule_immutable",
+      "definition": "CREATE TRIGGER semantic_rule_versions_immutable BEFORE DELETE OR UPDATE ON public.semantic_rule_versions FOR EACH ROW EXECUTE FUNCTION bridge_semantic_rule_immutable()"
+    }
+  ],
+  "constraints": [
+    {
+      "table": "address_observations",
+      "definition": "FOREIGN KEY (address_id) REFERENCES address_registry(id)"
+    },
+    {
+      "table": "address_observations",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table": "address_observations",
+      "definition": "UNIQUE (record_id, address_id)"
+    },
+    {
+      "table": "address_observations",
+      "definition": "FOREIGN KEY (record_id) REFERENCES records(id)"
+    },
+    {
+      "table": "address_observations",
+      "definition": "FOREIGN KEY (snapshot_id) REFERENCES ingestion_logs(id)"
+    },
+    {
+      "table": "address_registry",
+      "definition": "FOREIGN KEY (first_record_id) REFERENCES records(id)"
+    },
+    {
+      "table": "address_registry",
+      "definition": "FOREIGN KEY (first_snapshot_id) REFERENCES ingestion_logs(id)"
+    },
+    {
+      "table": "address_registry",
+      "definition": "CHECK ((kind = ANY (ARRAY['object'::text, 'field'::text, 'collection'::text, 'bridge_field'::text])))"
+    },
+    {
+      "table": "address_registry",
+      "definition": "CHECK (((parent_address_id IS NULL) OR (parent_address_id <> id)))"
+    },
+    {
+      "table": "address_registry",
+      "definition": "FOREIGN KEY (parent_address_id) REFERENCES address_registry(id)"
+    },
+    {
+      "table": "address_registry",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table": "address_registry",
+      "definition": "UNIQUE (source_id, address)"
+    },
+    {
+      "table": "impact_links",
+      "definition": "FOREIGN KEY (address_id) REFERENCES address_registry(id)"
+    },
+    {
+      "table": "impact_links",
+      "definition": "UNIQUE (candidate_id, address_id, link_type)"
+    },
+    {
+      "table": "impact_links",
+      "definition": "FOREIGN KEY (candidate_id) REFERENCES conversion_candidates(id) ON DELETE CASCADE"
+    },
+    {
+      "table": "impact_links",
+      "definition": "CHECK ((link_type = 'impacts'::text))"
+    },
+    {
+      "table": "impact_links",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table": "ingestion_logs",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table": "ingestion_logs",
+      "definition": "CHECK ((jsonb_typeof(raw_payload) = 'object'::text))"
+    },
+    {
+      "table": "ingestion_logs",
+      "definition": "CHECK ((length(TRIM(BOTH FROM source_system)) > 0))"
+    },
+    {
+      "table": "ingestion_logs",
+      "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'processed'::text, 'error'::text])))"
+    }
+  ]
+}

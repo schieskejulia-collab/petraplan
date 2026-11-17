@@ -1,4 +1,5 @@
 import { checkDecisionBasis, type DecisionBasis } from './decisionBasisCheck.js';
+import { databaseTimestamp } from './databaseTimestamp.js';
 export type ValidationStatus = 'passed' | 'failed' | 'warning' | 'unknown';
 export type ReleaseStatus = 'trusted' | 'blocked' | 'revoked' | 'superseded' | 'exception' | null;
 
@@ -64,16 +65,22 @@ export function hasDocumentedException(exceptionApproval?: ReleaseExceptionAppro
 
 function latestByCreatedAt<T extends ValidationRef>(items: T[]): T | null {
   if (!items.length) return null;
-  return [...items].sort((a, b) => {
-    const aTime = a.created_at ? Date.parse(a.created_at) : NaN;
-    const bTime = b.created_at ? Date.parse(b.created_at) : NaN;
-    const byTime = (Number.isFinite(bTime) ? bTime : -Infinity) - (Number.isFinite(aTime) ? aTime : -Infinity);
+  const unorderable = items.filter((item) => databaseTimestamp(item.created_at) === null);
+  if (unorderable.length) return unorderable.find((item) => !PASSING.has(String(item.status ?? 'unknown').toLowerCase())) ?? null;
+  const ordered = [...items].sort((a, b) => {
+    const aTime = databaseTimestamp(a.created_at);
+    const bTime = databaseTimestamp(b.created_at);
+    const byTime = aTime === bTime ? 0 : aTime === null ? 1 : bTime === null ? -1 : aTime < bTime ? 1 : -1;
     if (byTime) return byTime;
     const aPasses = PASSING.has(String(a.status ?? 'unknown').toLowerCase());
     const bPasses = PASSING.has(String(b.status ?? 'unknown').toLowerCase());
     if (aPasses !== bPasses) return aPasses ? 1 : -1;
     return String(a.id ?? '').localeCompare(String(b.id ?? ''));
-  })[0] ?? null;
+  });
+  const latest = ordered[0];
+  if (PASSING.has(String(latest.status ?? 'unknown').toLowerCase()) && ordered.length > 1
+      && databaseTimestamp(latest.created_at) === databaseTimestamp(ordered[1].created_at)) return null;
+  return latest;
 }
 
 /**
@@ -92,21 +99,23 @@ export function selectAuthoritativeValidation<T extends ValidationRef>(
   if (!validations.length) return null;
   if (!certificate) return latestByCreatedAt(validations);
 
+  // An unorderable observation cannot be silently assumed to predate release.
+  if (validations.some((item) => databaseTimestamp(item.created_at) === null))
+    return latestByCreatedAt(validations);
+
   const certifiedValidation = certificate.validation_result_id
     ? validations.find((item) => item.id === certificate.validation_result_id) ?? null
     : null;
 
-  if (certificate.certified_at) {
-    const provablyLater = validations.filter(
-      (item) => item.created_at && Number.isFinite(Date.parse(item.created_at))
-        && Number.isFinite(Date.parse(certificate.certified_at!))
-        && Date.parse(item.created_at) > Date.parse(certificate.certified_at!),
-    );
-    const laterValidation = latestByCreatedAt(provablyLater);
-    if (laterValidation) return laterValidation;
-  }
+  const certifiedAt = databaseTimestamp(certificate.certified_at);
+  if (certifiedAt === null || !certifiedValidation) return null;
+  const provablyLater = validations.filter((item) => {
+    const createdAt = databaseTimestamp(item.created_at);
+    return createdAt !== null && createdAt > certifiedAt;
+  });
+  if (provablyLater.length) return latestByCreatedAt(provablyLater);
 
-  return certifiedValidation ?? latestByCreatedAt(validations);
+  return certifiedValidation;
 }
 
 export function decideReleaseGate(input: ReleaseGateInput): ReleaseGateDecision {
@@ -117,6 +126,17 @@ export function decideReleaseGate(input: ReleaseGateInput): ReleaseGateDecision 
     : null;
   const validationIsPassing = PASSING.has(normalizedValidation);
   const exceptionIsDocumented = hasDocumentedException(input.exceptionApproval);
+
+  // Preserve terminal identity before any current-basis assessment.
+  if (input.hasReleaseCertificate && (currentStatus === 'revoked' || currentStatus === 'superseded')) {
+    return {
+      effectiveStatus: currentStatus,
+      shouldTransition: false,
+      reason: 'Terminal release status cannot be reactivated; a new certificate requires a fresh decision basis.',
+      validationIsPassing,
+      exceptionIsDocumented,
+    };
+  }
 
   // Fail closed for callers that explicitly require semantic verification.
   // This is a read-only assessment: it does not revoke historical certificates.
@@ -164,17 +184,6 @@ export function decideReleaseGate(input: ReleaseGateInput): ReleaseGateDecision 
       effectiveStatus,
       shouldTransition: currentStatus === 'blocked',
       reason: 'Latest authoritative validation is passing.',
-      validationIsPassing,
-      exceptionIsDocumented,
-    };
-  }
-
-  // Terminal release decisions cannot be reopened by a later exception.
-  if (input.hasReleaseCertificate && (currentStatus === 'revoked' || currentStatus === 'superseded')) {
-    return {
-      effectiveStatus: currentStatus,
-      shouldTransition: false,
-      reason: 'Terminal release status cannot be reactivated by an exception approval.',
       validationIsPassing,
       exceptionIsDocumented,
     };

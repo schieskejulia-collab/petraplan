@@ -5,6 +5,8 @@ import {
   type ReleaseStatus,
 } from './releaseGate.js';
 import { deriveReviewTruth } from './reviewGate.js';
+import { selectLatestCertificate, selectLatestReleaseHistory } from './certificateAuthority.js';
+import { verifyDisplayedRelease } from './releaseReadBasis.js';
 
 export interface CaseListItem {
   id: string;
@@ -17,9 +19,10 @@ export interface CaseListItem {
   release_status: ReleaseStatus;
 }
 
-async function rows<T>(promise: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
-  const { data, error } = await promise;
+async function rows<T>(promise: PromiseLike<{ data: T[] | null; error: { message: string } | null; count?: number | null }>): Promise<T[]> {
+  const { data, error, count } = await promise;
   if (error) throw new Error(error.message);
+  if (typeof count === 'number' && count > (data?.length ?? 0)) throw new Error('Incomplete decision-basis query result; release authority cannot be established.');
   return data ?? [];
 }
 
@@ -45,47 +48,48 @@ export async function listCases(
   return Promise.all(
     records.map(async (record) => {
       const anchors = await rows<any>(
-        supabase.from('conflicts').select('id, conflict').eq('record_id', record.id),
+        supabase.from('conflicts').select('id, conflict', { count: 'exact' }).eq('record_id', record.id),
       );
       const conflictIds = anchors.map((item) => item.id);
 
-      const certificate = await one<any>(
+      const certificates = await rows<any>(
         supabase
           .from('release_certificates')
-          .select('id, release_status, validation_result_id, certified_at')
+          .select('id, release_status, validation_result_id, certified_at', { count: 'exact' })
           .eq('record_id', record.id)
-          .order('certified_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+          .order('certified_at', { ascending: false }),
       );
+      const { certificate, ambiguous: certificateAmbiguous } = selectLatestCertificate(certificates);
 
       let releaseStatus: ReleaseStatus = certificate?.release_status ?? null;
+      let historyAmbiguous = false;
 
       if (certificate) {
-        const latestStatus = await one<any>(
+        const statusHistory = await rows<any>(
           supabase
             .from('release_status_history')
-            .select('new_status, created_at')
+            .select('new_status, created_at', { count: 'exact' })
             .eq('release_certificate_id', certificate.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle(),
+            .order('created_at', { ascending: false }),
         );
-        releaseStatus = latestStatus?.new_status ?? releaseStatus;
+        const selected = selectLatestReleaseHistory(statusHistory);
+        historyAmbiguous = selected.ambiguous;
+        releaseStatus = selected.entry?.new_status ?? releaseStatus;
       }
 
       const validations = conflictIds.length
         ? await rows<any>(
             supabase
               .from('validation_results')
-              .select('id, status, created_at')
+              .select('id, status, created_at', { count: 'exact' })
               .in('conflict_id', conflictIds)
               .order('created_at'),
           )
         : [];
 
       const authoritativeValidation = selectAuthoritativeValidation(validations, certificate);
-      const gate = authoritativeValidation
+      const validationUnavailable = (Boolean(certificate) || validations.length > 0) && !authoritativeValidation;
+      const validationGate = authoritativeValidation
         ? decideReleaseGate({
             latestValidationStatus: authoritativeValidation.status,
             latestValidationId: authoritativeValidation.id,
@@ -94,11 +98,12 @@ export async function listCases(
             hasReleaseCertificate: Boolean(certificate),
           })
         : null;
+      const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
 
       return {
         ...record,
         conflict_count: anchors.filter((item) => item.conflict === true).length,
-        release_status: gate?.effectiveStatus ?? releaseStatus,
+        release_status: certificateAmbiguous || historyAmbiguous || validationUnavailable ? 'blocked' : (gate?.effectiveStatus ?? releaseStatus),
       } as CaseListItem;
     }),
   );
@@ -201,7 +206,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       )
     : [];
   const anchors = await rows<any>(
-    supabase.from('conflicts').select('*').eq('record_id', recordId).order('created_at'),
+    supabase.from('conflicts').select('*', { count: 'exact' }).eq('record_id', recordId).order('created_at'),
   );
 
   const conflictIds = anchors.map((item) => item.id);
@@ -230,7 +235,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     : [];
   const validations = conflictIds.length
     ? await rows<any>(
-        supabase.from('validation_results').select('*').in('conflict_id', conflictIds).order('created_at'),
+        supabase.from('validation_results').select('*', { count: 'exact' }).in('conflict_id', conflictIds).order('created_at'),
       )
     : [];
 
@@ -280,7 +285,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
   });
 
   const releases = await rows<any>(
-    supabase.from('release_certificates').select('*').eq('record_id', recordId).order('certified_at'),
+    supabase.from('release_certificates').select('*', { count: 'exact' }).eq('record_id', recordId).order('certified_at'),
   );
   const releaseIds = releases.map((item) => item.id);
   const releaseLogs = releaseIds.length
@@ -292,20 +297,22 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
     ? await rows<any>(
         supabase
           .from('release_status_history')
-          .select('*')
+          .select('*', { count: 'exact' })
           .in('release_certificate_id', releaseIds)
           .order('created_at'),
       )
     : [];
 
-  const latestCertificate = releases.length ? releases[releases.length - 1] : null;
+  const { certificate: latestCertificate, ambiguous: certificateAmbiguous } = selectLatestCertificate(releases);
   const authoritativeValidation = selectAuthoritativeValidation(validations, latestCertificate);
+  const validationUnavailable = (Boolean(latestCertificate) || validations.length > 0) && !authoritativeValidation;
+  const selectedHistory = latestCertificate
+    ? selectLatestReleaseHistory(releaseStatusHistory.filter((item) => item.release_certificate_id === latestCertificate.id))
+    : { entry: null, ambiguous: false };
   const latestReleaseStatus = latestCertificate
-    ? [...releaseStatusHistory]
-        .filter((item) => item.release_certificate_id === latestCertificate.id)
-        .sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')))[0]?.new_status ?? latestCertificate.release_status
+    ? selectedHistory.entry?.new_status ?? latestCertificate.release_status
     : null;
-  const gate = authoritativeValidation
+  const validationGate = authoritativeValidation
     ? decideReleaseGate({
         latestValidationStatus: authoritativeValidation.status,
         latestValidationId: authoritativeValidation.id,
@@ -314,6 +321,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
         hasReleaseCertificate: Boolean(latestCertificate),
       })
     : null;
+  const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
 
   return {
     id: record.id,
@@ -372,7 +380,8 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       certificates: releases,
       logs: releaseLogs,
       status_history: releaseStatusHistory,
-      effective_status: gate?.effectiveStatus ?? latestReleaseStatus,
+      effective_status: certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable ? 'blocked' : (gate?.effectiveStatus ?? latestReleaseStatus),
+      authority_ambiguous: certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable,
       gate,
     },
   };

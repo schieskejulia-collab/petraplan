@@ -4,6 +4,8 @@ import {
   selectAuthoritativeValidation,
   type ReleaseStatus,
 } from './releaseGate.js';
+import { selectLatestCertificate, selectLatestReleaseHistory } from './certificateAuthority.js';
+import { verifyDisplayedRelease } from './releaseReadBasis.js';
 
 export interface CaseListItem {
   id: string;
@@ -17,10 +19,11 @@ export interface CaseListItem {
 }
 
 async function rows<T>(
-  promise: PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  promise: PromiseLike<{ data: T[] | null; error: { message: string } | null; count?: number | null }>,
 ): Promise<T[]> {
-  const { data, error } = await promise;
+  const { data, error, count } = await promise;
   if (error) throw new Error(error.message);
+  if (typeof count === 'number' && count > (data?.length ?? 0)) throw new Error('Incomplete decision-basis query result; release authority cannot be established.');
   return data ?? [];
 }
 
@@ -65,13 +68,13 @@ export async function listCases(
     rows<any>(
       supabase
         .from('conflicts')
-        .select('id, record_id, conflict')
+        .select('id, record_id, conflict', { count: 'exact' })
         .in('record_id', recordIds),
     ),
     rows<any>(
       supabase
         .from('release_certificates')
-        .select('id, record_id, release_status, validation_result_id, certified_at')
+        .select('id, record_id, release_status, validation_result_id, certified_at', { count: 'exact' })
         .in('record_id', recordIds)
         .order('certified_at', { ascending: true }),
     ),
@@ -80,18 +83,18 @@ export async function listCases(
   const conflictsByRecord = groupBy(conflicts, (item) => String(item.record_id));
   const conflictIds = conflicts.map((item) => item.id);
 
-  const latestCertificateByRecord = new Map<string, any>();
-  for (const certificate of certificates) {
-    latestCertificateByRecord.set(String(certificate.record_id), certificate);
-  }
-  const latestCertificateIds = [...latestCertificateByRecord.values()].map((item) => item.id);
+  const certificatesByRecord = groupBy(certificates, (item) => String(item.record_id));
+  const selectionsByRecord = new Map(
+    records.map((record) => [String(record.id), selectLatestCertificate(certificatesByRecord.get(String(record.id)) ?? [])]),
+  );
+  const latestCertificateIds = [...selectionsByRecord.values()].flatMap((item) => item.certificate ? [item.certificate.id] : []);
 
   const [validations, releaseStatusHistory] = await Promise.all([
     conflictIds.length
       ? rows<any>(
           supabase
             .from('validation_results')
-            .select('id, conflict_id, status, created_at')
+            .select('id, conflict_id, status, created_at', { count: 'exact' })
             .in('conflict_id', conflictIds)
             .order('created_at', { ascending: true }),
         )
@@ -100,7 +103,7 @@ export async function listCases(
       ? rows<any>(
           supabase
             .from('release_status_history')
-            .select('release_certificate_id, new_status, created_at')
+            .select('release_certificate_id, new_status, created_at', { count: 'exact' })
             .in('release_certificate_id', latestCertificateIds)
             .order('created_at', { ascending: true }),
         )
@@ -108,29 +111,26 @@ export async function listCases(
   ]);
 
   const validationsByConflict = groupBy(validations, (item) => String(item.conflict_id));
-  const latestStatusByCertificate = new Map<string, any>();
-  for (const status of releaseStatusHistory) {
-    latestStatusByCertificate.set(String(status.release_certificate_id), status);
-  }
+  const historyByCertificate = groupBy(releaseStatusHistory, (item) => String(item.release_certificate_id));
 
-  return records.map(({ metadata: _metadata, ...record }) => {
+  return Promise.all(records.map(async ({ metadata: _metadata, ...record }) => {
     const recordAnchors = conflictsByRecord.get(String(record.id)) ?? [];
     const recordValidations = recordAnchors.flatMap(
       (anchor) => validationsByConflict.get(String(anchor.id)) ?? [],
     );
 
-    const certificate = latestCertificateByRecord.get(String(record.id)) ?? null;
-    const latestStatus = certificate
-      ? latestStatusByCertificate.get(String(certificate.id)) ?? null
-      : null;
+    const selection = selectionsByRecord.get(String(record.id))!;
+    const certificate = selection.certificate;
+    const history = selectLatestReleaseHistory(certificate ? historyByCertificate.get(String(certificate.id)) ?? [] : []);
     const releaseStatus: ReleaseStatus =
-      latestStatus?.new_status ?? certificate?.release_status ?? null;
+      history.entry?.new_status ?? certificate?.release_status ?? null;
 
     const authoritativeValidation = selectAuthoritativeValidation(
       recordValidations,
       certificate,
     );
-    const gate = authoritativeValidation
+    const validationUnavailable = (Boolean(certificate) || recordValidations.length > 0) && !authoritativeValidation;
+    const validationGate = authoritativeValidation
       ? decideReleaseGate({
           latestValidationStatus: authoritativeValidation.status,
           latestValidationId: authoritativeValidation.id,
@@ -139,11 +139,12 @@ export async function listCases(
           hasReleaseCertificate: Boolean(certificate),
         })
       : null;
+    const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
 
     return {
       ...record,
       conflict_count: recordAnchors.filter((item) => item.conflict === true).length,
-      release_status: gate?.effectiveStatus ?? releaseStatus,
+      release_status: selection.ambiguous || history.ambiguous || validationUnavailable ? 'blocked' : (gate?.effectiveStatus ?? releaseStatus),
     } as CaseListItem;
-  });
+  }));
 }
