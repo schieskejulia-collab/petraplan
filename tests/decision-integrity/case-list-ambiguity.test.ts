@@ -6,8 +6,17 @@ import { reconcileReleaseGate } from '../../api-server/src/services/releaseRecon
 import { invalidateReleaseAfterNewClaim } from '../../api-server/src/services/claimReleaseInvalidation.js';
 
 // Read-only Supabase query double: each query resolves to its configured rows.
-function fakeDb(tables: Record<string, any[]>, counts: Record<string,number> = {}) {
+function fakeDb(
+  tables: Record<string, any[]>,
+  counts: Record<string, number> = {},
+  freshness: { data: unknown; error: { message: string } | null } = { data: false, error: null },
+) {
   return {
+    async rpc(name: string, args: unknown) {
+      assert.equal(name, 'bridge_claims_after_validation');
+      assert.deepEqual(args, { p_record_id: 'case-1', p_validation_id: 'v1' });
+      return freshness;
+    },
     from(table: string) {
       let limit = Infinity;
       let selected = [...(tables[table] ?? [])];
@@ -102,6 +111,41 @@ test('all case readers retain an unambiguous certified passing release',async()=
  assert.equal((await listCases(fakeDb(tables),10,0))[0].release_status,'trusted');
  assert.equal((await listProductionCases(fakeDb(tables),10,0))[0].release_status,'trusted');
  assert.equal((await getCaseTrace(fakeDb(tables),record.id))?.release.effective_status,'trusted');
+});
+
+test('all case readers block an existing release when freshness is stale or cannot be verified', async () => {
+  const tables = {
+    records: [record],
+    conflicts: [{ id: 'conflict-1', record_id: record.id, conflict: false }],
+    release_certificates: [certificate],
+    validation_results: [validation],
+  };
+  for (const freshness of [
+    { data: true, error: null },
+    { data: null, error: { message: 'Freshness RPC unavailable' } },
+    { data: null, error: null },
+  ]) {
+    const db = fakeDb(tables, {}, freshness);
+    assert.equal((await listCases(db, 10, 0))[0].release_status, 'blocked');
+    assert.equal((await listProductionCases(db, 10, 0))[0].release_status, 'blocked');
+    const trace = await getCaseTrace(db, record.id);
+    assert.equal(trace?.release.effective_status, 'blocked');
+    assert.equal(trace?.release.gate?.shouldTransition, false);
+    assert.deepEqual(trace?.release.certificates, [certificate]);
+  }
+});
+
+test('all case readers preserve a revoked certificate when freshness cannot be verified', async () => {
+  const revoked = { ...certificate, release_status: 'revoked' };
+  const db = fakeDb({
+    records: [record],
+    conflicts: [{ id: 'conflict-1', record_id: record.id, conflict: false }],
+    release_certificates: [revoked],
+    validation_results: [validation],
+  }, {}, { data: null, error: { message: 'Freshness RPC unavailable' } });
+  assert.equal((await listCases(db, 10, 0))[0].release_status, 'revoked');
+  assert.equal((await listProductionCases(db, 10, 0))[0].release_status, 'revoked');
+  assert.equal((await getCaseTrace(db, record.id))?.release.effective_status, 'revoked');
 });
 
 test('an orphaned passing certificate cannot remain usable without its validation basis',async()=>{

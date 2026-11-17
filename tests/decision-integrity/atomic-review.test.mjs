@@ -56,6 +56,13 @@ test('snapshot, validation, Claim basis and reviewer permission are rechecked in
  for(const table of reviewTables) assert.equal(await count(table),0);
 });
 
+test('atomic review refuses validation older than a candidate confirmation', async () => {
+ await seedCandidate(db);
+ await db.exec(`update public.candidate_state_history set changed_at='2026-10-01T11:00:01Z'`);
+ await fails(() => review(db), 'PT409');
+ for (const table of reviewTables) assert.equal(await count(table), 0);
+});
+
 test('a changed source hash, an open candidate or negative validation blocks approval',async()=>{
  await db.exec("update public.validation_results set evidence='{}'");
  await fails(()=>review(db),'PT409');

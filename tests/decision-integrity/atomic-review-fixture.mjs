@@ -48,6 +48,7 @@ export async function installAtomicReviewFixture(db) {
  await db.exec(original.triggers.find(t=>t.function==='audit_row_change').body);
  await db.exec(await read('../../supabase/migrations/20261026161308_release_history_integrity_guard.sql'));
  await db.exec(await read('../../supabase/migrations/20261026162914_atomic_review_and_revocation.sql'));
+ await db.exec(await read('../../supabase/migrations/20261110183407_candidate_validation_freshness.sql'));
 }
 
 export async function seedAtomicReviewFixture(db) {

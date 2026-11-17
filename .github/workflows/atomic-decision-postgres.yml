@@ -8,6 +8,7 @@ on:
       - 'api-server/src/services/claimReleaseInvalidation.ts'
       - 'supabase/migrations/**'
       - 'tests/decision-integrity/atomic-*'
+      - 'tests/decision-integrity/trusted-*'
       - 'tests/postgres/**'
       - 'docs/verification/*schema-observations.json'
       - 'package.json'
@@ -45,5 +46,5 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Run real PostgreSQL multi-connection decision races
-        run: node --test --test-concurrency=1 tests/postgres/atomic-review-concurrency.test.mjs
+      - name: Run real PostgreSQL multi-connection decision and evidence races
+        run: node --test --test-concurrency=1 tests/postgres/*.test.mjs
