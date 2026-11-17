@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { getCaseTrace } from '../../../api-server/src/services/caseTrace.js';
-import { buildExplicitClaimDraft, CLAIM_TYPES, type ClaimType } from '../../../api-server/src/services/claimFromCandidate.js';
-import { invalidateReleaseAfterNewClaim } from '../../../api-server/src/services/claimReleaseInvalidation.js';
+import { CLAIM_TYPES, type ClaimType } from '../../../api-server/src/services/claimFromCandidate.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -21,12 +20,6 @@ async function one<T>(promise: any): Promise<T | null> {
   const { data, error } = await promise;
   if (error) throw error;
   return (data ?? null) as T | null;
-}
-
-async function many<T>(promise: any): Promise<T[]> {
-  const { data, error } = await promise;
-  if (error) throw error;
-  return (data ?? []) as T[];
 }
 
 export async function handleClaim(req: any, res: any, dependencies = { createClient, getCaseTrace }) {
@@ -72,91 +65,25 @@ export async function handleClaim(req: any, res: any, dependencies = { createCli
     const claimType = String(req.body?.claim_type ?? '') as ClaimType;
     if (!CLAIM_TYPES.includes(claimType)) return res.status(400).json({ error: 'Unsupported claim_type' });
 
-    const candidate = await one<any>(
-      supabase.from('conversion_candidates').select('*').eq('id', candidateId).eq('record_id', recordId).maybeSingle(),
-    );
-    if (!candidate) return res.status(404).json({ error: 'Candidate not found for this case' });
-    if (String(candidate.state) !== 'confirmed') {
-      return res.status(409).json({ error: 'Nur ein bestätigter Kandidat darf Grundlage eines expliziten Claims werden.' });
-    }
+    if (statement.length < 8 || !subjectAddress) return res.status(400).json({error:'A Claim subject and explicit statement of at least eight characters are required.'});
 
-    const existing = await one<any>(
-      supabase.from('claims').select('id,status').eq('candidate_id', candidateId).neq('status', 'SUPERSEDED').limit(1).maybeSingle(),
-    );
-    if (existing) {
-      return res.status(409).json({ error: `Für diesen Kandidaten existiert bereits Claim ${String(existing.id)} (${String(existing.status)}).` });
-    }
-
-    const sourceAddress = await one<any>(
-      supabase.from('address_registry').select('id,address,kind').eq('id', candidate.source_address_id).maybeSingle(),
-    );
-    if (!sourceAddress) return res.status(409).json({ error: 'Candidate source address is missing' });
-
-    const impactLinks = await many<any>(
-      supabase.from('impact_links').select('address_id').eq('candidate_id', candidateId),
-    );
-    const impactAddressIds = [...new Set(impactLinks.map((link) => String(link.address_id)).filter(Boolean))];
-    const impactAddresses = impactAddressIds.length
-      ? await many<any>(supabase.from('address_registry').select('id,address,kind').in('id', impactAddressIds))
-      : [];
-
-    const confirmation = await one<any>(
-      supabase
-        .from('candidate_state_history')
-        .select('id,changed_by,changed_at,reason,evidence_reference')
-        .eq('candidate_id', candidateId)
-        .eq('state', 'confirmed')
-        .order('changed_at', { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-    );
-
-    const draft = buildExplicitClaimDraft({
-      candidate,
-      sourceAddress,
-      allowedSubjectAddresses: impactAddresses,
-      subjectAddress,
-      statement,
-      claimType,
-      createdBy: user.id,
-      producerRole: role.role_name,
-      sourceSystem: String(trace.source.ingestion?.source_system ?? trace.source.record.source_system ?? '') || null,
-      confirmation,
+    const { data: result, error: claimError } = await supabase.rpc('bridge_create_explicit_claim', {
+      p_record_id: recordId, p_snapshot_id: trace.source.ingestion.id, p_candidate_id: candidateId,
+      p_actor_id: user.id, p_subject_address: subjectAddress,
+      p_claim_type: claimType, p_statement: statement,
     });
-
-    const claim = await one<any>(
-      supabase.from('claims').insert(draft.claim).select('*').single(),
-    );
-    if (!claim?.id) throw new Error('Claim insert returned no id');
-
-    const links = draft.evidenceLinks.map((link) => ({ ...link, claim_id: claim.id }));
-    const { error: evidenceError } = await supabase.from('claim_evidence_links').insert(links);
-    if (evidenceError) {
-      await supabase.from('claims').delete().eq('id', claim.id);
-      throw evidenceError;
-    }
-
-    let releaseInvalidation;
-    try {
-      releaseInvalidation = await invalidateReleaseAfterNewClaim({
-        supabase,
-        recordId,
-        claimId: String(claim.id),
-        actorUserId: user.id,
-      });
-    } catch (invalidationError) {
-      // The claim must never survive if the safety revocation could not be persisted.
-      // Deleting the claim also removes its claim_evidence_links via ON DELETE CASCADE.
-      await supabase.from('claims').delete().eq('id', claim.id);
-      throw invalidationError;
-    }
+    if (claimError) throw claimError;
+    if (!result?.claim_id) throw new Error('Atomic Claim creation returned no id');
 
     return res.status(200).json({
-      claim_id: claim.id,
-      release_invalidation: releaseInvalidation,
+      claim_id: result.claim_id,
+      release_invalidation: result.release_invalidation,
       trace: await dependencies.getCaseTrace(supabase, recordId),
     });
   } catch (error: any) {
+    const code=String(error?.code ?? '');
+    if (['PT400','PT403','PT404','PT409'].includes(code)) return res.status(Number(code.slice(2))).json({error:error.message});
+    if (code==='PGRST202' || code==='42883') return res.status(503).json({error:'Die Datenbankfunktion fuer atomare Claim-Erstellung ist noch nicht eingerichtet.'});
     console.error(error);
     return res.status(500).json({ error: error?.message ?? 'Claim could not be created' });
   }

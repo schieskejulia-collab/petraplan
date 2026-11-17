@@ -125,55 +125,11 @@ export async function reconcileReleaseGate(input: {
 
   const reason = gate.reason;
 
-  const { error: historyError } = await supabase.from('release_status_history').insert({
-    release_certificate_id: certificate.id,
-    previous_status: previousStatus,
-    new_status: 'revoked',
-    changed_by: actorUserId,
-    reason,
+  const { data, error } = await supabase.rpc('bridge_revoke_case', {
+    p_record_id: recordId, p_certificate_id: certificate.id, p_actor_id: actorUserId,
+    p_reason: reason, p_mode: 'validation', p_validation_id: authoritative.id,
   });
-  if (historyError) throw historyError;
-
-  const { error: logError } = await supabase.from('release_logs').insert({
-    release_certificate_id: certificate.id,
-    event_type: 'revoked',
-    message: 'Release automatically revoked after a later authoritative validation failed',
-    details: {
-      automatic: true,
-      source: 'release_gate_reconciliation',
-      record_id: recordId,
-      validation_result_id: authoritative.id ?? null,
-      trigger_validation_id: triggerValidationId,
-      previous_release_status: previousStatus,
-      new_release_status: 'revoked',
-      gate_reason: reason,
-    },
-  });
-  if (logError) throw logError;
-
-  const { error: auditError } = await supabase.from('bridge_decision_audit').insert({
-    record_id: recordId,
-    actor_user_id: actorUserId,
-    action: 'revoke',
-    reason,
-    validation_result_id: authoritative.id ?? null,
-    release_certificate_id: certificate.id,
-    previous_release_status: previousStatus,
-    new_release_status: 'revoked',
-    details: {
-      automatic: true,
-      source: 'release_gate_reconciliation',
-      trigger_validation_id: triggerValidationId,
-    },
-  });
-  if (auditError) throw auditError;
-
-  return {
-    transitioned: true,
-    previousStatus,
-    effectiveStatus: 'revoked',
-    validationId: authoritative.id ?? null,
-    certificateId: certificate.id,
-    reason,
-  };
+  if (error) throw error;
+  if (!data || typeof data.transitioned !== 'boolean') throw new Error('Atomic revocation returned no decision.');
+  return data as ReleaseReconciliationResult;
 }

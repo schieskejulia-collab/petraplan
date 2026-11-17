@@ -6,6 +6,7 @@ import {
 } from './releaseGate.js';
 import { deriveReviewTruth } from './reviewGate.js';
 import { selectLatestCertificate, selectLatestReleaseHistory } from './certificateAuthority.js';
+import { verifyDisplayedRelease } from './releaseReadBasis.js';
 
 export interface CaseListItem {
   id: string;
@@ -88,7 +89,7 @@ export async function listCases(
 
       const authoritativeValidation = selectAuthoritativeValidation(validations, certificate);
       const validationUnavailable = (Boolean(certificate) || validations.length > 0) && !authoritativeValidation;
-      const gate = authoritativeValidation
+      const validationGate = authoritativeValidation
         ? decideReleaseGate({
             latestValidationStatus: authoritativeValidation.status,
             latestValidationId: authoritativeValidation.id,
@@ -97,6 +98,7 @@ export async function listCases(
             hasReleaseCertificate: Boolean(certificate),
           })
         : null;
+      const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
 
       return {
         ...record,
@@ -310,7 +312,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
   const latestReleaseStatus = latestCertificate
     ? selectedHistory.entry?.new_status ?? latestCertificate.release_status
     : null;
-  const gate = authoritativeValidation
+  const validationGate = authoritativeValidation
     ? decideReleaseGate({
         latestValidationStatus: authoritativeValidation.status,
         latestValidationId: authoritativeValidation.id,
@@ -319,6 +321,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
         hasReleaseCertificate: Boolean(latestCertificate),
       })
     : null;
+  const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
 
   return {
     id: record.id,

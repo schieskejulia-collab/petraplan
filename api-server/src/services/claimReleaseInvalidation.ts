@@ -89,56 +89,11 @@ export async function invalidateReleaseAfterNewClaim(input: {
 
   const reason = `Neuer expliziter Claim ${claimId} wurde nach der geprüften Freigabe angelegt. Die bisherige Validation und das bisherige Review decken diesen Wissensstand nicht ab; Neuvalidierung, neues Review und eine neue explizite Freigabe sind erforderlich.`;
 
-  const { error: historyError } = await supabase.from('release_status_history').insert({
-    release_certificate_id: certificate.id,
-    previous_status: previousStatus,
-    new_status: 'revoked',
-    changed_by: actorUserId,
-    reason,
+  const { data, error } = await supabase.rpc('bridge_revoke_case', {
+    p_record_id: recordId, p_certificate_id: certificate.id, p_actor_id: actorUserId,
+    p_reason: reason, p_mode: 'claim', p_claim_id: claimId,
   });
-  if (historyError) throw new Error(historyError.message);
-
-  const warnings: string[] = [];
-
-  const { error: logError } = await supabase.from('release_logs').insert({
-    release_certificate_id: certificate.id,
-    event_type: 'revoked',
-    message: 'Release automatically revoked after a new explicit claim changed the current case knowledge state',
-    details: {
-      automatic: true,
-      source: 'claim_freshness_invalidation',
-      record_id: recordId,
-      claim_id: claimId,
-      validation_result_id: certificate.validation_result_id ?? null,
-      previous_release_status: previousStatus,
-      new_release_status: 'revoked',
-    },
-  });
-  if (logError) warnings.push(`release_log: ${logError.message}`);
-
-  const { error: auditError } = await supabase.from('bridge_decision_audit').insert({
-    record_id: recordId,
-    actor_user_id: actorUserId,
-    action: 'revoke',
-    reason,
-    validation_result_id: certificate.validation_result_id ?? null,
-    release_certificate_id: certificate.id,
-    previous_release_status: previousStatus,
-    new_release_status: 'revoked',
-    details: {
-      automatic: true,
-      source: 'claim_freshness_invalidation',
-      claim_id: claimId,
-    },
-  });
-  if (auditError) warnings.push(`decision_audit: ${auditError.message}`);
-
-  return {
-    transitioned: true,
-    previousStatus,
-    effectiveStatus: 'revoked',
-    certificateId: certificate.id,
-    reason,
-    warnings,
-  };
+  if (error) throw error;
+  if (!data || typeof data.transitioned !== 'boolean') throw new Error('Atomic Claim revocation returned no decision.');
+  return { ...data, warnings: [] } as ClaimReleaseInvalidationResult;
 }

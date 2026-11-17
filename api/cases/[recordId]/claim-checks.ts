@@ -1,4 +1,4 @@
-import { buildClaimCheckPlan } from '../../../api-server/src/services/claimCheckPlan.js';
+import { buildClaimCheckPlan, buildBackwardGapReport } from '../../../api-server/src/services/claimCheckPlan.js';
 import { createClient } from '@supabase/supabase-js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,9 +31,10 @@ export async function handleClaimChecks(req: any, res: any, dependencies = { cre
     if (!record) return res.status(404).json({ error: 'Case not found' });
 
     if (req.method === 'GET') {
-      const [requirements, evidence] = await Promise.all([
+      const [requirements, evidence, claims] = await Promise.all([
         read(db.from('claim_check_requirements').select('*').eq('record_id',recordId).order('created_at')),
         read(db.from('representation_evidence').select('*').eq('record_id',recordId)),
+        read(db.from('claims').select('id,statement,status').eq('record_id',recordId)),
       ]);
       const ids = (requirements ?? []).map((r:any)=>r.id);
       const claimIds = [...new Set((requirements ?? []).map((r:any)=>r.claim_id))];
@@ -41,7 +42,8 @@ export async function handleClaimChecks(req: any, res: any, dependencies = { cre
         ids.length ? read(db.from('claim_check_observations').select('*').in('requirement_id',ids).order('sequence')) : [],
         Promise.all(claimIds.map(async (id:any)=>[id,await read(db.rpc('bridge_semantic_claim_basis',{p_claim_id:id}))])),
       ]);
-      return res.status(200).json({requirements:buildClaimCheckPlan(requirements??[],observations??[],evidence??[],Object.fromEntries(entries),record.ingestion_log_id),
+      const plan=buildClaimCheckPlan(requirements??[],observations??[],evidence??[],Object.fromEntries(entries),record.ingestion_log_id);
+      return res.status(200).json({requirements:plan,backward_gaps:buildBackwardGapReport(claims??[],plan),
         evidence:evidence??[],scope:'CASE_ONLY',planning_only:true,claim_confirmation_automatic:false});
     }
     const body = req.body ?? {};

@@ -5,8 +5,6 @@ import { claimFreshnessBlockers, unresolvedSemanticClaimBlockers } from '../../.
 import { selectLatestCertificate } from '../../../api-server/src/services/certificateAuthority.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const LIVE_RULE = 'PetraPlan live bridge review';
-const LIVE_STRUCTURE = 'PetraPlan live bridge decision';
 const CRITERIA = ['source_truth_checked', 'translation_trace_checked', 'blockers_resolved'] as const;
 type Action = 'confirm_candidate' | 'reject_candidate' | 'approve_review' | 'reject_review' | 'release' | 'revoke';
 type Role = { user_id:string; role_name:string; active:boolean; can_review:boolean; can_release:boolean; can_revoke:boolean };
@@ -44,20 +42,20 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const unresolvedCandidateCount=unresolvedCandidates.length;
     const validationPassing=Boolean(authoritative?.id && isPassing(authoritative.status));
     const snapshotProcessed=trace.source.ingestion?.status === 'processed';
-    let claimAfterValidation=false;
+    let staleValidationBasis=false;
     if(authoritative?.id) {
       const {data,error}=await supabase.rpc('bridge_claims_after_validation',{
         p_record_id:recordId,p_validation_id:authoritative.id,
       });
-      if(error || typeof data!=='boolean') return res.status(503).json({error:'Claim-Freshness-Prüfung ist nicht verfügbar.'});
-      claimAfterValidation=data;
+      if(error || typeof data!=='boolean') return res.status(503).json({error:'Die Aktualität der Validierungsgrundlage konnte nicht geprüft werden.'});
+      staleValidationBasis=data;
     }
     const {data:claimsBasis,error:claimsBasisError}=await supabase.rpc('bridge_claims_basis',{p_record_id:recordId});
     if(claimsBasisError || typeof claimsBasis!=='string' || !/^[0-9a-f]{64}$/.test(claimsBasis)) return res.status(503).json({error:'Claims-Basis ist nicht verfügbar.'});
     const freshnessBlockers=claimFreshnessBlockers(claims,authoritative);
     const semanticBlockers=unresolvedSemanticClaimBlockers(claims);
-    if(claimAfterValidation && freshnessBlockers.length===0) freshnessBlockers.push('Ein aktiver Claim ist nach der maßgeblichen Validierung entstanden. Neuvalidierung ist erforderlich.');
-    const decisionBasisFresh=!claimAfterValidation && freshnessBlockers.length===0;
+    if(staleValidationBasis && freshnessBlockers.length===0) freshnessBlockers.push('Die maßgebliche Validierung deckt die aktuelle Claim- oder Kandidatengrundlage nicht ab. Neuvalidierung ist erforderlich.');
+    const decisionBasisFresh=!staleValidationBasis && freshnessBlockers.length===0;
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
     const releaseAlreadyTrusted=releaseStatus==='trusted';
     const reviewBlockers=[
@@ -109,19 +107,12 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       if(action==='approve_review' && semanticBlockers.length) return res.status(409).json({error:semanticBlockers.join(' ')});
       const criterionInput=req.body?.criteria ?? {};
       if(action==='approve_review' && !CRITERIA.every(key=>criterionInput[key]===true)) return res.status(409).json({error:'All required review criteria must be confirmed before approval'});
-      const rule=await one<any>(supabase.from('review_rules').select('*').eq('name',LIVE_RULE).eq('active',true).single());
-      const structure=await one<any>(supabase.from('review_structures').select('*').eq('rule_id',rule?.id).eq('name',LIVE_STRUCTURE).single());
-      if(!rule || !structure) return res.status(500).json({error:'Live review structure is not configured'});
-      const criteria=await many<any>(supabase.from('review_criteria').select('*').eq('structure_id',structure.id));
-      const evidenceRefs=[`claims:${claimsBasis}`,`record:${recordId}`,`validation:${authoritative.id}`,trace.source.ingestion?.id?`ingestion:${String(trace.source.ingestion.id)}`:null].filter(Boolean) as string[];
-      const now=new Date().toISOString(); const decisionName=action==='approve_review'?'approved':'rejected';
-      const reviewRecord=await one<any>(supabase.from('review_records').insert({resolution_record_id:authoritative.resolution_record_id,validation_result_id:authoritative.id,reviewer_id:user.id,reviewer_type:'human',review_status:decisionName,review_reason:reason,reviewed_at:now}).select('*').single());
-      const session=await one<any>(supabase.from('review_sessions').insert({review_record_id:reviewRecord?.id,rule_id:rule.id,structure_id:structure.id,status:decisionName,started_at:now,completed_at:now,reviewer_authorized:true,authorization_level:role.role_name,evidence_checked:true,evidence_refs:evidenceRefs,criteria_checked:true,validation_result_id:authoritative.id}).select('*').single());
-      for(const criterion of criteria){ const key=String(criterion.criterion_key); const passed=criterionInput[key]===true; await one<any>(supabase.from('review_criterion_results').insert({review_session_id:session?.id,criterion_id:criterion.id,result:{value:passed},passed,evidence:{record_id:recordId,validation_result_id:authoritative.id},checked_by:user.id}).select('id').single()); }
-      const decision=await one<any>(supabase.from('review_decisions').insert({review_session_id:session?.id,decision:decisionName,reason,decided_by:user.id,reviewer_type:'human',final:true,reviewer_id:user.id,reviewer_authorized:true,authorization_level:role.role_name,evidence_checked:true,evidence_refs:evidenceRefs,criteria_checked:true,decided_at:now,validation_result_id:authoritative.id}).select('*').single());
-      await supabase.from('review_status_history').insert({review_session_id:session?.id,previous_status:'pending',new_status:decisionName,changed_by:user.id,reason});
-      await supabase.from('review_logs').insert({review_session_id:session?.id,event_type:'authorized_mobile_decision',message:`Live Bridge review ${decisionName}`,details:{record_id:recordId,validation_result_id:authoritative.id,reviewer_role:role.role_name}});
-      await supabase.from('bridge_decision_audit').insert({record_id:recordId,actor_user_id:user.id,action,reason,validation_result_id:authoritative.id,review_record_id:reviewRecord?.id,review_decision_id:decision?.id,previous_release_status:releaseStatus,new_release_status:releaseStatus,details:{criteria:criterionInput,evidence_refs:evidenceRefs}});
+      const {error}=await supabase.rpc('bridge_commit_review',{
+        p_record_id:recordId,p_snapshot_id:trace.source.ingestion?.id,p_validation_id:authoritative.id,
+        p_claims_basis:claimsBasis,p_actor_id:user.id,p_decision:action==='approve_review'?'approved':'rejected',
+        p_reason:reason,p_criteria:criterionInput,
+      });
+      if(error) throw error;
       return res.status(200).json({trace:await dependencies.getCaseTrace(supabase,recordId)});
     }
 
@@ -144,9 +135,10 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     if(releaseAuthorityAmbiguous) return res.status(409).json({error:authorityBlockers.join(' ')});
     const certificate:any=certificateSelection.certificate;
     if(!certificate) return res.status(409).json({error:'No release certificate exists to revoke'});
-    if(releaseStatus!=='revoked') await supabase.from('release_status_history').insert({release_certificate_id:certificate.id,previous_status:releaseStatus,new_status:'revoked',changed_by:user.id,reason});
-    await supabase.from('release_logs').insert({release_certificate_id:certificate.id,event_type:'authorized_mobile_revoke',message:'Release revoked in Live Bridge',details:{record_id:recordId}});
-    await supabase.from('bridge_decision_audit').insert({record_id:recordId,actor_user_id:user.id,action,reason,validation_result_id:authoritative?.id ?? null,release_certificate_id:certificate.id,previous_release_status:releaseStatus,new_release_status:'revoked'});
+    const {error}=await supabase.rpc('bridge_revoke_case',{
+      p_record_id:recordId,p_certificate_id:certificate.id,p_actor_id:user.id,p_reason:reason,p_mode:'manual',
+    });
+    if(error) throw error;
     return res.status(200).json({trace:await dependencies.getCaseTrace(supabase,recordId)});
   } catch(error) {
     const code=String((error as {code?:string})?.code ?? ''); const message=String((error as {message?:string})?.message ?? 'Decision could not be saved');

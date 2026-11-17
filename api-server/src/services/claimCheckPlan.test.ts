@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {buildClaimCheckPlan} from './claimCheckPlan.js';
+import {buildClaimCheckPlan,buildBackwardGapReport} from './claimCheckPlan.js';
 const r={id:'r',record_id:'case',snapshot_id:'s',claim_id:'c',claim_basis:'basis',required_address:'field',next_check:'Read full export'};
 const e={id:'e',record_id:'case',ingestion_log_id:'s',field_address:'field',raw_representation:0};
 const plan=(rs:any[]=[r],os:any[]=[],es:any[]=[e],basis='basis',snapshot='s')=>buildClaimCheckPlan(rs,os,es,{c:basis},snapshot);
@@ -11,3 +11,17 @@ test('history sequence determines latest report without erasing old results',()=
 test('revision retires previous task and wrong field evidence is not offered',()=>{const x=plan([r,{...r,id:'new',previous_requirement_id:'r'}],[],[{...e,field_address:'other'}]);assert.equal(x[0].status,'SUPERSEDED');assert.equal(x[0].next_check_pending,null);assert.equal(x[1].evidence_available,false);});
 test('a changed or missing used source representation makes a report stale',()=>{const o={requirement_id:'r',sequence:1,result:'SUPPORTS',representation_evidence_id:'e',evidence_snapshot:e};assert.equal(plan([r],[o],[e])[0].status,'SUPPORTS');assert.equal(plan([r],[o],[{...e,raw_representation:5}])[0].status,'STALE');assert.equal(plan([r],[o],[])[0].status,'STALE');});
 test('newly available evidence reopens a previously missing check',()=>{assert.equal(plan([r],[{requirement_id:'r',sequence:1,result:'MISSING'}],[e])[0].status,'STALE');});
+test('backward discovery exposes an unplanned claim without mistaking another claim check for coverage',()=>{
+ const gaps=buildBackwardGapReport([{id:'c',statement:'Quantity is 5',status:'UNPROVEN'},{id:'other',statement:'Invoice is paid',status:'UNPROVEN'}],plan());
+ assert.equal(gaps[0].gaps[0].kind,'UNASSESSED');
+ assert.equal(gaps[1].gaps[0].kind,'NO_REQUIREMENTS');
+ assert.equal(gaps[1].coverage,'UNDETERMINED');
+});
+test('reported support never closes backward coverage; changed basis and counterevidence stay visible',()=>{
+ const claims=[{id:'c',status:'UNPROVEN'}];
+ const supported=plan([r],[{requirement_id:'r',sequence:1,result:'SUPPORTS'}]);
+ assert.equal(buildBackwardGapReport(claims,supported)[0].gaps[0].kind,'UNVERIFIED_SUPPORT');
+ assert.equal(buildBackwardGapReport(claims,supported)[0].coverage,'UNDETERMINED');
+ assert.equal(buildBackwardGapReport(claims,plan([r],[{requirement_id:'r',sequence:1,result:'SUPPORTS'}],[e],'changed'))[0].gaps[0].kind,'STALE_BASIS');
+ assert.equal(buildBackwardGapReport(claims,plan([r],[{requirement_id:'r',sequence:1,result:'CONTRADICTS'}]))[0].gaps[0].kind,'COUNTEREVIDENCE');
+});
