@@ -1,0 +1,132 @@
+[
+  {
+    "path": "0114-ubl.xml.kosit.xml",
+    "sha256": "bccad92edd5d36581ea4f556b7e57ac7cc047cf8d93429d022080a00d2414d1d",
+    "bytes": 32553
+  },
+  {
+    "path": "0114-uncefact.xml.kosit.xml",
+    "sha256": "f6ab36904a0124d0d7ec3f815fc346374846fc2ef4df216f91909dbe4c564d55",
+    "bytes": 36581
+  },
+  {
+    "path": "0203-ubl.xml.kosit.xml",
+    "sha256": "c1cda202a23886687c092c79e4115e1321b91f13e217b2615c7e731c34a97916",
+    "bytes": 247435
+  },
+  {
+    "path": "0203-uncefact.xml.kosit.xml",
+    "sha256": "270ddc2d41816514c135803387cf67a457c976e4658cad6209773defc6f60b39",
+    "bytes": 252428
+  },
+  {
+    "path": "0301-ubl.xml.kosit.xml",
+    "sha256": "51670669f2cdcd2062a1196eb7bec21b11c0b3d35fcbcdcd07a9baa2c544be4f",
+    "bytes": 267336
+  },
+  {
+    "path": "0301-uncefact.xml.kosit.xml",
+    "sha256": "8784c4c3bf7193536bc37ea383701486018597e90876614146caaed0c6e27ac5",
+    "bytes": 292637
+  },
+  {
+    "path": "cen-huf-cii.xml.kosit.xml",
+    "sha256": "98b428a2953a9631555432f36985294d1803761e3e2187bf8faa6cb7f1c99811",
+    "bytes": 146974
+  },
+  {
+    "path": "facturx-invoice.pdf.kosit.xml",
+    "sha256": "7e3f47e3ec0e2ba2af876a08477f97fb4795a2550188c807471fd68ba4844ac0",
+    "bytes": 109074
+  },
+  {
+    "path": "run.json",
+    "sha256": "0ce2cce037597ec646a92daad488da26e469e34d2a954ed7b1def91dabd06ab7",
+    "bytes": 20712
+  },
+  {
+    "path": "diagnostic.json",
+    "sha256": "5b4f2970945265fe7ffb6d68379769f7e853e5be064452c1fc03730583fb517a",
+    "bytes": 1236
+  },
+  {
+    "path": "browser.json",
+    "sha256": "3c8fc0d7894f119a401b1435b9630a545a95ab7e1c2c5804d85a3ef54fdd1599",
+    "bytes": 641
+  },
+  {
+    "path": "0114-ubl.xml.trace-after.compact.json",
+    "sha256": "8aff913a4f0bd3160564425f008ac3af5e8544fa2533f43b58a199b7454dc152",
+    "bytes": 15125
+  },
+  {
+    "path": "0114-ubl.xml.trace-before.compact.json",
+    "sha256": "607731ffcfe0538b6a42f79aac144d0c54c4dda3d73b722c9e9413467b387a2d",
+    "bytes": 3573
+  },
+  {
+    "path": "0114-uncefact.xml.trace-after.compact.json",
+    "sha256": "75765169ca677faad00f54e4407c7987eab04d13bbf2a390edb62d00d569176c",
+    "bytes": 15406
+  },
+  {
+    "path": "0114-uncefact.xml.trace-before.compact.json",
+    "sha256": "b737bde957db8d193967bbd51368762dbde0ec2e32c31372b24ff3dd5bb666e5",
+    "bytes": 3854
+  },
+  {
+    "path": "0203-ubl.xml.trace-after.compact.json",
+    "sha256": "bdc1b0e02060f62b87f4f21143a923454b68dc3bccbfca05e470532ba5566e5e",
+    "bytes": 15118
+  },
+  {
+    "path": "0203-ubl.xml.trace-before.compact.json",
+    "sha256": "05f5472db85e7fe1b458839ae126d620267e57bc6600d3dbb11b3a9b3b10025b",
+    "bytes": 3566
+  },
+  {
+    "path": "0203-uncefact.xml.trace-after.compact.json",
+    "sha256": "843b7675459edee5eaef3b8eb60fc66f80d0f0a9c6a5faa5968c08a1d4d3c1bb",
+    "bytes": 15399
+  },
+  {
+    "path": "0203-uncefact.xml.trace-before.compact.json",
+    "sha256": "478ddf412d334415e03b7815da5f7db41eac4b5f91c90ab5ce2f5304270821d1",
+    "bytes": 3847
+  },
+  {
+    "path": "0301-ubl.xml.trace-after.compact.json",
+    "sha256": "ed0536c5148f01f2d0d6a442d5d00a24360d976bba46ec3fa09f87ed009ae4f6",
+    "bytes": 15128
+  },
+  {
+    "path": "0301-ubl.xml.trace-before.compact.json",
+    "sha256": "64041f7c849a1bd516272768c9b99aac2d34bd2a8a0e08281aab3a4ccbd726f2",
+    "bytes": 3576
+  },
+  {
+    "path": "0301-uncefact.xml.trace-after.compact.json",
+    "sha256": "d4cd857bbe994a9d1ce9742d54e0f916575603e6b55050363f237cc453d8d4c8",
+    "bytes": 15409
+  },
+  {
+    "path": "0301-uncefact.xml.trace-before.compact.json",
+    "sha256": "849045d945d9725f02935332e4a298c149c8e55a08755b2ba9dfd1119e91d0e1",
+    "bytes": 3857
+  },
+  {
+    "path": "cen-huf-cii.xml.trace-before.compact.json",
+    "sha256": "d43ab54b80e7b9a6c7d51e84a5a5ce66299f630210026bb4f0371c5a206044c6",
+    "bytes": 3889
+  },
+  {
+    "path": "facturx-invoice.pdf.trace-before.compact.json",
+    "sha256": "1862e94af568a56367e398169e262c0c587793acfbbe41d2c5d983f1611be1b0",
+    "bytes": 4033
+  },
+  {
+    "path": "revision.trace.compact.json",
+    "sha256": "1a1583763c1347acca00c23308f59315329c4c70dd403c3756980911fdd29c60",
+    "bytes": 18508
+  }
+]

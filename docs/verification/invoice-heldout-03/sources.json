@@ -1,0 +1,92 @@
+[
+  {
+    "filename": "0114-ubl.xml",
+    "repository": "itplr-kosit/xrechnung-testsuite",
+    "commit": "1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9",
+    "path": "src/test/business-cases/standard/01.14a-INVOICE_ubl.xml",
+    "url": "https://raw.githubusercontent.com/itplr-kosit/xrechnung-testsuite/1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9/src/test/business-cases/standard/01.14a-INVOICE_ubl.xml",
+    "sha256": "44699c5b9089800e8cc8b5d952ca809c19d6bbfbb17557916cb9447b824f0751",
+    "bytes": 7982,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "0114-uncefact.xml",
+    "repository": "itplr-kosit/xrechnung-testsuite",
+    "commit": "1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9",
+    "path": "src/test/business-cases/standard/01.14a-INVOICE_uncefact.xml",
+    "url": "https://raw.githubusercontent.com/itplr-kosit/xrechnung-testsuite/1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9/src/test/business-cases/standard/01.14a-INVOICE_uncefact.xml",
+    "sha256": "8c6b4a9e40f140bc633bd67d01c549c4cff227f5e500dcdea1a75eb1bb905c03",
+    "bytes": 11303,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "0203-ubl.xml",
+    "repository": "itplr-kosit/xrechnung-testsuite",
+    "commit": "1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9",
+    "path": "src/test/business-cases/standard/02.03a-INVOICE_ubl.xml",
+    "url": "https://raw.githubusercontent.com/itplr-kosit/xrechnung-testsuite/1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9/src/test/business-cases/standard/02.03a-INVOICE_ubl.xml",
+    "sha256": "b5e4654362adde98a455b06149f891a6884aa1927d472ddf72319479bd879571",
+    "bytes": 212389,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "0203-uncefact.xml",
+    "repository": "itplr-kosit/xrechnung-testsuite",
+    "commit": "1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9",
+    "path": "src/test/business-cases/standard/02.03a-INVOICE_uncefact.xml",
+    "url": "https://raw.githubusercontent.com/itplr-kosit/xrechnung-testsuite/1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9/src/test/business-cases/standard/02.03a-INVOICE_uncefact.xml",
+    "sha256": "0c1d5983bd99613bb0352634b16990f9d70c43d189dca31b979b7191b45bb51e",
+    "bytes": 217472,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "0301-ubl.xml",
+    "repository": "itplr-kosit/xrechnung-testsuite",
+    "commit": "1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9",
+    "path": "src/test/business-cases/standard/03.01a-INVOICE_ubl.xml",
+    "url": "https://raw.githubusercontent.com/itplr-kosit/xrechnung-testsuite/1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9/src/test/business-cases/standard/03.01a-INVOICE_ubl.xml",
+    "sha256": "f8a2b313d823e3d0319fa878f3b9da47d844e5f5b0c19f2583e621d93df2b81e",
+    "bytes": 217165,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "0301-uncefact.xml",
+    "repository": "itplr-kosit/xrechnung-testsuite",
+    "commit": "1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9",
+    "path": "src/test/business-cases/standard/03.01a-INVOICE_uncefact.xml",
+    "url": "https://raw.githubusercontent.com/itplr-kosit/xrechnung-testsuite/1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9/src/test/business-cases/standard/03.01a-INVOICE_uncefact.xml",
+    "sha256": "f42a6b02d0acada2bd9e9d1520b88385878f2377cb99444f0e87052eafb1e1de",
+    "bytes": 234392,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "cen-huf-cii.xml",
+    "repository": "ConnectingEurope/eInvoicing-EN16931",
+    "commit": "b17b2695e5e3e021945c38658326b78a76f80f84",
+    "path": "cii/examples/huf_example_cii.xml",
+    "url": "https://raw.githubusercontent.com/ConnectingEurope/eInvoicing-EN16931/b17b2695e5e3e021945c38658326b78a76f80f84/cii/examples/huf_example_cii.xml",
+    "sha256": "fad73604fc1ff6ac4c762687bdf394d1f4fe14b5b8830d607abf1c1cdfc68758",
+    "bytes": 111526,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "cen-creditnote.xml",
+    "repository": "ConnectingEurope/eInvoicing-EN16931",
+    "commit": "b17b2695e5e3e021945c38658326b78a76f80f84",
+    "path": "ubl/examples/ubl-tc434-creditnote1.xml",
+    "url": "https://raw.githubusercontent.com/ConnectingEurope/eInvoicing-EN16931/b17b2695e5e3e021945c38658326b78a76f80f84/ubl/examples/ubl-tc434-creditnote1.xml",
+    "sha256": "911d7ac2cb4fa72d21331c76914468e7d94eda03629e0def75c64ab18e3e9dce",
+    "bytes": 4935,
+    "priorExactMatches": []
+  },
+  {
+    "filename": "facturx-invoice.pdf",
+    "repository": "akretion/factur-x",
+    "commit": "650cfe34ec524ec39ea106a09df6d0cc259813a4",
+    "path": "tests/fixtures/pdf/invoice_EN16931.pdf",
+    "url": "https://raw.githubusercontent.com/akretion/factur-x/650cfe34ec524ec39ea106a09df6d0cc259813a4/tests/fixtures/pdf/invoice_EN16931.pdf",
+    "sha256": "e340194b514ed7d01dfc7dca60ddc81bbee718756e29830dda227d65fe6de7f0",
+    "bytes": 302582,
+    "priorExactMatches": []
+  }
+]
