@@ -101,7 +101,33 @@ export interface RdfProvReadModel {
   guard_rails: string[];
 }
 
+export interface InvoiceCaseSnapshot {
+  snapshotId: string;
+  validationId: string;
+  createdAt: string;
+  current: boolean;
+  syntax: string | null;
+  number: string | null;
+  payable: { value: string; currency: string | null; path: string } | null;
+  exception?: {
+    requestId: string; requestedBy: string; reason: string; evidenceReference: string; purpose: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    decisionReason: string | null; decidedBy: string | null; validationId: string | null;
+    usable: boolean;
+  };
+  pdfComparison: { status: string; sha256: string; candidates: Array<{ page: number; amount: string | null }> } | null;
+  proof: {
+    engine: string | null;
+    scenario: string | null;
+    accepted: boolean;
+    sourceSha256: string;
+    reportSha256: string;
+    messages: Array<{ code: string | null; level: string | null; text: string | null }>;
+  } | null;
+}
+
 export interface CaseTrace {
+  invoice?: { snapshots: InvoiceCaseSnapshot[] };
   id: string;
   title: string;
   category: string;

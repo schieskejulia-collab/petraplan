@@ -4,6 +4,8 @@ import { bridgeAuth } from "@/lib/bridge-auth";
 import { useLocation } from "wouter";
 import { milaApi, type CaseListItem } from "@/api/connector";
 
+import InvoiceUploadForm from "./InvoiceUploadForm";
+
 function releaseLabel(status: CaseListItem["release_status"]) {
   if (status === "trusted") return "FREIGEGEBEN";
   if (status === "blocked") return "BLOCKIERT";
@@ -57,6 +59,7 @@ export default function CasesPage() {
         </header>
 
         <BridgeSignIn />
+        <InvoiceUploadForm onSaved={id => setLocation(`/cases/${id}`)} />
 
         {loading && <p className="text-sm text-muted-foreground">Lade Fälle…</p>}
 
@@ -76,7 +79,7 @@ export default function CasesPage() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setLocation(`/bridge/${item.id}`)}
+              onClick={() => setLocation(`/${item.category === "invoice" ? "cases" : "bridge"}/${item.id}`)}
               className="w-full rounded-2xl border bg-card p-4 text-left shadow-sm transition hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-3">

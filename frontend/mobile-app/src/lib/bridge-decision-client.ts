@@ -5,6 +5,7 @@ export type BridgeDecisionAction = 'confirm_candidate' | 'reject_candidate' | 'a
 export interface BridgeDecisionAccess {
   role: string;
   can_review: boolean;
+  can_approve_invoice_exception?: boolean;
   can_release: boolean;
   can_revoke: boolean;
   review_ready: boolean;
@@ -34,9 +35,11 @@ export async function submitBridgeDecision(input: {
   token: string;
   action: BridgeDecisionAction;
   reason: string;
-  criteria?: Record<string, boolean>;
+  criteria?: Record<string, boolean | string>;
   candidate_id?: string;
   evidence_reference?: string;
+  expected_snapshot_id?: string;
+  expected_validation_id?: string;
 }): Promise<CaseTrace> {
   const res = await fetch(`/api/cases/${encodeURIComponent(input.recordId)}/decision`, {
     method: 'POST',
@@ -50,6 +53,8 @@ export async function submitBridgeDecision(input: {
       criteria: input.criteria ?? {},
       candidate_id: input.candidate_id,
       evidence_reference: input.evidence_reference,
+      expected_snapshot_id: input.expected_snapshot_id,
+      expected_validation_id: input.expected_validation_id,
     }),
   });
   if (!res.ok) throw await parseError(res);

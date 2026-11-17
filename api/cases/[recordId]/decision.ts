@@ -7,7 +7,7 @@ import { selectLatestCertificate } from '../../../api-server/src/services/certif
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CRITERIA = ['source_truth_checked', 'translation_trace_checked', 'blockers_resolved'] as const;
 type Action = 'confirm_candidate' | 'reject_candidate' | 'approve_review' | 'reject_review' | 'release' | 'revoke';
-type Role = { user_id:string; role_name:string; active:boolean; can_review:boolean; can_release:boolean; can_revoke:boolean };
+type Role = { user_id:string; role_name:string; active:boolean; can_review:boolean; can_release:boolean; can_revoke:boolean; can_approve_invoice_exception?:boolean };
 
 function isPassing(status: unknown) { return ['passed','pass','valid','validated','approved','success'].includes(String(status ?? '').toLowerCase()); }
 function authToken(req:any) { const h=String(req.headers?.authorization ?? ''); return h.startsWith('Bearer ') ? h.slice(7).trim() : ''; }
@@ -57,8 +57,12 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     if(staleValidationBasis && freshnessBlockers.length===0) freshnessBlockers.push('Die maßgebliche Validierung deckt die aktuelle Claim- oder Kandidatengrundlage nicht ab. Neuvalidierung ist erforderlich.');
     const decisionBasisFresh=!staleValidationBasis && freshnessBlockers.length===0;
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
-    const releaseAlreadyTrusted=releaseStatus==='trusted';
+    const releaseAlreadyTrusted=releaseStatus==='trusted'||releaseStatus==='exception';
+    const invoiceException=trace.invoice?.snapshots.find(snapshot=>snapshot.current)?.exception;
+    const exceptionActionAllowed=!invoiceException?.validationId
+      || (invoiceException.usable && invoiceException.decidedBy===user.id);
     const reviewBlockers=[
+      ...(!exceptionActionAllowed ? ['Review und Freigabe dieser Ausnahme benötigen die aktuell berechtigte unabhängige Entscheidungsperson.'] : []),
       ...authorityBlockers,
       ...(!snapshotProcessed ? ['Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'] : []),
       ...(!validationPassing ? ['Die maßgebliche Validierung ist nicht bestanden.'] : []),
@@ -70,9 +74,9 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     if(review?.complete && !review.evidence_reference_ids?.includes(`claims:${claimsBasis}`)) basisBlockers.push('Die Claim-Basis des Reviews ist veraltet. Neuvalidierung und neues Review sind erforderlich.');
     const releaseBlockers=[...reviewBlockers,...basisBlockers];
     const access={
-      role:role.role_name, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
-      review_ready:Boolean(!releaseAuthorityAmbiguous && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
-      review_rejection_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
+      role:role.role_name, can_approve_invoice_exception:role.can_approve_invoice_exception === true, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
+      review_ready:Boolean(exceptionActionAllowed && !releaseAuthorityAmbiguous && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
+      review_rejection_ready:Boolean(exceptionActionAllowed && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
       unresolved_candidate_count:unresolvedCandidateCount,
       review_blockers:reviewBlockers,
       release_ready:Boolean(!releaseAlreadyTrusted && role.can_release && releaseBlockers.length===0),
@@ -84,6 +88,13 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const action=String(req.body?.action ?? '') as Action;
     const reason=String(req.body?.reason ?? '').trim();
     if(!['confirm_candidate','reject_candidate','approve_review','reject_review','release','revoke'].includes(action)) return res.status(400).json({error:'Unsupported action'});
+    if(trace.invoice && ['approve_review','reject_review','release'].includes(action)
+      && (req.body?.expected_snapshot_id !== trace.source.ingestion?.id
+        || req.body?.expected_validation_id !== authoritative?.id)) {
+      return res.status(409).json({error:'Rechnungsfassung wurde geändert. Öffne den Fall erneut.'});
+    }
+    if(!exceptionActionAllowed && ['approve_review','reject_review','release'].includes(action))
+      return res.status(403).json({error:'Die aktuell berechtigte unabhängige Entscheidungsperson muss Review und Freigabe ausführen.'});
     if(reason.length<3) return res.status(400).json({error:'A reason is required'});
     if(!snapshotProcessed && action!=='revoke' && action!=='reject_review') return res.status(409).json({error:'Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'});
 
@@ -106,6 +117,12 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       if(action==='approve_review' && freshnessBlockers.length) return res.status(409).json({error:freshnessBlockers.join(' ')});
       if(action==='approve_review' && semanticBlockers.length) return res.status(409).json({error:semanticBlockers.join(' ')});
       const criterionInput=req.body?.criteria ?? {};
+      const deliveryNotice = trace.invoice?.snapshots.some(snapshot => snapshot.current
+        && snapshot.proof?.messages.some(message => message.code === 'BR-DE-TMP-32'));
+      if(action==='approve_review' && deliveryNotice
+        && (typeof criterionInput.delivery_period_evidence !== 'string' || criterionInput.delivery_period_evidence.trim().length < 3)) {
+        return res.status(409).json({error:'Beleg zum Liefer- oder Leistungszeitraum ist erforderlich.'});
+      }
       if(action==='approve_review' && !CRITERIA.every(key=>criterionInput[key]===true)) return res.status(409).json({error:'All required review criteria must be confirmed before approval'});
       const {error}=await supabase.rpc('bridge_commit_review',{
         p_record_id:recordId,p_snapshot_id:trace.source.ingestion?.id,p_validation_id:authoritative.id,
