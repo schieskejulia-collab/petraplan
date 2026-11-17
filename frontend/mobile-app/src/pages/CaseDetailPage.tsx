@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useLocation, useRoute } from "wouter";
 import { milaApi, type CaseTrace } from "@/api/connector";
 
+import InvoiceUploadForm from "./InvoiceUploadForm";
 import InvoiceCasePanel from "./InvoiceCasePanel";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -260,7 +261,11 @@ export default function CaseDetailPage() {
           <p className="text-sm text-muted-foreground">{data.category} · Case {data.id.slice(0, 8)}</p>
         </header>
 
-        {data.invoice && <InvoiceCasePanel data={data} statusLabel={statusLabel} />}
+        {data.invoice && <InvoiceCasePanel data={data} statusLabel={statusLabel} onChanged={load} />}
+        {data.invoice && typeof data.source.ingestion?.id === "string" && <InvoiceUploadForm
+          key={String(data.source.ingestion.id)}
+          revision={{ recordId: data.id, snapshotId: String(data.source.ingestion.id) }}
+          onSaved={() => void load()} />}
 
         <ReadablePath steps={readableSteps} />
 

@@ -1,3 +1,4 @@
+import { createInvoiceUploadHandler } from '../../api/bridge/invoice-upload.js';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -49,10 +50,10 @@ const activeRelease = async db => (await db.query(
   'select public.bridge_current_release($1) as result', [recordId],
 )).rows[0].result;
 
-async function approveInvoice(db, captured) {
+async function approveInvoice(db, captured, checks = { ...criteria, delivery_period_evidence: "Local test service-period document" }) {
   const basis = (await db.query('select public.bridge_claims_basis($1) as basis', [recordId])).rows[0].basis;
   return (await review(db, { record: recordId, snapshot: captured.snapshot_id,
-    validation: captured.validation_id, basis, criteria })).rows[0].result;
+    validation: captured.validation_id, basis, criteria: checks })).rows[0].result;
 }
 
 const releaseInvoice = async (db, captured, sessionId) => (await db.query(
@@ -94,9 +95,39 @@ test('real invoice validation, review, release and atomic revocation preserve bo
     inspectInvoiceFile(originalFile, config),
   ]);
 
-  const initial = await persistInvoiceCase(db, actor, t0);
+  const authenticate = async () => ({ user: { id: ids.actor }, role: { can_review: true }, supabase: {
+    async rpc(name, args) {
+      assert.equal(name, 'bridge_capture_invoice_case');
+      const artifact = { invoice: Buffer.from(args.p_invoice.slice(2), 'hex'),
+        report: Buffer.from(args.p_report.slice(2), 'hex'), result: args.p_result,
+        pdf: args.p_pdf ? Buffer.from(args.p_pdf.slice(2), 'hex') : null };
+      try {
+        return { data: await persistInvoiceCase(db, { recordId: args.p_record_id,
+          expectedSnapshotId: args.p_expected_snapshot_id, actorId: args.p_actor_id }, artifact) };
+      } catch (error) {
+        return { error };
+      }
+    },
+  } });
+  const handleUpload = createInvoiceUploadHandler(authenticate);
+  async function upload(bytes, caseId, expectedSnapshotId = null) {
+    const request = { method: 'POST', body: { recordId: caseId, expectedSnapshotId, contentBase64: bytes.toString('base64') } };
+    let status;
+    let body;
+    const response = { status(value) { status = value; return response; }, json(value) { body = value; } };
+    await handleUpload(request, response);
+    return { status, body };
+  }
+  const uploaded = await upload(original, recordId);
+  assert.equal(uploaded.status, 201, JSON.stringify(uploaded.body));
+  const initial = uploaded.body;
+  // KoSIT report timestamps differ between runs. Audit the actual stored proof.
+  const initialReport = Buffer.from((await db.query('select kosit_report from bridge_invoice_evidence where snapshot_id=$1', [initial.snapshot_id])).rows[0].kosit_report);
+  assert.equal(initial.record_id, recordId);
   assert.equal(initial.status, 'READY_FOR_REVIEW');
   assert.equal((await activeRelease(db)).certificate_id, null);
+  assert.ok(t0.result.technicalEvidence.messages.some(message => message.code === 'BR-DE-TMP-32'));
+  await assert.rejects(approveInvoice(db, initial, criteria), /requires a delivery or service period evidence/);
   const approval = await approveInvoice(db, initial);
   const certificate = await releaseInvoice(db, initial, approval.review_session_id);
   assert.equal((await activeRelease(db)).effective_status, 'trusted');
@@ -129,8 +160,9 @@ test('real invoice validation, review, release and atomic revocation preserve bo
   assert.equal(versions[1].previous_snapshot_id, initial.snapshot_id);
   for (const [index, artifact] of [t0, t1].entries()) {
     assert.deepEqual(Buffer.from(versions[index].invoice_xml), artifact.invoice);
-    assert.deepEqual(Buffer.from(versions[index].kosit_report), artifact.report);
-    assert.equal(versions[index].evidence.report_sha256, digest(artifact.report));
+    const storedReport = index === 0 ? initialReport : artifact.report;
+    assert.deepEqual(Buffer.from(versions[index].kosit_report), storedReport);
+    assert.equal(versions[index].evidence.report_sha256, digest(storedReport));
   }
   assert.deepEqual((await db.query(`select new_status from release_status_history
     where release_certificate_id=$1 order by created_at`, [certificate.certificate_id])).rows.map(row => row.new_status),
@@ -147,9 +179,21 @@ test('real invoice validation, review, release and atomic revocation preserve bo
   assert.deepEqual(snapshots.map(snapshot => snapshot.current), [true, false]);
   assert.deepEqual(snapshots.map(snapshot => snapshot.proof.accepted), [false, true]);
   assert.ok(snapshots[0].proof.messages.some(message => message.code === 'BR-CO-16'));
-  assert.equal(snapshots[1].proof.reportSha256, digest(t0.report));
+  assert.equal(snapshots[1].proof.reportSha256, digest(initialReport));
   assert.match(snapshots[1].payable.path, /PayableAmount/);
   assert.equal(buildInvoiceCaseSnapshots(viewRows, changed.snapshot_id, [])[0].proof, null);
+
+  const storedRecord = (await db.query('select ingestion_log_id from records where id=$1', [recordId])).rows[0];
+  assert.equal(storedRecord.ingestion_log_id, changed.snapshot_id);
+  const cii = await upload(await readFile(join(fixtureDirectory, '01.01a-uncefact.xml')), id(181));
+  assert.equal(cii.status, 201);
+  assert.equal(cii.body.status, 'READY_FOR_REVIEW');
+  assert.equal(cii.body.record_id, id(181));
+  const wrongCase = await upload(original, ids.record, ids.snapshot);
+  assert.equal(wrongCase.status, 409);
+  const wrongNumber = original.toString().replace('123456XX', 'another-invoice');
+  const wrongIdentity = await upload(Buffer.from(wrongNumber), recordId, changed.snapshot_id);
+  assert.equal(wrongIdentity.status, 409);
 
   const corrected = await persistInvoiceCase(db, { ...actor, expectedSnapshotId: changed.snapshot_id }, t0);
   assert.equal(corrected.status, 'READY_FOR_REVIEW');
@@ -159,4 +203,31 @@ test('real invoice validation, review, release and atomic revocation preserve bo
   const newCertificate = await releaseInvoice(db, corrected, newApproval.review_session_id);
   assert.notEqual(newCertificate.certificate_id, certificate.certificate_id);
   assert.equal((await activeRelease(db)).effective_status, 'trusted');
+
+  const parallelVariant = Buffer.from(original.toString().replace('</cbc:PayableAmount>', '2</cbc:PayableAmount>'));
+  const parallel = await Promise.all([upload(altered, recordId, corrected.snapshot_id),
+    upload(parallelVariant, recordId, corrected.snapshot_id)]);
+  assert.deepEqual(parallel.map(item => item.status).sort(), [201, 409]);
+  const last = parallel.find(item => item.status === 201).body;
+  assert.equal((await db.query('select ingestion_log_id from records where id=$1', [recordId])).rows[0].ingestion_log_id, last.snapshot_id);
+
+  for (const [caseKey, variable, status, amounts] of [
+    [191, 'PETRAPLAN_PDF_MISMATCH', 'DIFFERENT', ['530.87']],
+    [192, 'PETRAPLAN_PDF_OUTSIDE_WINDOW', 'NOT_COMPARABLE', ['529.87', '530.87']],
+    [193, 'PETRAPLAN_PDF_CONTROL', 'NEEDS_VISUAL_CONFIRMATION', ['529.87']],
+  ]) {
+    if (!process.env[variable]) continue;
+    const originalPdf = await readFile(process.env[variable]);
+    const pdfResult = await upload(originalPdf, id(caseKey));
+    assert.equal(pdfResult.status, 201, JSON.stringify(pdfResult.body));
+    assert.equal(pdfResult.body.status, 'BLOCKED');
+    const saved = (await db.query(`select i.extracted_schema, e.original_pdf from bridge_invoice_evidence e
+      join ingestion_logs i on i.id=e.snapshot_id where e.snapshot_id=$1`, [pdfResult.body.snapshot_id])).rows[0];
+    assert.deepEqual(Buffer.from(saved.original_pdf), originalPdf);
+    const comparison = saved.extracted_schema.pdfComparison;
+    assert.equal(comparison.status, status);
+    assert.deepEqual(comparison.candidates.map(item => item.amount).filter(Boolean).sort(), amounts);
+    assert.equal(comparison.xmlPayable, '529.87');
+    assert.equal(saved.extracted_schema.decision.releaseAllowed, false);
+  }
 });

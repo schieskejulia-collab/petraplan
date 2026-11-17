@@ -10,6 +10,8 @@ const execute = promisify(execFile);
 const root = fileURLToPath(new URL('../', import.meta.url));
 const maxInvoiceBytes = 8 * 1024 * 1024;
 
+export class InvoiceUploadError extends Error {}
+
 export async function inspectInvoiceFile(input, { jar, scenarios }) {
   const path = await mkdtemp(join(tmpdir(), 'petraplan-case-'));
   try {
@@ -30,7 +32,23 @@ export async function inspectInvoiceFile(input, { jar, scenarios }) {
     }
     const source = join(path, 'original.xml');
     const reportFile = join(path, 'report.xml');
-    await writeFile(source, invoice);
+    let pdf = null;
+    let pdfComparison = null;
+    if (invoice.subarray(0, 5).toString() === '%PDF-') {
+      pdf = invoice;
+      const pdfPath = join(path, 'original.pdf');
+      await writeFile(pdfPath, pdf);
+      try {
+        const output = await execute('python3', ['-m', 'backend.ingestion.invoice_pdf', pdfPath, source],
+          { cwd: root, timeout: 120_000, maxBuffer: 1024 * 1024 });
+        pdfComparison = JSON.parse(output.stdout);
+      } catch {
+        throw new InvoiceUploadError('PDF und eingebettetes XML konnten nicht vollständig geprüft werden.');
+      }
+      invoice = await readFile(source);
+    } else {
+      await writeFile(source, invoice);
+    }
     const args = ['-m', 'backend.ingestion.invoice', source, '--kosit-jar', resolve(jar),
       '--scenarios', resolve(scenarios), '--save-report', reportFile];
     let stdout;
@@ -42,9 +60,14 @@ export async function inspectInvoiceFile(input, { jar, scenarios }) {
     }
     const result = JSON.parse(stdout);
     if (!result.technicalEvidence) {
-      throw new Error(result.decision?.blockers?.join(', ') || 'No KoSIT evidence was produced');
+      throw new InvoiceUploadError(result.decision?.blockers?.join(', ') || 'Kein KoSIT-Prüfbeleg verfügbar.');
     }
-    return { invoice, report: await readFile(reportFile), result };
+    if (pdfComparison) {
+      result.pdfComparison = pdfComparison;
+      result.decision.status = 'BLOCKED';
+      result.decision.blockers.push('PDF_VISUAL_CONFIRMATION_REQUIRED');
+    }
+    return { invoice, pdf, report: await readFile(reportFile), result };
   } finally {
     await rm(path, { recursive: true, force: true });
   }
@@ -52,8 +75,8 @@ export async function inspectInvoiceFile(input, { jar, scenarios }) {
 
 export async function persistInvoiceCase(db, { recordId, expectedSnapshotId, actorId }, artifact) {
   const { rows } = await db.query(
-    'select public.bridge_capture_invoice_case($1, $2, $3, $4, $5, $6) as result',
-    [recordId, expectedSnapshotId ?? null, actorId, artifact.invoice, artifact.report, artifact.result],
+    'select public.bridge_capture_invoice_case($1, $2, $3, $4, $5, $6, $7) as result',
+    [recordId, expectedSnapshotId ?? null, actorId, artifact.invoice, artifact.report, artifact.result, artifact.pdf ?? null],
   );
   return rows[0].result;
 }

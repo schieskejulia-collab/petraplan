@@ -8,6 +8,7 @@ export interface InvoiceCaseSnapshot {
   syntax: string | null;
   number: string | null;
   payable: { value: string; currency: string | null; path: string } | null;
+  pdfComparison: { status: string; candidates: Array<{ page: number; amount: string | null }> } | null;
   proof: {
     engine: string | null;
     scenario: string | null;
@@ -71,6 +72,15 @@ export function buildInvoiceCaseSnapshots(
           }),
         }
       : null;
+    const comparison = object(result?.pdfComparison);
+    const comparisonStatus = string(comparison?.status);
+    const pdfComparison = comparisonStatus && Array.isArray(comparison?.candidates) ? {
+      status: comparisonStatus,
+      candidates: comparison.candidates.flatMap(candidate => {
+        const row = object(candidate);
+        return typeof row?.page === 'number' ? [{ page: row.page, amount: string(row.amount) }] : [];
+      }),
+    } : null;
     return {
       snapshotId,
       validationId,
@@ -80,6 +90,7 @@ export function buildInvoiceCaseSnapshots(
       number: string(observed(fields, 'BT-1')?.original),
       payable: amount && path ? { value: amount, path, currency: string(object(payable?.currency)?.value) } : null,
       proof,
+      pdfComparison,
     };
   });
 }

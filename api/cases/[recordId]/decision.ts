@@ -84,6 +84,11 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     const action=String(req.body?.action ?? '') as Action;
     const reason=String(req.body?.reason ?? '').trim();
     if(!['confirm_candidate','reject_candidate','approve_review','reject_review','release','revoke'].includes(action)) return res.status(400).json({error:'Unsupported action'});
+    if(trace.invoice && ['approve_review','reject_review','release'].includes(action)
+      && (req.body?.expected_snapshot_id !== trace.source.ingestion?.id
+        || req.body?.expected_validation_id !== authoritative?.id)) {
+      return res.status(409).json({error:'Rechnungsfassung wurde geändert. Öffne den Fall erneut.'});
+    }
     if(reason.length<3) return res.status(400).json({error:'A reason is required'});
     if(!snapshotProcessed && action!=='revoke' && action!=='reject_review') return res.status(409).json({error:'Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'});
 
@@ -106,6 +111,12 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
       if(action==='approve_review' && freshnessBlockers.length) return res.status(409).json({error:freshnessBlockers.join(' ')});
       if(action==='approve_review' && semanticBlockers.length) return res.status(409).json({error:semanticBlockers.join(' ')});
       const criterionInput=req.body?.criteria ?? {};
+      const deliveryNotice = trace.invoice?.snapshots.some(snapshot => snapshot.current
+        && snapshot.proof?.messages.some(message => message.code === 'BR-DE-TMP-32'));
+      if(action==='approve_review' && deliveryNotice
+        && (typeof criterionInput.delivery_period_evidence !== 'string' || criterionInput.delivery_period_evidence.trim().length < 3)) {
+        return res.status(409).json({error:'Beleg zum Liefer- oder Leistungszeitraum ist erforderlich.'});
+      }
       if(action==='approve_review' && !CRITERIA.every(key=>criterionInput[key]===true)) return res.status(409).json({error:'All required review criteria must be confirmed before approval'});
       const {error}=await supabase.rpc('bridge_commit_review',{
         p_record_id:recordId,p_snapshot_id:trace.source.ingestion?.id,p_validation_id:authoritative.id,

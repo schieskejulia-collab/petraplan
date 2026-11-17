@@ -58,3 +58,13 @@ Der Datenbanktest läuft gegen ein isoliertes PGlite-Teilschema. Mit den KoSIT-U
 ```sh
 node --test tests/decision-integrity/invoice-case.test.mjs
 ```
+
+## Upload und Abnahme
+
+In der Fallliste startet „Rechnung importieren“ einen neuen Fall. In der Rechnungsansicht lädt „Neue Fassung hinzufügen“ eine Revision für genau diesen Fall und den dort angezeigten Snapshot. Der Import vergleicht die vorhandene Rechnungsnummer und den erfassten Verkäufernamen. Zwei unterschiedliche Revisionen auf derselben Ausgangsfassung konkurrieren um denselben Fall. Hat eine Revision den aktuellen Snapshot ersetzt, antwortet die andere mit HTTP 409. Bei einem verlorenen Antwortpaket kann derselbe Import wiederholt werden.
+
+`POST /api/bridge/invoice-upload` verwendet die bestehende Anmeldung, die Review-Berechtigung und den serverseitigen KoSIT-Worker. Beim Hinweis BR-DE-TMP-32 braucht das Review einen konkreten Belegverweis zum Liefer- oder Leistungszeitraum. Der Hinweis bleibt als solcher im KoSIT-Bericht gespeichert. Review und Freigabe beziehen sich jeweils auf die in der Ansicht angezeigte Fassung.
+
+Für lokale PDF-Proben kann `PETRAPLAN_PDF_TEST_UPLOADS=1` in der Testumgebung gesetzt werden. Der Worker benötigt zusätzlich PyMuPDF und Tesseract mit Sprachmodell `eng`. Er behält Original-PDF und eingebettetes CII getrennt und vergleicht den XML-Zahlbetrag mit Kandidaten aus den vollständig gerenderten Seiten. Ein abweichender, unlesbarer oder mehrdeutiger Sichtbetrag bleibt gesperrt. Ein übereinstimmender OCR-Betrag wartet ebenfalls auf Sichtbestätigung. Eine positive PDF-Sichtfreigabe ist noch nicht implementiert. KoSIT beurteilt ausschließlich die eingebettete XML nach dem eingerichteten Szenario. Ein ZUGFeRD-Profil außerhalb dieser Konfiguration kann deshalb eine negative technische XML-Prüfung haben.
+
+Die lokalen API- und Datenbanktests verwenden die vorhandenen KoSIT-Testvariablen. Die optionalen Variablen `PETRAPLAN_PDF_MISMATCH`, `PETRAPLAN_PDF_OUTSIDE_WINDOW` und `PETRAPLAN_PDF_CONTROL` verweisen auf die drei PDF-Proben mit abweichendem Betrag, zusätzlicher Zahlbetragszeile und übereinstimmendem Betrag. Der gehostete Lauf braucht eine bereitgestellte Worker-Laufzeit mit Python, Java und KoSIT sowie den passenden Datenbankstand.

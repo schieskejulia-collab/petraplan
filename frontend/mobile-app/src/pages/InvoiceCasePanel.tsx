@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { currentAccessToken } from "@/lib/bridge-auth";
+import { getBridgeDecisionAccess, submitBridgeDecision, type BridgeDecisionAccess } from "@/lib/bridge-decision-client";
 import type { CaseTrace, InvoiceCaseSnapshot } from "@/api/connector";
 
 function dateLabel(value: unknown) {
@@ -19,6 +22,17 @@ function InvoiceSnapshot({ snapshot }: { snapshot: InvoiceCaseSnapshot }) {
           <dd className="break-words font-medium">{payable ? [payable.value, payable.currency].filter(Boolean).join(" ") : "Nicht eindeutig belegt"}</dd>
         </div>
       </dl>
+      {snapshot.pdfComparison && (
+        <div className="space-y-1 rounded-lg border p-3 text-sm">
+          <p className="font-semibold">PDF-Sichtprüfung erforderlich</p>
+          <p>{snapshot.pdfComparison.status === "DIFFERENT" ? "Sichtbarer Zahlbetrag weicht vom XML ab."
+            : snapshot.pdfComparison.status === "NOT_COMPARABLE" ? "Sichtbarer Zahlbetrag nicht eindeutig lesbar."
+              : "OCR-Betrag passt zum XML. Sichtbestätigung steht aus."}</p>
+          {snapshot.pdfComparison.candidates.map((item, index) => (
+            <p key={index}>Seite {item.page} · {item.amount ?? "Betrag unlesbar"}</p>
+          ))}
+        </div>
+      )}
       {payable && (
         <details className="rounded-lg border p-3 text-sm">
           <summary className="cursor-pointer font-medium">XML-Fundstelle zum Zahlbetrag (BT-115)</summary>
@@ -49,8 +63,9 @@ function InvoiceSnapshot({ snapshot }: { snapshot: InvoiceCaseSnapshot }) {
   );
 }
 
-export default function InvoiceCasePanel({ data, statusLabel }: {
+export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
   data: CaseTrace;
+  onChanged: () => Promise<void>;
   statusLabel: (value: unknown) => string;
 }) {
   const snapshots = data.invoice?.snapshots ?? [];
@@ -68,6 +83,7 @@ export default function InvoiceCasePanel({ data, statusLabel }: {
         </p>
       </div>
       {current ? <InvoiceSnapshot snapshot={current} /> : <p className="text-sm">Aktueller Rechnungssnapshot nicht verfügbar.</p>}
+      {current && <InvoiceReview key={current.snapshotId} recordId={data.id} snapshot={current} onChanged={onChanged} />}
       {data.release.status_history.length > 0 && (
         <details className="rounded-lg border p-3 text-sm">
           <summary className="cursor-pointer font-medium">Freigabehistorie</summary>
@@ -99,5 +115,78 @@ export default function InvoiceCasePanel({ data, statusLabel }: {
         </details>
       ))}
     </section>
+  );
+}
+
+function InvoiceReview({ recordId, snapshot, onChanged }: {
+  recordId: string; snapshot: InvoiceCaseSnapshot; onChanged: () => Promise<void>;
+}) {
+  const [access, setAccess] = useState<BridgeDecisionAccess | null>(null);
+  const [criteria, setCriteria] = useState({ source_truth_checked: false, translation_trace_checked: false, blockers_resolved: false });
+  const [serviceEvidence, setServiceEvidence] = useState("");
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const needsDeliveryEvidence = snapshot.proof?.messages.some(message => message.code === "BR-DE-TMP-32");
+  const availableReview = Boolean(access?.can_review && access.review_ready && !snapshot.pdfComparison);
+  const availableRelease = Boolean(access?.release_ready && !snapshot.pdfComparison);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const token = await currentAccessToken();
+      if (token) {
+        const current = await getBridgeDecisionAccess(recordId, token);
+        if (active) setAccess(current);
+      }
+    })().catch(() => { if (active) setError("Entscheidungsberechtigungen konnten nicht geladen werden."); });
+    return () => { active = false; };
+  }, [recordId]);
+
+  async function decide(action: "approve_review" | "release") {
+    setBusy(true);
+    setError(null);
+    try {
+      const token = await currentAccessToken();
+      if (!token) throw new Error("Bitte erneut anmelden.");
+      await submitBridgeDecision({ recordId, action, reason, token,
+        expected_snapshot_id: snapshot.snapshotId, expected_validation_id: snapshot.validationId, criteria: {
+        ...criteria, ...(needsDeliveryEvidence ? { delivery_period_evidence: serviceEvidence.trim() } : {}),
+      } });
+      await onChanged();
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Entscheidung konnte nicht gespeichert werden.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!availableReview && !availableRelease && !error) return null;
+  const labels = { source_truth_checked: "Original geprüft", translation_trace_checked: "Zuordnung geprüft", blockers_resolved: "Offene Punkte geklärt" };
+  return (
+    <div className="space-y-3 rounded-lg border p-3 text-sm">
+      {availableReview && (Object.keys(criteria) as Array<keyof typeof criteria>).map(key => (
+        <label className="flex items-center gap-2" key={key}>
+          <input type="checkbox" checked={criteria[key]} onChange={event => {
+            const checked = event.target.checked;
+            setCriteria(previous => ({ ...previous, [key]: checked }));
+          }} />{labels[key]}
+        </label>
+      ))}
+      {availableReview && needsDeliveryEvidence && <label className="block">
+        <span>Beleg zum Liefer- oder Leistungszeitraum (BR-DE-TMP-32)</span>
+        <input className="mt-1 w-full rounded border bg-background p-2" value={serviceEvidence}
+          onChange={event => setServiceEvidence(event.target.value)} />
+      </label>}
+      {(availableReview || availableRelease) && <label className="block">
+        <span>Begründung</span>
+        <textarea className="mt-1 w-full rounded border bg-background p-2" value={reason} onChange={event => setReason(event.target.value)} />
+      </label>}
+      {availableReview && <button className="rounded-lg border px-3 py-2 disabled:opacity-50"
+        disabled={busy || reason.trim().length < 3 || !Object.values(criteria).every(Boolean) || Boolean(needsDeliveryEvidence && serviceEvidence.trim().length < 3)}
+        onClick={() => void decide("approve_review")}>Review bestätigen</button>}
+      {availableRelease && <button className="rounded-lg border px-3 py-2 disabled:opacity-50"
+        disabled={busy || reason.trim().length < 3} onClick={() => void decide("release")}>Freigabe erteilen</button>}
+      {error && <p role="alert">{error}</p>}
+    </div>
   );
 }
