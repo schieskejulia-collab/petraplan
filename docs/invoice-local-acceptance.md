@@ -16,7 +16,7 @@ Die folgenden Ja-Angaben gelten für die bezeichneten lokalen Testfälle. Die Ap
 | 6 | Eine neue gespeicherte Grundlage sperrt und widerruft die alte Freigabe atomar. | **Ja** | Änderung des Zahlbetrags erzeugt fehlgeschlagene Validierung und Widerruf in derselben Transaktion. Fehlendes Widerrufsrecht führt zur vollständigen Rückabwicklung der Revision. Auch geänderte PDF-Bytes widerrufen die Freigabe und erfordern neues Review. |
 | 7 | Ergebnis, Original und zugehörige Belege sind abrufbar. | **Ja** | Fallprojektion bindet die aktuellen und früheren Prüfergebnisse an ihre Validierungen. Browser bei 390 px zeigt Zahlbetrag, KoSIT-Meldungen, XML-Fundstelle, Freigabe und Widerruf. Die Historie öffnet den damaligen Prüfbeleg. Der PDF-Endpunkt liefert die Originalbytes und prüft den Fallbezug und die Prüfsumme. |
 
-Bei Punkt 4 bedeutet bewusste Bearbeitung, dass ein Hinweis dokumentiert geklärt wird oder der Fall wegen einer Abweichung gesperrt bleibt. Das aktuelle Verfahren erlaubt eine positive PDF-Sichtbestätigung nur bei eindeutig passendem OCR-Treffer und bestandener XML-Prüfung. Ein dokumentierter Ausnahmeprozess für eine abweichende oder unlesbare PDF ist offen.
+Bei Punkt 4 bedeutet bewusste Bearbeitung, dass ein Hinweis dokumentiert geklärt wird oder der Fall wegen einer Abweichung gesperrt bleibt. Das aktuelle Verfahren erlaubt eine positive PDF-Sichtbestätigung nur bei eindeutig passendem OCR-Treffer und bestandener XML-Prüfung. Ein [Textentwurf zum Ausnahmeprozess](invoice-pdf-exception-draft.md) liegt vor. Die Umsetzung für abweichende oder unlesbare PDFs ist offen.
 
 ## Vier Abnahmefälle
 
@@ -24,7 +24,7 @@ Bei Punkt 4 bedeutet bewusste Bearbeitung, dass ein Hinweis dokumentiert geklär
 |---|---|---|
 | 7-%-Hinweis durch die Review-Kette | **Ja** | `tests/decision-integrity/invoice-case.test.mjs` prüft das Scheitern ohne Leistungszeitraum-Beleg und den anschließenden Review-/Freigabeweg. Der lokale Browserlauf führte Upload, Belegeingabe, Review und Freigabe aus. |
 | CII und ZUGFeRD mit abweichendem PDF-Betrag | **Ja** | Derselbe Test prüft CII-Upload und ZUGFeRD mit 530,87 im PDF gegenüber 529,87 in CII. Die Abweichung bleibt blockiert. |
-| Zwei Fassungen gleichzeitig | **Ja** | Zwei konkurrierende Handler-Aufrufe mit demselben erwarteten Snapshot ergeben eine gespeicherte Revision und einen Konflikt. Diese Probe nutzt dieselbe isolierte Datenbankverbindung. Separate PostgreSQL-Verbindungen speziell für Rechnungsrevisionen sind noch nicht geprüft. |
+| Zwei Fassungen gleichzeitig | **Ja** | Zwei konkurrierende Handler-Aufrufe mit demselben erwarteten Snapshot ergeben eine gespeicherte Revision und einen Konflikt. Diese Probe nutzt dieselbe isolierte Datenbankverbindung. Der zusätzliche Test mit getrennten PostgreSQL-17-Verbindungen steht in `tests/postgres/invoice-case-concurrency.test.mjs`. Sein Ergebnis wird nach dem CI-Lauf dokumentiert. |
 | Zuordnung zum Rechnungsfall | **Ja** | Fall-ID, erwarteter Snapshot, Rechnungsnummer und gespeicherte Verkäuferbezeichnung werden geprüft. Die Testfälle decken den korrekten Bezug sowie unpassenden Fall und abweichende Nummer ab. |
 
 ## OCR-Lücken
@@ -57,3 +57,7 @@ Testdateien, Umgebungsvariablen und Aufrufe stehen in [invoice-contract.md](invo
 | Sieben Schritte gemeinsam in dieser Umgebung durchlaufen | **Nein** |
 
 Damit ist der bezeichnete lokale Rechnungsweg abgenommen. Die gehostete Abnahme bleibt ein eigener Nachweis. Allgemeine ERP-Summenregeln werden erst nach diesem Rechnungsweg umgesetzt. Die fachliche Vorarbeit steht in [erp-quantity-aggregation-rule.md](erp-quantity-aggregation-rule.md).
+
+## Rechte und weitere offene Punkte
+
+Uploader, Reviewer und Freigeber dürfen heute dieselbe Person sein, wenn die jeweilige aktive Bridge-Rolle die nötigen Rechte trägt. Das Vier-Augen-Prinzip wird im normalen Rechnungsweg nicht erzwungen. Die genaue Rechtezuordnung und die offenen Punkte Doppelrechnungen, PDF-Ausnahme sowie weclapp-Cent stehen in [invoice-open-items.md](invoice-open-items.md).
