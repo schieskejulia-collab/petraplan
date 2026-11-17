@@ -2,7 +2,7 @@
 
 Stand vom 17. November 2026. Geprüfter Implementierungsstand ist Commit `aba0b60fb61143ecfcb2bcba19aa6bbfb1cb174a` mit Git-Tree `c0e4241affc573698e366aa65b61399ca854d4a4`.
 
-Die folgenden Ja-Angaben gelten für die bezeichneten lokalen Testfälle. Die App-Proben verwendeten eine Testsitzung und lokale API-/Datenbankadapter. Der KoSIT-Worker lief als eigener Prozessdienst über HTTP auf dem lokalen Rechner. Die Datenbank war ein isoliertes PGlite-Teilschema mit den übernommenen PetraPlan-Funktionen und ausgewählten beobachteten Constraints und Triggern. Eine gehostete Abnahme ist offen.
+Die folgenden Ja-Angaben gelten für die bezeichneten lokalen Testfälle. Die App-Proben verwendeten eine Testsitzung und lokale API-/Datenbankadapter. Der KoSIT-Worker lief als eigener Prozessdienst über HTTP auf dem lokalen Rechner. Die ursprüngliche Datenbankprobe war ein isoliertes PGlite-Teilschema mit den übernommenen PetraPlan-Funktionen und ausgewählten beobachteten Constraints und Triggern. Zusätzlich wurden die unten genannten Rechnungsrennen auf PostgreSQL 17 mit getrennten Verbindungen geprüft. Eine gehostete Abnahme ist offen.
 
 ## Checkliste
 
@@ -24,7 +24,7 @@ Bei Punkt 4 bedeutet bewusste Bearbeitung, dass ein Hinweis dokumentiert geklär
 |---|---|---|
 | 7-%-Hinweis durch die Review-Kette | **Ja** | `tests/decision-integrity/invoice-case.test.mjs` prüft das Scheitern ohne Leistungszeitraum-Beleg und den anschließenden Review-/Freigabeweg. Der lokale Browserlauf führte Upload, Belegeingabe, Review und Freigabe aus. |
 | CII und ZUGFeRD mit abweichendem PDF-Betrag | **Ja** | Derselbe Test prüft CII-Upload und ZUGFeRD mit 530,87 im PDF gegenüber 529,87 in CII. Die Abweichung bleibt blockiert. |
-| Zwei Fassungen gleichzeitig | **Ja** | Zwei konkurrierende Handler-Aufrufe mit demselben erwarteten Snapshot ergeben eine gespeicherte Revision und einen Konflikt. Diese Probe nutzt dieselbe isolierte Datenbankverbindung. Der zusätzliche Test mit getrennten PostgreSQL-17-Verbindungen steht in `tests/postgres/invoice-case-concurrency.test.mjs`. Sein Ergebnis wird nach dem CI-Lauf dokumentiert. |
+| Zwei Fassungen gleichzeitig | **Ja** | Zwei konkurrierende Handler-Aufrufe mit demselben erwarteten Snapshot ergeben eine gespeicherte Revision und einen Konflikt. Der zusätzliche Test mit getrennten PostgreSQL-17-Verbindungen steht in `tests/postgres/invoice-case-concurrency.test.mjs`. Unterschiedliche Revisionen, identische Wiederholung und Rollback mit wartender Revision sind im CI erfolgreich geprüft. |
 | Zuordnung zum Rechnungsfall | **Ja** | Fall-ID, erwarteter Snapshot, Rechnungsnummer und gespeicherte Verkäuferbezeichnung werden geprüft. Die Testfälle decken den korrekten Bezug sowie unpassenden Fall und abweichende Nummer ab. |
 
 ## OCR-Lücken
@@ -43,7 +43,7 @@ Die positive PDF-Probe wurde kontrolliert erzeugt. Sie enthält einen von KoSIT 
 - `tests/decision-integrity/atomic-review.test.mjs` und `database.test.mjs` enthalten die allgemeinen Rechte- und Freigabeprüfungen.
 - Mit allen lokalen KoSIT- und PDF-Testvariablen liefen die drei Rechnungs- und zwei Worker-Tests erfolgreich. Es gab fünf bestandene Tests, null Fehler und null übersprungene Tests.
 - Die Browser-Proben waren lokale Abnahmeläufe mit Testsitzung. Sie sind bisher nicht als portabler Browser-Test in GitHub CI hinterlegt.
-- [PetraPlan CI](https://github.com/schieskejulia-collab/petraplan/actions/runs/44089316202) und [PostgreSQL 17](https://github.com/schieskejulia-collab/petraplan/actions/runs/44089316203) waren am genannten Commit erfolgreich. Die PostgreSQL-Prüfung betrifft die bestehende allgemeine Entscheidungskette.
+- [PetraPlan CI](https://github.com/schieskejulia-collab/petraplan/actions/runs/44089316202) und [PostgreSQL 17](https://github.com/schieskejulia-collab/petraplan/actions/runs/44089316203) waren am genannten Commit erfolgreich. Die ursprüngliche PostgreSQL-Prüfung betrifft die allgemeine Entscheidungskette. Der zusätzliche [PostgreSQL-17-Lauf](https://github.com/schieskejulia-collab/petraplan/actions/runs/44170253810) am Commit `001ea338bdc0fbca98f54c1028ed5f39d890d04c` enthält drei Rechnungsrennen mit getrennten Verbindungen. Insgesamt bestanden 19 Tests bei null Fehlern und null übersprungenen Tests. Die Rechnungsrennen verwenden synthetische Worker-Artefakte und prüfen gezielt die Datenbanktransaktion. Sie belegen keinen weiteren KoSIT- oder Browserlauf.
 
 Testdateien, Umgebungsvariablen und Aufrufe stehen in [invoice-contract.md](invoice-contract.md).
 

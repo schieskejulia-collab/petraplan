@@ -4,7 +4,7 @@ Stand vom 17. November 2026.
 
 | Punkt | Stand | Nächster Nachweis |
 |---|---|---|
-| Rechnungsrevisionen über getrennte PostgreSQL-Verbindungen | Test ergänzt | Drei gezielte Rennen im PostgreSQL-17-CI-Lauf prüfen. |
+| Rechnungsrevisionen über getrennte PostgreSQL-Verbindungen | **Lokal/CI abgenommen** | Drei Rennen mit synthetischen Worker-Artefakten im [PostgreSQL-17-Lauf](https://github.com/schieskejulia-collab/petraplan/actions/runs/44170253810) erfolgreich. |
 | Ausnahme bei abweichender oder unlesbarer PDF | Textentwurf vorhanden | Fachlich festlegen, danach implementieren und testen. Siehe [Ausnahmeprozess](invoice-pdf-exception-draft.md). |
 | weclapp 963,12 im PDF gegenüber 963,11 im XML | Ursache offen | Feldarten und Fundstellen für Brutto, Zahlbetrag, Skonto und Rundung abgleichen. |
 | Doppelrechnungen | Offener Folgepunkt | Dublettenverdacht auch bei anderer Nummer prüfen, anhand von Lieferant, Datum, Betrag, Leistungsbezug und weiteren Belegen. |
