@@ -52,9 +52,18 @@ function InvoiceSnapshot({ snapshot, visuallyConfirmed }: {
           <dd className="break-words font-medium">{payable ? [payable.value, payable.currency].filter(Boolean).join(" ") : "Nicht eindeutig belegt"}</dd>
         </div>
       </dl>
+      {snapshot.exception && <div className="space-y-1 rounded-lg border p-3 text-sm">
+        <p className="font-semibold">{snapshot.exception.status === "APPROVED" ? "Dokumentierte PDF-Ausnahme"
+          : snapshot.exception.status === "REJECTED" ? "PDF-Ausnahme abgelehnt" : "PDF-Ausnahme beantragt"}</p>
+        <p>{snapshot.exception.reason}</p>
+        <p>Beleg {snapshot.exception.evidenceReference}</p>
+        <p>Verwendungszweck {snapshot.exception.purpose}</p>
+        {snapshot.exception.decisionReason && <p>{snapshot.exception.decisionReason}</p>}
+        {snapshot.exception.status === "APPROVED" && !snapshot.exception.usable && <p>Ausnahmegrundlage ist nicht aktuell freigabefähig.</p>}
+      </div>}
       {snapshot.pdfComparison && (
         <div className="space-y-1 rounded-lg border p-3 text-sm">
-          <p className="font-semibold">{visuallyConfirmed ? "PDF-Sichtprüfung bestätigt" : "PDF-Sichtprüfung erforderlich"}</p>
+          <p className="font-semibold">{snapshot.exception?.status === "APPROVED" ? "PDF-Abweichung mit Ausnahme dokumentiert" : visuallyConfirmed ? "PDF-Sichtprüfung bestätigt" : "PDF-Sichtprüfung erforderlich"}</p>
           <p>{snapshot.pdfComparison.status === "DIFFERENT" ? "Sichtbarer Zahlbetrag weicht vom XML ab."
             : snapshot.pdfComparison.status === "NOT_COMPARABLE" ? "Sichtbarer Zahlbetrag nicht eindeutig lesbar."
               : visuallyConfirmed ? "Sichtbetrag und XML sind im Review als übereinstimmend dokumentiert."
@@ -117,14 +126,15 @@ export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
         </p>
       </div>
       {current ? <InvoiceSnapshot snapshot={current} visuallyConfirmed={visuallyConfirmed(current)} /> : <p className="text-sm">Aktueller Rechnungssnapshot nicht verfügbar.</p>}
-      {current && <InvoiceReview key={current.snapshotId} recordId={data.id} snapshot={current} onChanged={onChanged} />}
+      {current && <InvoiceReview key={current.snapshotId + current.validationId + current.exception?.status} recordId={data.id} snapshot={current} onChanged={onChanged} />}
       {data.release.status_history.length > 0 && (
         <details className="rounded-lg border p-3 text-sm">
           <summary className="cursor-pointer font-medium">Freigabehistorie</summary>
           <ol className="mt-2 space-y-2">
             {[...data.release.status_history].reverse().map((entry, index) => {
               const certificate = certificates.get(entry.release_certificate_id);
-              const basis = snapshots.find(snapshot => snapshot.validationId === certificate?.validation_result_id);
+              const basis = snapshots.find(snapshot => (snapshot.validationId === certificate?.validation_result_id
+                || snapshot.exception?.validationId === certificate?.validation_result_id));
               return (
                 <li key={String(entry.id ?? index)} className="break-words border-t pt-2">
                   <p className="font-medium">{statusLabel(entry.new_status)} · {dateLabel(entry.created_at)}</p>
@@ -168,9 +178,9 @@ function InvoiceReview({ recordId, snapshot, onChanged }: {
   const [pdfCurrency, setPdfCurrency] = useState("");
   const [pdfPagesChecked, setPdfPagesChecked] = useState(false);
   const availableReview = Boolean(access?.can_review && access.review_ready
-    && (!pdf || (pdf.status === "NEEDS_VISUAL_CONFIRMATION" && snapshot.proof?.accepted)));
+    && (!pdf || snapshot.exception?.usable || (pdf.status === "NEEDS_VISUAL_CONFIRMATION" && snapshot.proof?.accepted)));
   const availableRelease = Boolean(access?.release_ready);
-  const completePdfReview = !pdf || (originalPdf.opened && pdfPagesChecked
+  const completePdfReview = !pdf || snapshot.exception?.usable || (originalPdf.opened && pdfPagesChecked
     && /^-?[0-9]{1,18}(?:[.,][0-9]{1,2})?$/.test(pdfAmount.trim()) && /^[A-Z]{3}$/.test(pdfCurrency.trim().toUpperCase()));
   useEffect(() => {
     let active = true;
@@ -215,7 +225,10 @@ function InvoiceReview({ recordId, snapshot, onChanged }: {
         Original-PDF herunterladen
       </button>}
       {originalPdf.error && <p role="alert">{originalPdf.error}</p>}
-      {availableReview && pdf && <div className="space-y-2">
+      {pdf && ["DIFFERENT","NOT_COMPARABLE"].includes(pdf.status) && snapshot.proof?.accepted
+        && <InvoiceExceptionForm recordId={recordId} snapshot={snapshot} access={access}
+          originalDownloaded={originalPdf.opened} onChanged={onChanged} />}
+      {availableReview && pdf && !snapshot.exception?.usable && <div className="space-y-2">
         <label className="flex items-center gap-2"><input type="checkbox" checked={pdfPagesChecked}
           disabled={!originalPdf.opened} onChange={event => setPdfPagesChecked(event.target.checked)} />
           Alle Seiten des Original-PDF auf eindeutigen Zahlbetrag geprüft
@@ -254,4 +267,55 @@ function InvoiceReview({ recordId, snapshot, onChanged }: {
       {error && <p role="alert">{error}</p>}
     </div>
   );
+}
+
+
+function InvoiceExceptionForm({ recordId, snapshot, access, originalDownloaded, onChanged }: {
+  recordId:string; snapshot:InvoiceCaseSnapshot; access:BridgeDecisionAccess|null;
+  originalDownloaded:boolean; onChanged:()=>Promise<void>;
+}) {
+  const [reason,setReason]=useState("");
+  const [reference,setReference]=useState("");
+  const [purpose,setPurpose]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState<string|null>(null);
+  const request=snapshot.exception;
+  const canRequest=!request && access?.can_review;
+  const canDecide=request?.status==="PENDING" && access?.can_approve_invoice_exception;
+  async function submit(action:"REQUEST"|"APPROVED"|"REJECTED") {
+    setBusy(true);setError(null);
+    try {
+      const token=await currentAccessToken();
+      if(!token) throw new Error("Bitte zuerst anmelden.");
+      const response=await fetch(`/api/cases/${encodeURIComponent(recordId)}/invoice-exception`,{
+        method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+        body:JSON.stringify({action,snapshotId:snapshot.snapshotId,validationId:snapshot.validationId,
+          requestId:request?.requestId,reason,evidenceReference:reference,purpose}),
+      });
+      const body=await response.json();
+      if(!response.ok) throw new Error(body.error??"Ausnahme konnte nicht gespeichert werden.");
+      await onChanged();
+    } catch(failure) {setError(failure instanceof Error?failure.message:"Ausnahme fehlgeschlagen.");}
+    finally {setBusy(false);}
+  }
+  if(!canRequest&&!canDecide)return null;
+  return <div className="space-y-2 rounded-lg border p-3">
+    <p className="font-semibold">{canRequest?"PDF-Ausnahme zur Klärung vorlegen":"PDF-Ausnahme unabhängig entscheiden"}</p>
+    <p>Die entscheidende Person braucht eine dokumentierte Ausnahmeberechtigung und darf an Upload, Antrag und früherem Review dieser Fassung nicht beteiligt sein.</p>
+    {canRequest&&<>
+      <label className="block">Belegverweis<input className="mt-1 w-full rounded border p-2" value={reference} onChange={event=>setReference(event.target.value)} /></label>
+      <label className="block">Erlaubter Verwendungszweck<input className="mt-1 w-full rounded border p-2" value={purpose} onChange={event=>setPurpose(event.target.value)} /></label>
+    </>}
+    <label className="block">Begründung der Ausnahme<textarea className="mt-1 w-full rounded border p-2" value={reason} onChange={event=>setReason(event.target.value)} /></label>
+    {canRequest&&<button className="rounded border p-2 disabled:opacity-50"
+      disabled={busy||!originalDownloaded||reason.trim().length<8||reference.trim().length<3||purpose.trim().length<3}
+      onClick={()=>void submit("REQUEST")}>Ausnahme beantragen</button>}
+    {canDecide&&<>
+      <button className="rounded border p-2 disabled:opacity-50" disabled={busy||!originalDownloaded||reason.trim().length<8}
+        onClick={()=>void submit("APPROVED")}>Ausnahme genehmigen</button>
+      <button className="rounded border p-2 disabled:opacity-50" disabled={busy||reason.trim().length<8}
+        onClick={()=>void submit("REJECTED")}>Ausnahme ablehnen</button>
+    </>}
+    {error&&<p role="alert">{error}</p>}
+  </div>;
 }

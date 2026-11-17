@@ -5,6 +5,7 @@ export type BridgeDecisionAction = 'confirm_candidate' | 'reject_candidate' | 'a
 export interface BridgeDecisionAccess {
   role: string;
   can_review: boolean;
+  can_approve_invoice_exception?: boolean;
   can_release: boolean;
   can_revoke: boolean;
   review_ready: boolean;

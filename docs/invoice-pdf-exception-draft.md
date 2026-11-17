@@ -1,12 +1,12 @@
 # PDF-Abweichungen und unlesbare Sichtbeträge · Prozessentwurf
 
-Status vom 17. November 2026. Dieser Text beschreibt einen vorgeschlagenen betrieblichen Ablauf. Die Ausnahmeentscheidung ist bislang nicht in API, Datenbank oder Oberfläche umgesetzt.
+Status vom 17. November 2026. Dieser Text beschreibt einen vorgeschlagenen betrieblichen Ablauf. Die technische Umsetzung mit unabhängigem Entscheider ist inzwischen vorhanden; der separate [Implementierungsnachweis](invoice-pdf-exception-implementation.md) beschreibt ihren engeren Geltungsbereich und die noch offene gehostete Abnahme.
 
 ## Anlass und Zuständigkeit
 
 Der Fall gelangt in die Ausnahmeprüfung, wenn die sichtbare PDF-Darstellung vom strukturierten Rechnungsinhalt abweicht oder die Sichtprüfung keinen eindeutigen Zahlbetrag ergibt. Er bleibt dem Original-PDF, dem eingebetteten XML und dem KoSIT-Bericht derselben Fassung zugeordnet.
 
-Ein Uploader oder technischer Reviewer darf die Klärung anfordern und Belege ergänzen. Die Entscheidung über die fachliche Verwendung trifft eine für den konkreten Geschäftsprozess benannte Person, beispielsweise die zuständige Rechnungsprüfung. Die Zuständigkeit und ihr Geltungsbereich müssen vor Nutzung dieser Ausnahmefunktion dokumentiert sein. Der Entwurf sieht für die Ausnahme eine zweite berechtigte Person vor. Die bisherige Software erzwingt dieses Vier-Augen-Prinzip noch nicht.
+Ein Uploader oder technischer Reviewer darf die Klärung anfordern und Belege ergänzen. Die Entscheidung über die fachliche Verwendung trifft eine für den konkreten Geschäftsprozess benannte Person, beispielsweise die zuständige Rechnungsprüfung. Die Zuständigkeit und ihr Geltungsbereich müssen vor Nutzung dieser Ausnahmefunktion dokumentiert sein. Der Entwurf sieht für die Ausnahme eine zweite berechtigte Person vor. Die technische Umsetzung erzwingt die Unabhängigkeit für die aktuelle Fassung einschließlich früherer Reviewer.
 
 ## Prüfung und Entscheidung
 
@@ -18,7 +18,7 @@ Eine ungeklärte Cent-Abweichung wird nicht automatisch toleriert. Die verantwor
 
 ## Protokoll
 
-Die spätere Implementierung soll mindestens speichern:
+Der fachliche Zielumfang umfasst:
 
 - Fall-ID und Snapshot-ID mit SHA-256 von Original-PDF, XML und KoSIT-Bericht.
 - Betroffene Feldnummer und XML-Fundstelle, sichtbarer Wert oder Unlesbarkeit sowie Seite und Belegausschnitt.
