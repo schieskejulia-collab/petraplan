@@ -109,7 +109,7 @@ export interface InvoiceCaseSnapshot {
   syntax: string | null;
   number: string | null;
   payable: { value: string; currency: string | null; path: string } | null;
-  pdfComparison: { status: string; candidates: Array<{ page: number; amount: string | null }> } | null;
+  pdfComparison: { status: string; sha256: string; candidates: Array<{ page: number; amount: string | null }> } | null;
   proof: {
     engine: string | null;
     scenario: string | null;

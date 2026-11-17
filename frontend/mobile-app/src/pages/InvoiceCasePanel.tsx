@@ -8,7 +8,37 @@ function dateLabel(value: unknown) {
   return date && Number.isFinite(date.valueOf()) ? date.toLocaleString("de-DE") : "Zeitpunkt unbekannt";
 }
 
-function InvoiceSnapshot({ snapshot }: { snapshot: InvoiceCaseSnapshot }) {
+function useOriginalPdf(recordId: string, snapshotId: string) {
+  const [opened, setOpened] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function openPdf() {
+    setError(null);
+    try {
+      const token = await currentAccessToken();
+      if (!token) throw new Error("Bitte zuerst anmelden.");
+      const response = await fetch(`/api/cases/${encodeURIComponent(recordId)}/invoice-pdf?snapshotId=${encodeURIComponent(snapshotId)}`,
+        { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error("Original-PDF konnte nicht geladen werden.");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "rechnung-original.pdf";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setOpened(true);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : "Original-PDF konnte nicht geladen werden.");
+    }
+  }
+  return { openPdf, opened, error };
+}
+
+function InvoiceSnapshot({ snapshot, visuallyConfirmed }: {
+  snapshot: InvoiceCaseSnapshot; visuallyConfirmed: boolean;
+}) {
   const { payable, proof } = snapshot;
   return (
     <div className="space-y-3">
@@ -24,10 +54,11 @@ function InvoiceSnapshot({ snapshot }: { snapshot: InvoiceCaseSnapshot }) {
       </dl>
       {snapshot.pdfComparison && (
         <div className="space-y-1 rounded-lg border p-3 text-sm">
-          <p className="font-semibold">PDF-Sichtprüfung erforderlich</p>
+          <p className="font-semibold">{visuallyConfirmed ? "PDF-Sichtprüfung bestätigt" : "PDF-Sichtprüfung erforderlich"}</p>
           <p>{snapshot.pdfComparison.status === "DIFFERENT" ? "Sichtbarer Zahlbetrag weicht vom XML ab."
             : snapshot.pdfComparison.status === "NOT_COMPARABLE" ? "Sichtbarer Zahlbetrag nicht eindeutig lesbar."
-              : "OCR-Betrag passt zum XML. Sichtbestätigung steht aus."}</p>
+              : visuallyConfirmed ? "Sichtbetrag und XML sind im Review als übereinstimmend dokumentiert."
+                : "OCR-Betrag passt zum XML. Sichtbestätigung steht aus."}</p>
           {snapshot.pdfComparison.candidates.map((item, index) => (
             <p key={index}>Seite {item.page} · {item.amount ?? "Betrag unlesbar"}</p>
           ))}
@@ -71,6 +102,9 @@ export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
   const snapshots = data.invoice?.snapshots ?? [];
   const current = snapshots.find(snapshot => snapshot.current);
   const history = snapshots.filter(snapshot => !snapshot.current);
+  const visuallyConfirmed = (snapshot: InvoiceCaseSnapshot) => Boolean(snapshot.pdfComparison
+    && data.review.decisions.some(decision => decision.validation_result_id === snapshot.validationId
+      && decision.decision === "approved" && decision.final === true));
   const certificates = new Map(data.release.certificates.map(certificate => [certificate.id, certificate]));
   const status = data.release.effective_status
     ?? (data.release.certificates.length ? "blocked" : null);
@@ -82,7 +116,7 @@ export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
           {status ? statusLabel(status) : "Keine Freigabe erteilt"}
         </p>
       </div>
-      {current ? <InvoiceSnapshot snapshot={current} /> : <p className="text-sm">Aktueller Rechnungssnapshot nicht verfügbar.</p>}
+      {current ? <InvoiceSnapshot snapshot={current} visuallyConfirmed={visuallyConfirmed(current)} /> : <p className="text-sm">Aktueller Rechnungssnapshot nicht verfügbar.</p>}
       {current && <InvoiceReview key={current.snapshotId} recordId={data.id} snapshot={current} onChanged={onChanged} />}
       {data.release.status_history.length > 0 && (
         <details className="rounded-lg border p-3 text-sm">
@@ -111,7 +145,7 @@ export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
       {history.map(snapshot => (
         <details id={`invoice-${snapshot.snapshotId}`} key={snapshot.snapshotId} className="rounded-lg border p-3 text-sm">
           <summary className="cursor-pointer font-medium">Frühere Fassung · {dateLabel(snapshot.createdAt)}</summary>
-          <div className="mt-3"><InvoiceSnapshot snapshot={snapshot} /></div>
+          <div className="mt-3"><InvoiceSnapshot snapshot={snapshot} visuallyConfirmed={visuallyConfirmed(snapshot)} /></div>
         </details>
       ))}
     </section>
@@ -128,8 +162,16 @@ function InvoiceReview({ recordId, snapshot, onChanged }: {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const needsDeliveryEvidence = snapshot.proof?.messages.some(message => message.code === "BR-DE-TMP-32");
-  const availableReview = Boolean(access?.can_review && access.review_ready && !snapshot.pdfComparison);
-  const availableRelease = Boolean(access?.release_ready && !snapshot.pdfComparison);
+  const pdf = snapshot.pdfComparison;
+  const originalPdf = useOriginalPdf(recordId, snapshot.snapshotId);
+  const [pdfAmount, setPdfAmount] = useState("");
+  const [pdfCurrency, setPdfCurrency] = useState("");
+  const [pdfPagesChecked, setPdfPagesChecked] = useState(false);
+  const availableReview = Boolean(access?.can_review && access.review_ready
+    && (!pdf || (pdf.status === "NEEDS_VISUAL_CONFIRMATION" && snapshot.proof?.accepted)));
+  const availableRelease = Boolean(access?.release_ready);
+  const completePdfReview = !pdf || (originalPdf.opened && pdfPagesChecked
+    && /^-?[0-9]{1,18}(?:[.,][0-9]{1,2})?$/.test(pdfAmount.trim()) && /^[A-Z]{3}$/.test(pdfCurrency.trim().toUpperCase()));
   useEffect(() => {
     let active = true;
     (async () => {
@@ -151,6 +193,11 @@ function InvoiceReview({ recordId, snapshot, onChanged }: {
       await submitBridgeDecision({ recordId, action, reason, token,
         expected_snapshot_id: snapshot.snapshotId, expected_validation_id: snapshot.validationId, criteria: {
         ...criteria, ...(needsDeliveryEvidence ? { delivery_period_evidence: serviceEvidence.trim() } : {}),
+        ...(pdf && action === "approve_review" && snapshot.proof ? {
+          pdf_pages_checked: pdfPagesChecked, pdf_visual_amount: pdfAmount.trim(),
+          pdf_visual_currency: pdfCurrency.trim().toUpperCase(),
+          pdf_sha256: pdf.sha256, pdf_xml_sha256: snapshot.proof.sourceSha256,
+        } : {}),
       } });
       await onChanged();
     } catch (failure) {
@@ -160,10 +207,28 @@ function InvoiceReview({ recordId, snapshot, onChanged }: {
     }
   }
 
-  if (!availableReview && !availableRelease && !error) return null;
+  if (!availableReview && !availableRelease && !error && !pdf) return null;
   const labels = { source_truth_checked: "Original geprüft", translation_trace_checked: "Zuordnung geprüft", blockers_resolved: "Offene Punkte geklärt" };
   return (
     <div className="space-y-3 rounded-lg border p-3 text-sm">
+      {pdf && <button className="rounded-lg border px-3 py-2" onClick={() => void originalPdf.openPdf()}>
+        Original-PDF herunterladen
+      </button>}
+      {originalPdf.error && <p role="alert">{originalPdf.error}</p>}
+      {availableReview && pdf && <div className="space-y-2">
+        <label className="flex items-center gap-2"><input type="checkbox" checked={pdfPagesChecked}
+          disabled={!originalPdf.opened} onChange={event => setPdfPagesChecked(event.target.checked)} />
+          Alle Seiten des Original-PDF auf eindeutigen Zahlbetrag geprüft
+        </label>
+        <label className="block">Sichtbarer Zahlbetrag im PDF
+          <input className="mt-1 w-full rounded border bg-background p-2" inputMode="decimal"
+            value={pdfAmount} onChange={event => setPdfAmount(event.target.value)} />
+        </label>
+        <label className="block">Sichtbare Währung (z. B. EUR)
+          <input className="mt-1 w-full rounded border bg-background p-2" maxLength={3}
+            value={pdfCurrency} onChange={event => setPdfCurrency(event.target.value)} />
+        </label>
+      </div>}
       {availableReview && (Object.keys(criteria) as Array<keyof typeof criteria>).map(key => (
         <label className="flex items-center gap-2" key={key}>
           <input type="checkbox" checked={criteria[key]} onChange={event => {
@@ -182,7 +247,7 @@ function InvoiceReview({ recordId, snapshot, onChanged }: {
         <textarea className="mt-1 w-full rounded border bg-background p-2" value={reason} onChange={event => setReason(event.target.value)} />
       </label>}
       {availableReview && <button className="rounded-lg border px-3 py-2 disabled:opacity-50"
-        disabled={busy || reason.trim().length < 3 || !Object.values(criteria).every(Boolean) || Boolean(needsDeliveryEvidence && serviceEvidence.trim().length < 3)}
+        disabled={busy || !completePdfReview || reason.trim().length < 3 || !Object.values(criteria).every(Boolean) || Boolean(needsDeliveryEvidence && serviceEvidence.trim().length < 3)}
         onClick={() => void decide("approve_review")}>Review bestätigen</button>}
       {availableRelease && <button className="rounded-lg border px-3 py-2 disabled:opacity-50"
         disabled={busy || reason.trim().length < 3} onClick={() => void decide("release")}>Freigabe erteilen</button>}

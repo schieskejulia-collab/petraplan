@@ -1,3 +1,4 @@
+import { createInvoicePdfHandler } from '../../api/cases/[recordId]/invoice-pdf.js';
 import { createInvoiceUploadHandler } from '../../api/bridge/invoice-upload.js';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -230,4 +231,69 @@ test('real invoice validation, review, release and atomic revocation preserve bo
     assert.equal(comparison.xmlPayable, '529.87');
     assert.equal(saved.extracted_schema.decision.releaseAllowed, false);
   }
+});
+
+test('matching PDF needs a separately entered visual amount before explicit release', {
+  skip: !(process.env.PETRAPLAN_PDF_POSITIVE && config.jar && config.scenarios)
+    && 'Requires local KoSIT and PDF wrapping an accepted CII fixture',
+}, async t => {
+  const [db, artifact] = await Promise.all([setup(t),
+    inspectInvoiceFile(process.env.PETRAPLAN_PDF_POSITIVE, config)]);
+  assert.equal(artifact.result.technicalEvidence.accepted, true);
+  assert.equal(artifact.result.pdfComparison.status, 'NEEDS_VISUAL_CONFIRMATION');
+  assert.equal(artifact.result.decision.status, 'READY_FOR_REVIEW');
+  const captured = await persistInvoiceCase(db, actor, artifact);
+  assert.equal((await activeRelease(db)).certificate_id, null);
+  await assert.rejects(releaseInvoice(db, captured, null), /Review changed|review/i);
+
+  const pdfResponse = async selectedRecord => {
+    const stored = (await db.query(`select encode(e.original_pdf,'hex') as hex, i.extracted_schema
+      from bridge_invoice_evidence e join ingestion_logs i on i.id=e.snapshot_id
+      where e.snapshot_id=$1`, [captured.snapshot_id])).rows[0];
+    const handler = createInvoicePdfHandler(async () => ({ supabase: { from() {
+      const filters = {};
+      const query = {
+        select() { return query; },
+        eq(key, value) { filters[key] = value; return query; },
+        async maybeSingle() {
+          return { data: filters.record_id === recordId && filters.snapshot_id === captured.snapshot_id
+            ? { original_pdf: String.fromCharCode(92) + 'x' + stored.hex, ingestion: stored } : null };
+        },
+      };
+      return query;
+    } } }));
+    let status, body;
+    const response = { setHeader() {}, status(value) { status=value; return response; },
+      send(value) { body=value; }, json(value) { body=value; } };
+    await handler({ method:'GET', query:{recordId:selectedRecord,snapshotId:captured.snapshot_id} }, response);
+    return { status, body };
+  };
+  assert.equal((await pdfResponse(ids.record)).status, 404);
+  assert.deepEqual(await pdfResponse(recordId), { status:200, body:artifact.pdf });
+
+  const context = { ...criteria, delivery_period_evidence: 'Local test service-period document',
+    pdf_pages_checked:true, pdf_sha256:digest(artifact.pdf), pdf_xml_sha256:digest(artifact.invoice),
+    pdf_visual_amount:'336,90', pdf_visual_currency:'EUR' };
+  await assert.rejects(approveInvoice(db, captured), /PDF review requires/);
+  await assert.rejects(approveInvoice(db, captured, { ...context, pdf_sha256: digest(artifact.invoice) }), /PDF review requires/);
+  await assert.rejects(approveInvoice(db, captured, { ...context, pdf_visual_currency:'USD' }), /PDF review requires/);
+  await assert.rejects(approveInvoice(db, captured, { ...context, pdf_visual_amount:'337,90' }), /differs/);
+  const approval = await approveInvoice(db, captured, context);
+  assert.equal((await activeRelease(db)).certificate_id, null);
+  const audit = (await db.query('select details from bridge_decision_audit where review_decision_id=$1',
+    [approval.review_decision_id])).rows[0].details;
+  assert.equal(audit.criteria.pdf_sha256, digest(artifact.pdf));
+  assert.equal(audit.criteria.pdf_xml_sha256, digest(artifact.invoice));
+  await releaseInvoice(db, captured, approval.review_session_id);
+  assert.equal((await activeRelease(db)).effective_status, 'trusted');
+
+  const bytes = await readFile(process.env.PETRAPLAN_PDF_POSITIVE);
+  const revised = await persistInvoiceCase(db, { ...actor, expectedSnapshotId: captured.snapshot_id }, {
+    ...artifact, pdf: Buffer.concat([bytes, Buffer.from('\n')]),
+    result: { ...artifact.result, pdfComparison: { ...artifact.result.pdfComparison,
+      pdfSha256:digest(Buffer.concat([bytes, Buffer.from('\n')])) } },
+  });
+  assert.equal((await activeRelease(db)).effective_status, 'revoked');
+  await assert.rejects(approveInvoice(db, revised, context), /PDF review requires/);
+  await assert.rejects(releaseInvoice(db, captured, approval.review_session_id), /snapshot has changed/);
 });

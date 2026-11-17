@@ -75,7 +75,8 @@ begin
   end if;
   v_passed := p_result#>>'{decision,status}' = 'READY_FOR_REVIEW';
   if (p_pdf is null and p_result ? 'pdfComparison')
-    or (p_pdf is not null and (octet_length(p_pdf) not between 1 and 8388608 or v_passed
+    or (p_pdf is not null and (octet_length(p_pdf) not between 1 and 8388608 or p_result->>'syntax' is distinct from 'CII'
+      or (v_passed and p_result#>>'{pdfComparison,status}' is distinct from 'NEEDS_VISUAL_CONFIRMATION')
       or p_result#>>'{pdfComparison,pdfSha256}' is distinct from encode(sha256(p_pdf),'hex'))) then
     raise sqlstate 'PT409' using message='PDF evidence requires matching bytes and a pending visual review';
   end if;
@@ -182,28 +183,56 @@ revoke all on function public.bridge_capture_invoice_case(uuid,uuid,uuid,bytea,b
 grant execute on function public.bridge_capture_invoice_case(uuid,uuid,uuid,bytea,bytea,jsonb,bytea)
   to service_role;
 
-create function public.bridge_require_delivery_period_review() returns trigger
+create function public.bridge_require_invoice_review_evidence() returns trigger
 language plpgsql security invoker set search_path = '' as $$
+declare
+  v_schema jsonb;
+  v_pdf_hash text;
+  v_criteria jsonb;
+  v_xml_amount text;
+  v_visual_amount text;
+  v_currency text;
 begin
-  if new.decision = 'approved' and exists (
-    select 1 from public.bridge_invoice_evidence e
-    join public.ingestion_logs source on source.id = e.snapshot_id
-    where e.validation_id = new.validation_result_id
-      and source.extracted_schema#>'{technicalEvidence,messages}' @> '[{"code":"BR-DE-TMP-32"}]'::jsonb
-  ) and not exists (
-    select 1 from public.bridge_decision_audit audit
-    where audit.review_decision_id = new.id
-      and audit.action = 'approve_review'
-      and jsonb_typeof(audit.details#>'{criteria,delivery_period_evidence}') = 'string'
-      and length(btrim(audit.details#>>'{criteria,delivery_period_evidence}')) >= 3
-  ) then
-    raise sqlstate 'PT409' using message = 'BR-DE-TMP-32 requires a delivery or service period evidence reference';
+  if new.decision <> 'approved' then return null; end if;
+  select source.extracted_schema, encode(sha256(e.original_pdf),'hex')
+    into v_schema, v_pdf_hash
+  from public.bridge_invoice_evidence e
+  join public.ingestion_logs source on source.id=e.snapshot_id
+  where e.validation_id=new.validation_result_id;
+  if not found then return null; end if;
+
+  select details->'criteria' into v_criteria from public.bridge_decision_audit
+    where review_decision_id=new.id and action='approve_review';
+
+  if v_schema#>'{technicalEvidence,messages}' @> '[{"code":"BR-DE-TMP-32"}]'::jsonb
+    and (jsonb_typeof(v_criteria->'delivery_period_evidence') is distinct from 'string'
+      or length(btrim(v_criteria->>'delivery_period_evidence')) < 3) then
+    raise sqlstate 'PT409' using message='BR-DE-TMP-32 requires a delivery or service period evidence reference';
+  end if;
+
+  if v_pdf_hash is not null then
+    v_xml_amount := v_schema#>>'{fields,BT-115,values,0,original}';
+    v_visual_amount := replace(btrim(v_criteria->>'pdf_visual_amount'),',','.');
+    v_currency := v_schema#>>'{fields,BT-115,values,0,currency,value}';
+    if v_schema#>>'{pdfComparison,status}' is distinct from 'NEEDS_VISUAL_CONFIRMATION'
+      or v_criteria->'pdf_pages_checked' is distinct from 'true'::jsonb
+      or v_criteria->>'pdf_sha256' is distinct from v_pdf_hash
+      or v_criteria->>'pdf_xml_sha256' is distinct from v_schema->>'sourceSha256'
+      or coalesce(v_currency,'') !~ '^[A-Z]{3}$'
+      or upper(btrim(v_criteria->>'pdf_visual_currency')) is distinct from v_currency
+      or coalesce(v_visual_amount,'') !~ '^-?[0-9]{1,18}([.][0-9]{1,2})?$'
+      or coalesce(v_xml_amount,'') !~ '^-?[0-9]{1,18}([.][0-9]{1,2})?$' then
+      raise sqlstate 'PT409' using message='PDF review requires the corresponding original and a visible amount and currency';
+    end if;
+    if v_visual_amount::numeric <> v_xml_amount::numeric then
+      raise sqlstate 'PT409' using message='Visually confirmed PDF amount differs from the invoice XML';
+    end if;
   end if;
   return null;
 end;
 $$;
-revoke all on function public.bridge_require_delivery_period_review() from public, anon, authenticated;
-grant execute on function public.bridge_require_delivery_period_review() to service_role;
-create constraint trigger bridge_invoice_delivery_period_review
+revoke all on function public.bridge_require_invoice_review_evidence() from public, anon, authenticated;
+grant execute on function public.bridge_require_invoice_review_evidence() to service_role;
+create constraint trigger bridge_invoice_review_evidence
 after insert on public.review_decisions deferrable initially deferred
-for each row execute function public.bridge_require_delivery_period_review();
+for each row execute function public.bridge_require_invoice_review_evidence();

@@ -8,7 +8,7 @@ export interface InvoiceCaseSnapshot {
   syntax: string | null;
   number: string | null;
   payable: { value: string; currency: string | null; path: string } | null;
-  pdfComparison: { status: string; candidates: Array<{ page: number; amount: string | null }> } | null;
+  pdfComparison: { status: string; sha256: string; candidates: Array<{ page: number; amount: string | null }> } | null;
   proof: {
     engine: string | null;
     scenario: string | null;
@@ -74,7 +74,9 @@ export function buildInvoiceCaseSnapshots(
       : null;
     const comparison = object(result?.pdfComparison);
     const comparisonStatus = string(comparison?.status);
-    const pdfComparison = comparisonStatus && Array.isArray(comparison?.candidates) ? {
+    const pdfSha256 = string(comparison?.pdfSha256);
+    const pdfComparison = comparisonStatus && pdfSha256 && Array.isArray(comparison?.candidates) ? {
+      sha256: pdfSha256,
       status: comparisonStatus,
       candidates: comparison.candidates.flatMap(candidate => {
         const row = object(candidate);

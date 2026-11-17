@@ -64,8 +64,10 @@ export async function inspectInvoiceFile(input, { jar, scenarios }) {
     }
     if (pdfComparison) {
       result.pdfComparison = pdfComparison;
-      result.decision.status = 'BLOCKED';
-      result.decision.blockers.push('PDF_VISUAL_CONFIRMATION_REQUIRED');
+      if (pdfComparison.status !== 'NEEDS_VISUAL_CONFIRMATION') {
+        result.decision.status = 'BLOCKED';
+        result.decision.blockers.push('PDF_VISUAL_AMOUNT_CONFLICT');
+      }
     }
     return { invoice, pdf, report: await readFile(reportFile), result };
   } finally {
