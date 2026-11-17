@@ -1,5 +1,7 @@
 # Rechnungsvertrag für UBL und CII
 
+Die sieben Kriterien und ihre lokalen Nachweise stehen in [Lokale Abnahme des Rechnungswegs](invoice-local-acceptance.md).
+
 `en16931-invoice-v1` liest eigenständige Rechnungs-XMLs. Der Vertrag umfasst BT‑1, BT‑2, BT‑5, BT‑24, BT‑27, BT‑59, BT‑72, BT‑84, BT‑109, BT‑110, BT‑112 und BT‑115, die Positionsfelder BT‑126, BT‑151 und BT‑152 sowie Abrechnungs- und Positionszeiträume (BG‑14 und BG‑26).
 
 Die JSON-Ausgabe enthält den SHA‑256 der Originaldatei, XML-Fundstellen mit Namensraum und Index, beobachtete Werte und Attribute, Zuordnungen zum Rechnungsvertrag sowie fehlende oder mehrdeutige Felder. Geldbeträge bleiben Dezimaltexte. Datumswerte behalten ihre ursprüngliche Schreibweise und erhalten zusätzlich ein ISO-Datum. Die Zahl der Beobachtungen hängt von der konkreten Datei ab. Felder außerhalb des Vertrags bleiben als Beobachtungen sichtbar.
