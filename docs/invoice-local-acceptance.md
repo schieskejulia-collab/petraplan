@@ -61,3 +61,7 @@ Damit ist der bezeichnete lokale Rechnungsweg abgenommen. Die gehostete Abnahme 
 ## Rechte und weitere offene Punkte
 
 Uploader, Reviewer und Freigeber dürfen heute dieselbe Person sein, wenn die jeweilige aktive Bridge-Rolle die nötigen Rechte trägt. Das Vier-Augen-Prinzip wird im normalen Rechnungsweg nicht erzwungen. Die genaue Rechtezuordnung und die offenen Punkte Doppelrechnungen, PDF-Ausnahme sowie weclapp-Cent stehen in [invoice-open-items.md](invoice-open-items.md).
+
+## Eingefrorener Stand und spätere Erweiterung
+
+Die bisherige lokale Abnahme ist [unverändert eingefroren](verification/2026-11-17-invoice-local-baseline.md). Die danach entwickelte [PDF-Ausnahme](invoice-pdf-exception-implementation.md) hat eigene Nachweise; sie ändert den damaligen Prüfumfang nicht rückwirkend. Der normale Weg erzwingt weiterhin keine Funktionstrennung. Diese bekannte Grenze muss gegenüber Kunden offengelegt werden.

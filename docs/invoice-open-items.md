@@ -5,7 +5,7 @@ Stand vom 17. November 2026.
 | Punkt | Stand | Nächster Nachweis |
 |---|---|---|
 | Rechnungsrevisionen über getrennte PostgreSQL-Verbindungen | **Lokal/CI abgenommen** | Drei Rennen mit synthetischen Worker-Artefakten im [PostgreSQL-17-Lauf](https://github.com/schieskejulia-collab/petraplan/actions/runs/44170253810) erfolgreich. |
-| Ausnahme bei abweichender oder unlesbarer PDF | Textentwurf vorhanden | Fachlich festlegen, danach implementieren und testen. Siehe [Ausnahmeprozess](invoice-pdf-exception-draft.md). |
+| Ausnahme bei abweichender oder unlesbarer PDF | Lokal implementiert und geprüft | Unabhängige Entscheidung mit expliziter Vollmacht; gehostete Abnahme offen. Siehe [Implementierung](invoice-pdf-exception-implementation.md). |
 | weclapp 963,12 im PDF gegenüber 963,11 im XML | Ursache offen | Feldarten und Fundstellen für Brutto, Zahlbetrag, Skonto und Rundung abgleichen. |
 | Doppelrechnungen | Offener Folgepunkt | Dublettenverdacht auch bei anderer Nummer prüfen, anhand von Lieferant, Datum, Betrag, Leistungsbezug und weiteren Belegen. |
 | Browserabnahme in CI | Lokale Proben vorhanden | Portablen Browserlauf mit verfügbaren Testdateien und isolierten Diensten ergänzen. |
@@ -19,4 +19,6 @@ Ein Upload braucht eine aktive Bridge-Rolle mit `can_review`. Ein Review braucht
 
 Dieselbe Person darf heute hochladen, reviewen und freigeben, wenn ihr alle jeweils benötigten Rechte zugewiesen sind. Die Software erzwingt für diesen normalen Rechnungsweg derzeit kein Vier-Augen-Prinzip. Review und Freigabe sind dennoch zwei gesonderte, protokollierte Entscheidungen. Technische Bridge-Rechte belegen keine allgemeine fachliche Zeichnungsberechtigung einer Organisation.
 
-Der Ausnahmeprozess schlägt eine zweite zuständige Person vor. Seine Rollen und Entscheidungsvoraussetzungen sind bisher ein Entwurf.
+Für PDF-Ausnahmen erzwingt die Datenbank eine zweite ausdrücklich berechtigte Person, die weder hochgeladen noch den Antrag gestellt oder die Fassung zuvor geprüft hat. Danach führt sie Review und Freigabe gesondert aus. Der [Implementierungsnachweis](invoice-pdf-exception-implementation.md) dokumentiert Grenzen und Nachweise.
+
+**Bekannte Grenze für Kunden:** Im normalen Weg ist keine Funktionstrennung erzwungen. Kunden mit entsprechenden internen Kontrollen benötigen eine spätere mandantenspezifische Regelung, bevor dieser Weg dafür eingesetzt wird.

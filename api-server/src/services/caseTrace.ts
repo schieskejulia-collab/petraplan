@@ -82,7 +82,7 @@ export async function listCases(
         ? await rows<any>(
             supabase
               .from('validation_results')
-              .select('id, status, created_at', { count: 'exact' })
+              .select('id, status, created_at, evidence', { count: 'exact' })
               .in('conflict_id', conflictIds)
               .order('created_at'),
           )
@@ -101,10 +101,18 @@ export async function listCases(
         : null;
       const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
 
+      let displayedStatus = certificateAmbiguous || historyAmbiguous || validationUnavailable
+        ? 'blocked' : (gate?.effectiveStatus ?? releaseStatus);
+      if (displayedStatus === 'trusted' && authoritativeValidation?.evidence?.invoice_exception_id) {
+        const check = await supabase.rpc('bridge_check_invoice_exception',
+          {p_record_id:record.id,p_validation_id:authoritativeValidation.id});
+        displayedStatus = !check.error && check.data === true ? 'exception' : 'blocked';
+      }
+
       return {
         ...record,
         conflict_count: anchors.filter((item) => item.conflict === true).length,
-        release_status: certificateAmbiguous || historyAmbiguous || validationUnavailable ? 'blocked' : (gate?.effectiveStatus ?? releaseStatus),
+        release_status: displayedStatus,
       } as CaseListItem;
     }),
   );
@@ -333,10 +341,38 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
         validations,
       )
     : null;
+  if (invoiceSnapshots) {
+    const requests = await rows<any>(supabase.from('invoice_exception_requests').select('*', { count: 'exact' })
+      .eq('record_id',recordId).order('created_at'));
+    const decisions = requests.length ? await rows<any>(supabase.from('invoice_exception_decisions').select('*', { count: 'exact' })
+      .in('request_id',requests.map(request => request.id))) : [];
+    for (const snapshot of invoiceSnapshots) {
+      const request = requests.find(request => request.snapshot_id === snapshot.snapshotId);
+      if (!request) continue;
+      const decision = decisions.find(decision => decision.request_id === request.id);
+      let usable = false;
+      if (decision?.decision === 'APPROVED' && decision.validation_id) {
+        const checked = await supabase.rpc('bridge_check_invoice_exception',
+          {p_record_id:recordId,p_validation_id:decision.validation_id});
+        if (checked.error) throw new Error('Exception authority could not be checked.');
+        usable = checked.data === true;
+      }
+      snapshot.exception = {
+        requestId:request.id, requestedBy:request.requested_by, reason:request.reason,
+        evidenceReference:request.evidence_reference,purpose:request.purpose,
+        status:decision?.decision ?? 'PENDING',decisionReason:decision?.reason ?? null,
+        decidedBy:decision?.actor_id ?? null,validationId:decision?.validation_id ?? null,usable,
+      };
+      if (usable && snapshot.current && decision.validation_id === authoritativeValidation?.id) {
+        snapshot.validationId = decision.validation_id;
+      }
+    }
+  }
   const effectiveReleaseStatus = certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable
     ? 'blocked' : (gate?.effectiveStatus ?? latestReleaseStatus);
   const invoiceBasisMatches = invoiceSnapshots?.some(snapshot => snapshot.current
-    && snapshot.validationId === authoritativeValidation?.id && snapshot.proof?.accepted);
+    && snapshot.validationId === authoritativeValidation?.id && snapshot.proof?.accepted
+    && (!authoritativeValidation?.evidence?.invoice_exception_id || snapshot.exception?.usable));
   const invoiceReleaseUnverified = invoiceSnapshots !== null
     && (effectiveReleaseStatus === 'trusted' || effectiveReleaseStatus === 'exception')
     && !invoiceBasisMatches;
@@ -399,7 +435,8 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       certificates: releases,
       logs: releaseLogs,
       status_history: releaseStatusHistory,
-      effective_status: invoiceReleaseUnverified ? 'blocked' : effectiveReleaseStatus,
+      effective_status: invoiceReleaseUnverified ? 'blocked' : (effectiveReleaseStatus === 'trusted'
+        && authoritativeValidation?.evidence?.invoice_exception_id ? 'exception' : effectiveReleaseStatus),
       authority_ambiguous: certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable,
       gate,
     },

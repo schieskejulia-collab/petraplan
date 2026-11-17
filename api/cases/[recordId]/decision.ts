@@ -7,7 +7,7 @@ import { selectLatestCertificate } from '../../../api-server/src/services/certif
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CRITERIA = ['source_truth_checked', 'translation_trace_checked', 'blockers_resolved'] as const;
 type Action = 'confirm_candidate' | 'reject_candidate' | 'approve_review' | 'reject_review' | 'release' | 'revoke';
-type Role = { user_id:string; role_name:string; active:boolean; can_review:boolean; can_release:boolean; can_revoke:boolean };
+type Role = { user_id:string; role_name:string; active:boolean; can_review:boolean; can_release:boolean; can_revoke:boolean; can_approve_invoice_exception?:boolean };
 
 function isPassing(status: unknown) { return ['passed','pass','valid','validated','approved','success'].includes(String(status ?? '').toLowerCase()); }
 function authToken(req:any) { const h=String(req.headers?.authorization ?? ''); return h.startsWith('Bearer ') ? h.slice(7).trim() : ''; }
@@ -57,7 +57,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     if(staleValidationBasis && freshnessBlockers.length===0) freshnessBlockers.push('Die maßgebliche Validierung deckt die aktuelle Claim- oder Kandidatengrundlage nicht ab. Neuvalidierung ist erforderlich.');
     const decisionBasisFresh=!staleValidationBasis && freshnessBlockers.length===0;
     const reviewAlreadyCompleteForValidation=Boolean(review?.complete && authoritative?.id && String(review.validation_result_id ?? '')===String(authoritative.id));
-    const releaseAlreadyTrusted=releaseStatus==='trusted';
+    const releaseAlreadyTrusted=releaseStatus==='trusted'||releaseStatus==='exception';
     const reviewBlockers=[
       ...authorityBlockers,
       ...(!snapshotProcessed ? ['Der Quell-Snapshot ist noch nicht vollständig verarbeitet.'] : []),
@@ -70,7 +70,7 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     if(review?.complete && !review.evidence_reference_ids?.includes(`claims:${claimsBasis}`)) basisBlockers.push('Die Claim-Basis des Reviews ist veraltet. Neuvalidierung und neues Review sind erforderlich.');
     const releaseBlockers=[...reviewBlockers,...basisBlockers];
     const access={
-      role:role.role_name, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
+      role:role.role_name, can_approve_invoice_exception:role.can_approve_invoice_exception === true, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
       review_ready:Boolean(!releaseAuthorityAmbiguous && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),
       review_rejection_ready:Boolean(!releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && authoritative?.id),
       unresolved_candidate_count:unresolvedCandidateCount,

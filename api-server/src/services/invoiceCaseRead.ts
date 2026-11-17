@@ -8,6 +8,12 @@ export interface InvoiceCaseSnapshot {
   syntax: string | null;
   number: string | null;
   payable: { value: string; currency: string | null; path: string } | null;
+  exception?: {
+    requestId: string; requestedBy: string; reason: string; evidenceReference: string; purpose: string;
+    status: "PENDING" | "APPROVED" | "REJECTED";
+    decisionReason: string | null; decidedBy: string | null; validationId: string | null;
+    usable: boolean;
+  };
   pdfComparison: { status: string; sha256: string; candidates: Array<{ page: number; amount: string | null }> } | null;
   proof: {
     engine: string | null;
