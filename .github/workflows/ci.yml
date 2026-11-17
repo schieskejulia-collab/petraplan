@@ -16,6 +16,11 @@ jobs:
       - run: npm install
       - run: npm test
       - run: npm run test:decision-integrity
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test invoice contract
+        run: python -m unittest backend.tests.test_invoice.InvoiceProjectionTest -v
 
   mobile:
     runs-on: ubuntu-latest
