@@ -8,6 +8,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { inspectInvoiceFile, persistInvoiceCase } from '../../scripts/capture-invoice-case.mjs';
 import { criteria, id, ids, read, review, seedAtomicReviewFixture } from './atomic-review-fixture.mjs';
 import { installTrustedEvidenceFixture } from './trusted-evidence-fixture.mjs';
+import { buildInvoiceCaseSnapshots } from '../../api-server/src/services/invoiceCaseRead.ts';
 
 const recordId = id(177);
 const actor = { recordId, actorId: ids.actor };
@@ -136,6 +137,19 @@ test('real invoice validation, review, release and atomic revocation preserve bo
   ['trusted', 'revoked']);
   const audit = (await db.query("select validation_result_id from bridge_decision_audit where record_id=$1 and action='revoke'", [recordId])).rows;
   assert.deepEqual(audit, [{ validation_result_id: changed.validation_id }]);
+
+  const viewRows = (await db.query(`select e.snapshot_id, e.validation_id, e.created_at::text,
+    jsonb_build_object('source_hash', i.source_hash, 'extracted_schema', i.extracted_schema) ingestion
+    from bridge_invoice_evidence e join ingestion_logs i on i.id=e.snapshot_id
+    order by e.created_at desc`)).rows;
+  const validations = (await db.query('select id, evidence from validation_results')).rows;
+  const snapshots = buildInvoiceCaseSnapshots(viewRows, changed.snapshot_id, validations);
+  assert.deepEqual(snapshots.map(snapshot => snapshot.current), [true, false]);
+  assert.deepEqual(snapshots.map(snapshot => snapshot.proof.accepted), [false, true]);
+  assert.ok(snapshots[0].proof.messages.some(message => message.code === 'BR-CO-16'));
+  assert.equal(snapshots[1].proof.reportSha256, digest(t0.report));
+  assert.match(snapshots[1].payable.path, /PayableAmount/);
+  assert.equal(buildInvoiceCaseSnapshots(viewRows, changed.snapshot_id, [])[0].proof, null);
 
   const corrected = await persistInvoiceCase(db, { ...actor, expectedSnapshotId: changed.snapshot_id }, t0);
   assert.equal(corrected.status, 'READY_FOR_REVIEW');

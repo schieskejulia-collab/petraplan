@@ -6,6 +6,7 @@ import {
 } from './releaseGate.js';
 import { deriveReviewTruth } from './reviewGate.js';
 import { selectLatestCertificate, selectLatestReleaseHistory } from './certificateAuthority.js';
+import { buildInvoiceCaseSnapshots } from './invoiceCaseRead.js';
 import { verifyDisplayedRelease } from './releaseReadBasis.js';
 
 export interface CaseListItem {
@@ -322,8 +323,26 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       })
     : null;
   const gate = await verifyDisplayedRelease(supabase, record.id, authoritativeValidation?.id, validationGate);
+  const invoiceSnapshots = record.source_system === 'petraplan-invoice' && record.category === 'invoice'
+    ? buildInvoiceCaseSnapshots(
+        await rows<Record<string, unknown>>(supabase
+          .from('bridge_invoice_evidence')
+          .select('snapshot_id, validation_id, created_at, ingestion:ingestion_logs!bridge_invoice_evidence_snapshot_id_fkey(source_hash, extracted_schema)', { count: 'exact' })
+          .eq('record_id', recordId).order('created_at', { ascending: false })),
+        record.ingestion_log_id,
+        validations,
+      )
+    : null;
+  const effectiveReleaseStatus = certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable
+    ? 'blocked' : (gate?.effectiveStatus ?? latestReleaseStatus);
+  const invoiceBasisMatches = invoiceSnapshots?.some(snapshot => snapshot.current
+    && snapshot.validationId === authoritativeValidation?.id && snapshot.proof?.accepted);
+  const invoiceReleaseUnverified = invoiceSnapshots !== null
+    && (effectiveReleaseStatus === 'trusted' || effectiveReleaseStatus === 'exception')
+    && !invoiceBasisMatches;
 
   return {
+    ...(invoiceSnapshots ? { invoice: { snapshots: invoiceSnapshots } } : {}),
     id: record.id,
     title: record.title,
     category: record.category,
@@ -380,7 +399,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       certificates: releases,
       logs: releaseLogs,
       status_history: releaseStatusHistory,
-      effective_status: certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable ? 'blocked' : (gate?.effectiveStatus ?? latestReleaseStatus),
+      effective_status: invoiceReleaseUnverified ? 'blocked' : effectiveReleaseStatus,
       authority_ambiguous: certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable,
       gate,
     },

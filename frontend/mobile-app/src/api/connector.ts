@@ -101,7 +101,26 @@ export interface RdfProvReadModel {
   guard_rails: string[];
 }
 
+export interface InvoiceCaseSnapshot {
+  snapshotId: string;
+  validationId: string;
+  createdAt: string;
+  current: boolean;
+  syntax: string | null;
+  number: string | null;
+  payable: { value: string; currency: string | null; path: string } | null;
+  proof: {
+    engine: string | null;
+    scenario: string | null;
+    accepted: boolean;
+    sourceSha256: string;
+    reportSha256: string;
+    messages: Array<{ code: string | null; level: string | null; text: string | null }>;
+  } | null;
+}
+
 export interface CaseTrace {
+  invoice?: { snapshots: InvoiceCaseSnapshot[] };
   id: string;
   title: string;
   category: string;
