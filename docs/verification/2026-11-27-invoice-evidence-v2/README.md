@@ -40,3 +40,17 @@ Live-Schemaabgleich. Die read-only Abfrageversuche und gemeldeten inaktiven
 Projekte stehen im Runbook; es gab keine Projektaktivierung oder Live-Schreibzugriffe.
 
 Der Northwind-/27er-Fall bleibt im verfügbaren Testdatenumfang abgeschlossen.
+
+## Erfolgreiche CI-Belege
+
+Geprüfter Implementierungscommit: `bff267ab32f2b7e1cde3cbcfb3add0509e38f330`.
+
+- API/Mobile: https://github.com/schieskejulia-collab/petraplan/actions/runs/46046803642
+- Rechnungs-/Browserstrecke und Container: https://github.com/schieskejulia-collab/petraplan/actions/runs/46046803649
+
+Der zweite Lauf baut das Worker-Image und verarbeitet anschließend Original-XML
+und eine kontrollierte PDF-Probe tatsächlich im Container mit KoSIT und OCR.
+Ein begrenzter Bereitschaftstest wartet auf den Dienst; dauernde
+Nichtverfügbarkeit scheitert. Ein früherer Lauf hatte das Image bereits gebaut,
+war aber beim ersten Verbindungsversuch abgebrochen. Er bleibt als früherer
+fehlgeschlagener Versuch in `results.json` referenziert.
