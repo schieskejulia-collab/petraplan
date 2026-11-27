@@ -11,10 +11,10 @@ Der Northwind-/27er-Fall ist im verfügbaren Testdatenumfang abgeschlossen.
 | Punkt | Stand | Nächster Nachweis |
 |---|---|---|
 | Rechnungsrevisionen über getrennte PostgreSQL-Verbindungen | **Lokal/CI abgenommen** | Drei Rennen mit synthetischen Worker-Artefakten im [PostgreSQL-17-Lauf](https://github.com/schieskejulia-collab/petraplan/actions/runs/44170253810) erfolgreich. |
-| Ausnahme bei abweichender oder unlesbarer PDF | Lokal implementiert und geprüft | Unabhängige Entscheidung mit expliziter Vollmacht; gehostete Abnahme offen. Siehe [Implementierung](invoice-pdf-exception-implementation.md). |
+| Ausnahme bei abweichender oder unlesbarer PDF | Lokal und im portablen CI-Browserlauf geprüft | Unabhängige Entscheidung mit expliziter Vollmacht; gehostete Abnahme offen. Siehe [Implementierung](invoice-pdf-exception-implementation.md). |
 | weclapp 963,12 im PDF gegenüber 963,11 im XML | Ursache offen | Feldarten und Fundstellen für Brutto, Zahlbetrag, Skonto und Rundung abgleichen. |
 | Doppelrechnungen | Offener Folgepunkt | Dublettenverdacht auch bei anderer Nummer prüfen, anhand von Lieferant, Datum, Betrag, Leistungsbezug und weiteren Belegen. |
-| Browserprüfung in CI | Normaler Rechnungsweg in CI bestanden | [Lauf 46046803649](https://github.com/schieskejulia-collab/petraplan/actions/runs/46046803649): 16 Bedingungen mit Testauthentifizierung und PGlite; ergänzende PDF-Ausnahmeprüfung siehe [Nachweis](verification/2026-11-27-invoice-exception-browser/README.md). Kein gehosteter Login-Nachweis. |
+| Browserprüfung in CI | Normaler Rechnungsweg und PDF-Ausnahme bestanden | [Lauf 46049776473](https://github.com/schieskejulia-collab/petraplan/actions/runs/46049776473): 36 Bedingungen mit zwei Testidentitäten und PGlite; [Nachweis](verification/2026-11-27-invoice-exception-browser/README.md). Kein gehosteter Login-Nachweis. |
 | Containerbau und XML-/PDF-Verarbeitung | In CI bestanden | Derselbe Lauf verarbeitet beide Eingabetypen im gebauten KoSIT-/OCR-Worker. |
 | Gehosteter Lauf | Offen | Projektverfügbarkeit klären, Worker starten, Migrationsstand abgleichen und sieben Kriterien mit echtem Login prüfen. |
 

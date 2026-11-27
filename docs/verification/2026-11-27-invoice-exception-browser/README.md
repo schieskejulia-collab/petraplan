@@ -45,8 +45,7 @@ Lokal bestehen alle **36 Browserbedingungen** sowie **4 Datenbank-/API-
 Ausnahmetests**, jeweils ohne Fehler oder Auslassungen. Ein erster lokaler
 Versuch endete an einem falschen Feldnamen im Test (`validation.history` statt
 `validation.results`); nach Korrektur besteht der vollständige Lauf. Die
-Ergebnisse und Quellprüfsummen stehen in `results.json`. CI ist bei dieser
-ersten Veröffentlichung noch ausstehend.
+Ergebnisse und Quellprüfsummen stehen in `results.json`.
 
 Authentifizierung und Supabase-Abfragetransport sind ausdrücklich Testadapter,
 SQL läuft in einem PGlite-Teilschema. Zwei Test-IDs beweisen keine echten Logins
@@ -54,3 +53,19 @@ und keine Zuordnung zu unterschiedlichen natürlichen Personen. Dies ist eine
 Regression mit bekannten und kontrollierten Daten; kein neuer unabhängiger
 Fremddatentest. Keine gehostete Abnahme, Live-Migration oder Projektaktivierung.
 Die 21 früheren nativen PostgreSQL-Rennen bleiben separate historische Nachweise.
+
+## Erfolgreiche CI-Nachweise
+
+Geprüfter Testcommit: `fcf3074125232cf8cd390a310b8fda374e5101bf`.
+Die anschließende Fortschreibung ändert ausschließlich diese Nachweise.
+
+- [API und Mobile, Lauf 46049776521](https://github.com/schieskejulia-collab/petraplan/actions/runs/46049776521): bestanden.
+- [Rechnungs-/Browserstrecke und Container, Lauf 46049776473](https://github.com/schieskejulia-collab/petraplan/actions/runs/46049776473): bestanden; Job `140677929160`.
+- Joblog 18:31:51 UTC: alle 36 Browserbedingungen bestanden.
+- Joblog 18:32:39 UTC: XML und PDF im gebauten Worker durch KoSIT/OCR verarbeitet.
+- CI-Artefakt `invoice-browser-verification`, ID `15223538574`; SHA-256
+  `65573246eff283c520eef8b3dbaba0b7a8081e63a447592358ed3cc07f61c320`.
+
+Die ursprünglichen 16 Browserbedingungen aus Lauf `46046803649` bleiben in
+der vorherigen Bestandsaufnahme erhalten; sie werden nicht nachträglich als
+36 geprüfte Bedingungen dargestellt.

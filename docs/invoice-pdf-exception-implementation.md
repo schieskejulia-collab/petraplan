@@ -2,8 +2,8 @@
 
 Stand: 17. November 2026. Der vorherige Rechnungsweg bleibt im [eingefrorenen lokalen Abnahmestand](verification/2026-11-17-invoice-local-baseline.md) festgehalten. Diese Erweiterung hat eigene Nachweise. Keine gehostete Abnahme, keine bereits erteilte betriebliche Ausnahmevollmacht.
 
-Fortschreibung 27.11.2026: Der Browserablauf mit zwei Testidentitäten wird als
-portable Regression in die bestehende Rechnungs-CI aufgenommen. Originalabruf,
+Fortschreibung 27.11.2026: Der Browserablauf mit zwei Testidentitäten ist als
+portable Regression in der bestehenden Rechnungs-CI bestanden (36 Bedingungen). Originalabruf,
 unabhängige Ausnahmeentscheidung, gesondertes Review, Freigabe und Revision
 werden über echte lokale Handler, KoSIT/OCR und SQL-RPCs geprüft. Aktueller
 [Laufnachweis](verification/2026-11-27-invoice-exception-browser/README.md).

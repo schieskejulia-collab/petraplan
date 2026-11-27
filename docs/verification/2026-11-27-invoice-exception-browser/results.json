@@ -172,7 +172,27 @@
     "positive.pdf": "f08eaa69db957d8c90ace77482bd3287c80d09ecf80c73b8234acea7bcf78111"
   },
   "ci": {
-    "status": "pending at initial publication"
+    "testedCommit": "fcf3074125232cf8cd390a310b8fda374e5101bf",
+    "apiMobile": {
+      "runId": 46049776521,
+      "result": "success"
+    },
+    "invoiceBrowserContainer": {
+      "runId": 46049776473,
+      "jobId": 140677929160,
+      "result": "success",
+      "browserConditionsPassed": 36,
+      "containerXmlAndPdf": "passed through packaged KoSIT/OCR worker"
+    },
+    "artifact": {
+      "id": 15223538574,
+      "name": "invoice-browser-verification",
+      "digest": "sha256:65573246eff283c520eef8b3dbaba0b7a8081e63a447592358ed3cc07f61c320"
+    },
+    "logEvidence": [
+      "2026-11-27T18:31:51.8762372Z 36 local browser conditions passed; test authentication, not hosted acceptance.",
+      "2026-11-27T18:32:39.4816714Z Local container processed XML and PDF through KoSIT/OCR; no release authority."
+    ]
   },
   "hosted": "Not executed; no live login, migration, activation or payment",
   "nativePostgres": "No SQL changes; prior 21 tests remain separate historical evidence",
