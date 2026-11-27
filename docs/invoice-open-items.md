@@ -2,6 +2,12 @@
 
 Stand vom 17. November 2026.
 
+Ergänzung 27.11.2026: Der szenariobezogene Prüfbelegfilter und die französische
+Zahlbetragserkennung werden im [Prüfbelegvertrag v2](invoice-scenario-evidence-v2.md)
+mit eigenen Regressionen korrigiert. Die gehostete Abnahme bleibt separat;
+Vorbereitung und Schema-Inventur stehen im [Runbook](invoice-hosted-test-runbook.md).
+Der Northwind-/27er-Fall ist im verfügbaren Testdatenumfang abgeschlossen.
+
 | Punkt | Stand | Nächster Nachweis |
 |---|---|---|
 | Rechnungsrevisionen über getrennte PostgreSQL-Verbindungen | **Lokal/CI abgenommen** | Drei Rennen mit synthetischen Worker-Artefakten im [PostgreSQL-17-Lauf](https://github.com/schieskejulia-collab/petraplan/actions/runs/44170253810) erfolgreich. |

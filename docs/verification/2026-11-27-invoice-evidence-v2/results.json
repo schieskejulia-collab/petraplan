@@ -1,0 +1,112 @@
+{
+  "date": "2026-11-27",
+  "baselineCommit": "129fa9a04cceff800f6f251ccb304785a45459aa",
+  "reportContract": "kosit-scenario-evidence-v2",
+  "scope": "Local tests; test authentication and isolated PGlite, not hosted acceptance",
+  "productSha256": {
+    "backend/ingestion/invoice.py": "419c1a994bcb392681edf39350755df733fd679f19b1316fde876f9003e6c98a",
+    "backend/ingestion/kosit_contract.py": "3c02e2bae0bba01deaa186d0a60b19b5bc304de842703c1380a446b053fbf7db",
+    "backend/ingestion/invoice_pdf.py": "810601934fe9b95bd6bd34e8da1abf5dc2549bd25e0b315909af9c5458c3d306",
+    "api-server/src/services/invoiceCaseRead.ts": "08c901bc5156d219ef05a6459bf1cb34aa3f1c59a03863f2ffd05b878843d19e",
+    "frontend/mobile-app/src/pages/InvoiceCasePanel.tsx": "aa6702ae862ddb29bc53600a672210de46c57798aed7d72c6042c2c6f0fee66f",
+    "scripts/invoice-worker/Dockerfile": "1fa06e7f5a597c667b0f22952365af0d5899ac8e865d4e502dcaa33bb7efb5a6",
+    "scripts/invoice-worker/Dockerfile.dockerignore": "8717f179ea15879ddd092a7ccec6f68c5302c4cf3492d6839bd9272ed7d7c37f",
+    "tests/invoice-resources.json": "87290e3a2ec191b1c8f42f0fe024718162ff22f0b07ccc5bcb4cd14c79b9a2ec"
+  },
+  "results": {
+    "backend": {
+      "passed": 182,
+      "failed": 0,
+      "skipped": 0
+    },
+    "decisionIntegrity": {
+      "passed": 258,
+      "failed": 0,
+      "skipped": 0
+    },
+    "mobileBridge": {
+      "passed": 217,
+      "failed": 0,
+      "skipped": 0
+    },
+    "invoicePython": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": "passed",
+    "mobileBuild": "passed",
+    "browser": {
+      "scope": "local-browser-handlers-worker-PGlite-test-auth",
+      "checks": [
+        {
+          "name": "upload creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "review still creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "explicit separate release creates one certificate",
+          "passed": true
+        },
+        {
+          "name": "identical repeat reuses snapshot",
+          "passed": true
+        },
+        {
+          "name": "revision revokes previous certificate",
+          "passed": true
+        },
+        {
+          "name": "both source versions remain available",
+          "passed": true
+        },
+        {
+          "name": "general EN16931 reaches review",
+          "passed": true
+        },
+        {
+          "name": "general EN16931 does not auto-release",
+          "passed": true
+        },
+        {
+          "name": "French payable is matched by whole-page OCR",
+          "passed": true
+        },
+        {
+          "name": "PDF still requires independent visual review",
+          "passed": true
+        },
+        {
+          "name": "negative XML retains no certificate",
+          "passed": true
+        },
+        {
+          "name": "negative XML offers no release button",
+          "passed": true
+        },
+        {
+          "name": "diagnostic rendering does not misattribute bridge rejection to KoSIT",
+          "passed": true
+        },
+        {
+          "name": "mobile layout has no horizontal overflow",
+          "passed": true
+        },
+        {
+          "name": "no JavaScript page errors",
+          "passed": true
+        },
+        {
+          "name": "unauthenticated API request is rejected",
+          "passed": true
+        }
+      ]
+    }
+  },
+  "nativePostgres": "No SQL changes; prior 21-race evidence remains separate",
+  "container": "Build/smoke workflow prepared; not executed locally because Docker is absent",
+  "hosted": "Not executed; no deployment, live migration or payment"
+}

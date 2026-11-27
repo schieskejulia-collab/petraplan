@@ -11,6 +11,8 @@ import subprocess
 from tempfile import TemporaryDirectory
 from xml.etree import ElementTree as ET
 
+from .kosit_contract import assess_report_contract
+
 NS = {
     "ubl": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
     "cac": "urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2",
@@ -211,7 +213,7 @@ def project_invoice(data):
     }
 
 
-def read_kosit_report(report, source_digest):
+def read_kosit_report(report, source_digest, *, syntax=None, profile=None, configuration=None):
     root = parse_xml(report, 32 * 1024 * 1024)
     if root.tag != f"{{{NS['rep']}}}report":
         raise InvoiceInputError("Unexpected KoSIT report root")
@@ -234,9 +236,10 @@ def read_kosit_report(report, source_digest):
                  "level": message.get("level"), "path": message.get("xpathLocation"),
                  "text": (message.text or "").strip()}
                 for step in steps for message in step.findall("rep:message", NS)]
+    contract = assess_report_contract(root, syntax=syntax, profile=profile, configuration=configuration)
     accepted = (
         decision == f"{{{NS['rep']}}}accept" and root.get("valid") == "true"
-        and {"val-xml", "val-xsd", "val-sch.1", "val-sch.2"}.issubset(step_ids)
+        and contract["status"] == "MATCHED"
         and len(step_ids) == len(set(step_ids))
         and all(step.get("valid") == "true" for step in steps)
         and all(message["level"] in {"information", "warning"} for message in messages)
@@ -248,6 +251,7 @@ def read_kosit_report(report, source_digest):
         "scenario": root.findtext("rep:scenarioMatched/s:scenario/s:name", namespaces=NS),
         "validatorDecision": decision.split("}")[-1] if decision else None,
         "accepted": accepted,
+        "reportContract": contract,
         "steps": [{"id": step.get("id"), "valid": step.get("valid")} for step in steps],
         "messages": messages,
     }
@@ -270,7 +274,11 @@ def run_kosit(data, source_digest, jar, scenarios, output_report=None):
         if not report.is_file():
             raise InvoiceInputError(f"KoSIT produced no report (exit {process.returncode})")
         raw_report = read_limited(report, 32 * 1024 * 1024)
-    evidence = read_kosit_report(raw_report, source_digest)
+    projection = project_invoice(data)
+    profile = projection["fields"]["BT-24"]
+    evidence = read_kosit_report(raw_report, source_digest, syntax=projection["syntax"],
+                                 profile=profile["values"][0]["original"] if profile["status"] == "observed" else None,
+                                 configuration=parse_xml(read_limited(scenarios, 2 * 1024 * 1024), 2 * 1024 * 1024))
     evidence["validatorJarSha256"] = sha256(jar.read_bytes()).hexdigest()
     evidence["scenariosSha256"] = sha256(scenarios.read_bytes()).hexdigest()
     resources = scenarios.parent / "resources"
@@ -285,6 +293,8 @@ def run_kosit(data, source_digest, jar, scenarios, output_report=None):
     # failures can never provide positive evidence.
     if process.returncode != 0:
         evidence["accepted"] = False
+        if evidence["validatorDecision"] != "reject":
+            evidence["executionFailed"] = True
     if output_report is not None:
         with output_report.open("xb") as stream:
             stream.write(raw_report)
@@ -312,7 +322,14 @@ def decide(projection, evidence):
     if evidence is None or evidence["invoiceSha256"] != projection["sourceSha256"]:
         blockers.append("KOSIT_EVIDENCE_MISSING")
     elif not evidence["accepted"]:
-        blockers.append("KOSIT_NOT_ACCEPTED")
+        if evidence.get("validatorDecision") == "reject":
+            blockers.append("KOSIT_REJECTED")
+        elif evidence.get("executionFailed"):
+            blockers.append("KOSIT_EXECUTION_FAILED")
+        elif evidence.get("reportContract", {}).get("status") != "MATCHED":
+            blockers.append("KOSIT_REPORT_CONTRACT_MISMATCH")
+        else:
+            blockers.append("KOSIT_REPORT_NOT_ACCEPTED")
     return {"status": "BLOCKED" if blockers else "READY_FOR_REVIEW",
             "releaseAllowed": False, "blockers": blockers}
 

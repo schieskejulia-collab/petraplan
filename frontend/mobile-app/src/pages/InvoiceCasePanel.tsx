@@ -40,6 +40,11 @@ function InvoiceSnapshot({ snapshot, visuallyConfirmed }: {
   snapshot: InvoiceCaseSnapshot; visuallyConfirmed: boolean;
 }) {
   const { payable, proof } = snapshot;
+  const proofLabel = !proof ? "KoSIT-Prüfbeleg nicht verfügbar"
+    : proof.validatorDecision === "reject" ? "KoSIT hat die XML abgelehnt"
+      : proof.executionFailed ? "Rechnungsprüfung technisch fehlgeschlagen"
+        : proof.validatorDecision === "accept" && !proof.accepted ? "KoSIT akzeptiert · Prüfbeleg nicht verwendbar"
+          : proof.accepted ? "Technische XML-Prüfung bestanden" : "Technische XML-Prüfung nicht freigabefähig";
   return (
     <div className="space-y-3">
       <dl className="grid grid-cols-2 gap-4 text-sm">
@@ -81,11 +86,14 @@ function InvoiceSnapshot({ snapshot, visuallyConfirmed }: {
       )}
       <details id={`invoice-proof-${snapshot.snapshotId}`} className="rounded-lg border p-3 text-sm">
         <summary className="cursor-pointer font-medium">
-          {proof ? `KoSIT-Prüfung ${proof.accepted ? "bestanden" : "fehlgeschlagen"}` : "KoSIT-Prüfbeleg nicht verfügbar"}
+          {proofLabel}
         </summary>
         {proof && (
           <div className="mt-3 space-y-2">
             <p>{[snapshot.syntax, proof.engine, proof.scenario].filter(Boolean).join(" · ")}</p>
+            {proof.validatorDecision === "accept" && !proof.accepted && !proof.executionFailed && (
+              <p>KoSIT hat die XML akzeptiert. Der Prüfbeleg erfüllt die Anforderungen dieser Brücke nicht; die Freigabe bleibt gesperrt.</p>
+            )}
             {proof.messages.map((message, index) => (
               <div key={index} className="break-words text-sm">
                 <span className="font-medium">{message.level === "information" ? "Hinweis" : message.level === "warning" ? "Warnung" : message.level === "error" ? "Fehler" : message.level} {message.code}</span>

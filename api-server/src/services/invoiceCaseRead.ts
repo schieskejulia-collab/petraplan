@@ -19,6 +19,9 @@ export interface InvoiceCaseSnapshot {
     engine: string | null;
     scenario: string | null;
     accepted: boolean;
+    validatorDecision: string | null;
+    reportContractStatus: string | null;
+    executionFailed: boolean;
     sourceSha256: string;
     reportSha256: string;
     messages: Array<{ code: string | null; level: string | null; text: string | null }>;
@@ -70,6 +73,9 @@ export function buildInvoiceCaseSnapshots(
           engine: string(technical.engine),
           scenario: string(technical.scenario),
           accepted: technical.accepted === true,
+          validatorDecision: string(technical.validatorDecision),
+          reportContractStatus: string(object(technical.reportContract)?.status),
+          executionFailed: technical.executionFailed === true,
           sourceSha256,
           reportSha256,
           messages: (Array.isArray(technical.messages) ? technical.messages : []).flatMap(message => {

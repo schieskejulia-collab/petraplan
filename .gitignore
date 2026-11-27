@@ -146,3 +146,5 @@ vite.config.ts.timestamp-*
 .decision-test-build/
 frontend/mobile-app/.bridge-test-build/
 supabase/.temp/
+.invoice-test-resources/
+__pycache__/
