@@ -1,7 +1,7 @@
 FROM node:24-trixie-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openjdk-21-jre-headless python3 python3-venv tesseract-ocr-eng \
+    && apt-get install -y --no-install-recommends openjdk-21-jre-headless python3 python3-venv tesseract-ocr tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/invoice-python \
     && /opt/invoice-python/bin/pip install --no-cache-dir --only-binary=:all: PyMuPDF==1.26.6

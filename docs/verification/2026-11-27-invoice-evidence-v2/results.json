@@ -9,7 +9,7 @@
     "backend/ingestion/invoice_pdf.py": "810601934fe9b95bd6bd34e8da1abf5dc2549bd25e0b315909af9c5458c3d306",
     "api-server/src/services/invoiceCaseRead.ts": "08c901bc5156d219ef05a6459bf1cb34aa3f1c59a03863f2ffd05b878843d19e",
     "frontend/mobile-app/src/pages/InvoiceCasePanel.tsx": "aa6702ae862ddb29bc53600a672210de46c57798aed7d72c6042c2c6f0fee66f",
-    "scripts/invoice-worker/Dockerfile": "1fa06e7f5a597c667b0f22952365af0d5899ac8e865d4e502dcaa33bb7efb5a6",
+    "scripts/invoice-worker/Dockerfile": "9fadbf74eb96ecd032e6c57539e57d955a882059fdb12f0f0a69cc9d5c78b2a7",
     "scripts/invoice-worker/Dockerfile.dockerignore": "8717f179ea15879ddd092a7ccec6f68c5302c4cf3492d6839bd9272ed7d7c37f",
     "tests/invoice-resources.json": "87290e3a2ec191b1c8f42f0fe024718162ff22f0b07ccc5bcb4cd14c79b9a2ec"
   },

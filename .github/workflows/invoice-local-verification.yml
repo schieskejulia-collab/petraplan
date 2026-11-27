@@ -45,7 +45,7 @@ jobs:
           npm ci --prefix frontend/mobile-app
           python -m pip install PyMuPDF==1.26.6 playwright==1.62.0 lxml==6.1.1
           sudo apt-get update -qq
-          sudo apt-get install -y tesseract-ocr-eng
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
           npm install --prefix "$RUNNER_TEMP/browser-runtime" @sparticuz/chromium@158.0.0 --no-audit --no-fund
           node --input-type=module - <<'JS' >> "$GITHUB_ENV"
           const {default:chromium}=await import(process.env.RUNNER_TEMP+'/browser-runtime/node_modules/@sparticuz/chromium/build/index.js');
@@ -70,6 +70,7 @@ jobs:
           docker run -d --name invoice-worker-test -p 127.0.0.1:8080:8080 \
             --mount "type=bind,src=$GITHUB_WORKSPACE/.invoice-test-resources,dst=/opt/kosit,readonly" \
             -e PETRAPLAN_INVOICE_WORKER_TOKEN=isolated-ci-only \
+            -e PETRAPLAN_PDF_TEST_UPLOADS=1 \
             petraplan-invoice-worker-test
           curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/health
           PETRAPLAN_INVOICE_WORKER_URL=http://127.0.0.1:8080 \
