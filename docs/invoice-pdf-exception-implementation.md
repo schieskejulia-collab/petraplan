@@ -2,6 +2,16 @@
 
 Stand: 17. November 2026. Der vorherige Rechnungsweg bleibt im [eingefrorenen lokalen Abnahmestand](verification/2026-11-17-invoice-local-baseline.md) festgehalten. Diese Erweiterung hat eigene Nachweise. Keine gehostete Abnahme, keine bereits erteilte betriebliche Ausnahmevollmacht.
 
+Fortschreibung 27.11.2026: Der Browserablauf mit zwei Testidentitäten ist als
+portable Regression in der bestehenden Rechnungs-CI bestanden (36 Bedingungen). Originalabruf,
+unabhängige Ausnahmeentscheidung, gesondertes Review, Freigabe und Revision
+werden über echte lokale Handler, KoSIT/OCR und SQL-RPCs geprüft. Aktueller
+[Laufnachweis](verification/2026-11-27-invoice-exception-browser/README.md).
+Die unten aufgeführten Laufzahlen bleiben der historische Stand vom 17.11.
+Containerbau und XML-/PDF-Verarbeitung sind inzwischen in
+[CI 46046803649](https://github.com/schieskejulia-collab/petraplan/actions/runs/46046803649)
+bestanden; die gehostete Abnahme bleibt offen.
+
 ## Begrenzter Geltungsbereich
 
 Die Ausnahme gilt nur für eine gespeicherte PDF-Fassung mit technisch akzeptiertem XML und dem einzigen Blocker `PDF_VISUAL_AMOUNT_CONFLICT`. Ein abweichender oder nicht eindeutig lesbarer PDF-Zahlbetrag wird dokumentiert. Technisch abgelehntes XML, weitere Blocker und veraltete Fassungen sind ausgeschlossen. Die XML-/PDF-/Berichtbytes und ihre Prüfsummen werden erneut geprüft.
@@ -40,4 +50,4 @@ Der normale Rechnungsweg erlaubt weiterhin Upload, Review und Freigabe durch die
 
 Die Identitäten müssen unterschiedlichen Menschen zugeordnet sein; gegen mehrere Konten derselben Person bietet der technische Benutzer-ID-Vergleich allein keinen Nachweis. Dokumentierte Vollmachten und Identitätsverwaltung gehören zur Einführung.
 
-Der weclapp-Unterschied 963,12/963,11 bleibt fachlich ungeklärt. Es gibt keine pauschale Cent-Toleranz und keine automatisch angenommene Erklärung durch Rundung oder XML-Vorrang. Doppelrechnungen, Containerbau und gehosteter Lauf bleiben separat offen.
+Der weclapp-Unterschied 963,12/963,11 bleibt fachlich ungeklärt. Es gibt keine pauschale Cent-Toleranz und keine automatisch angenommene Erklärung durch Rundung oder XML-Vorrang. Doppelrechnungen und gehosteter Lauf bleiben separat offen.

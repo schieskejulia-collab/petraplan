@@ -1,15 +1,22 @@
 # Offene Punkte im Rechnungsweg
 
-Stand vom 17. November 2026.
+Ursprünglicher Stand vom 17. November 2026; fortgeschrieben am 27. November 2026.
+
+Ergänzung 27.11.2026: Der szenariobezogene Prüfbelegfilter und die französische
+Zahlbetragserkennung werden im [Prüfbelegvertrag v2](invoice-scenario-evidence-v2.md)
+mit eigenen Regressionen korrigiert. Die gehostete Abnahme bleibt separat;
+Vorbereitung und Schema-Inventur stehen im [Runbook](invoice-hosted-test-runbook.md).
+Der Northwind-/27er-Fall ist im verfügbaren Testdatenumfang abgeschlossen.
 
 | Punkt | Stand | Nächster Nachweis |
 |---|---|---|
 | Rechnungsrevisionen über getrennte PostgreSQL-Verbindungen | **Lokal/CI abgenommen** | Drei Rennen mit synthetischen Worker-Artefakten im [PostgreSQL-17-Lauf](https://github.com/schieskejulia-collab/petraplan/actions/runs/44170253810) erfolgreich. |
-| Ausnahme bei abweichender oder unlesbarer PDF | Lokal implementiert und geprüft | Unabhängige Entscheidung mit expliziter Vollmacht; gehostete Abnahme offen. Siehe [Implementierung](invoice-pdf-exception-implementation.md). |
+| Ausnahme bei abweichender oder unlesbarer PDF | Lokal und im portablen CI-Browserlauf geprüft | Unabhängige Entscheidung mit expliziter Vollmacht; gehostete Abnahme offen. Siehe [Implementierung](invoice-pdf-exception-implementation.md). |
 | weclapp 963,12 im PDF gegenüber 963,11 im XML | Ursache offen | Feldarten und Fundstellen für Brutto, Zahlbetrag, Skonto und Rundung abgleichen. |
 | Doppelrechnungen | Offener Folgepunkt | Dublettenverdacht auch bei anderer Nummer prüfen, anhand von Lieferant, Datum, Betrag, Leistungsbezug und weiteren Belegen. |
-| Browserabnahme in CI | Lokale Proben vorhanden | Portablen Browserlauf mit verfügbaren Testdateien und isolierten Diensten ergänzen. |
-| Containerbau und gehosteter Lauf | Offen | Worker starten, Migrationsstand abgleichen und sieben Kriterien mit echtem Login prüfen. |
+| Browserprüfung in CI | Normaler Rechnungsweg und PDF-Ausnahme bestanden | [Lauf 46049776473](https://github.com/schieskejulia-collab/petraplan/actions/runs/46049776473): 36 Bedingungen mit zwei Testidentitäten und PGlite; [Nachweis](verification/2026-11-27-invoice-exception-browser/README.md). Kein gehosteter Login-Nachweis. |
+| Containerbau und XML-/PDF-Verarbeitung | In CI bestanden | Derselbe Lauf verarbeitet beide Eingabetypen im gebauten KoSIT-/OCR-Worker. |
+| Gehosteter Lauf | Offen | Projektverfügbarkeit klären, Worker starten, Migrationsstand abgleichen und sieben Kriterien mit echtem Login prüfen. |
 
 Doppelrechnungen werden aktuell nicht zuverlässig erkannt. Fallzuordnung und Revisionsschutz sichern den ausgewählten Fall. Zwei neue Fall-IDs können ähnliche oder identische Rechnungen enthalten. Aus gleicher Lieferantenbezeichnung und gleichem Betrag folgt noch keine sichere Dublette. Dieser Punkt wird nach der laufenden Rechnungsabnahme behandelt.
 

@@ -1,5 +1,9 @@
 # Rechnungsvertrag für UBL und CII
 
+Die Korrektur vom 27.11.2026 ergänzt den [szenariobezogenen Prüfbelegvertrag v2](invoice-scenario-evidence-v2.md)
+und die französische PDF-Zahlbetragserkennung. Frühere eingefrorene Abnahmen bleiben historische Nachweise.
+Die [gehostete Testcheckliste](invoice-hosted-test-runbook.md) trennt Vorbereitung von tatsächlicher Abnahme.
+
 Die sieben Kriterien und ihre lokalen Nachweise stehen in [Lokale Abnahme des Rechnungswegs](invoice-local-acceptance.md).
 
 `en16931-invoice-v1` liest eigenständige Rechnungs-XMLs. Der Vertrag umfasst BT‑1, BT‑2, BT‑5, BT‑24, BT‑27, BT‑59, BT‑72, BT‑84, BT‑109, BT‑110, BT‑112 und BT‑115, die Positionsfelder BT‑126, BT‑151 und BT‑152 sowie Abrechnungs- und Positionszeiträume (BG‑14 und BG‑26).

@@ -1,0 +1,200 @@
+{
+  "date": "2026-11-27",
+  "baseCommit": "5424f38540504da63e95733f63a93b9bf2be2191",
+  "productChanges": false,
+  "sqlChanges": false,
+  "local": {
+    "browser": {
+      "scope": "local-browser-handlers-worker-PGlite-test-auth",
+      "checks": [
+        {
+          "name": "upload creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "review still creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "explicit separate release creates one certificate",
+          "passed": true
+        },
+        {
+          "name": "identical repeat reuses snapshot",
+          "passed": true
+        },
+        {
+          "name": "revision revokes previous certificate",
+          "passed": true
+        },
+        {
+          "name": "both source versions remain available",
+          "passed": true
+        },
+        {
+          "name": "general EN16931 reaches review",
+          "passed": true
+        },
+        {
+          "name": "general EN16931 does not auto-release",
+          "passed": true
+        },
+        {
+          "name": "French payable is matched by whole-page OCR",
+          "passed": true
+        },
+        {
+          "name": "PDF still requires independent visual review",
+          "passed": true
+        },
+        {
+          "name": "negative XML retains no certificate",
+          "passed": true
+        },
+        {
+          "name": "negative XML offers no release button",
+          "passed": true
+        },
+        {
+          "name": "different PDF remains blocked",
+          "passed": true
+        },
+        {
+          "name": "original PDF download matches uploaded bytes",
+          "passed": true
+        },
+        {
+          "name": "exception request creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "uploader cannot approve own request",
+          "passed": true
+        },
+        {
+          "name": "independent approval creates separate validation",
+          "passed": true
+        },
+        {
+          "name": "original failed validation remains in history",
+          "passed": true
+        },
+        {
+          "name": "approval alone creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "uploader has no exception review or release controls",
+          "passed": true
+        },
+        {
+          "name": "API rejects uploader review after independent approval",
+          "passed": true
+        },
+        {
+          "name": "independent exception review still creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "exception release is labelled and bound to decision",
+          "passed": true
+        },
+        {
+          "name": "exception mobile layout has no horizontal overflow",
+          "passed": true
+        },
+        {
+          "name": "new PDF revision revokes exception release",
+          "passed": true
+        },
+        {
+          "name": "old exception becomes unusable and both PDFs remain",
+          "passed": true
+        },
+        {
+          "name": "new PDF revision does not inherit exception",
+          "passed": true
+        },
+        {
+          "name": "multiple visible amounts stay uncomparable",
+          "passed": true
+        },
+        {
+          "name": "rejected exception retains failed validation and no certificate",
+          "passed": true
+        },
+        {
+          "name": "rejected XML cannot enter PDF exception process",
+          "passed": true
+        },
+        {
+          "name": "diagnostic rendering does not misattribute bridge rejection to KoSIT",
+          "passed": true
+        },
+        {
+          "name": "mobile layout has no horizontal overflow",
+          "passed": true
+        },
+        {
+          "name": "no JavaScript page errors",
+          "passed": true
+        },
+        {
+          "name": "unauthenticated API request is rejected",
+          "passed": true
+        },
+        {
+          "name": "unknown test identity is rejected",
+          "passed": true
+        },
+        {
+          "name": "raw token without Bearer scheme is rejected",
+          "passed": true
+        }
+      ]
+    },
+    "exceptionDatabaseAndApi": {
+      "passed": 4,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "sourceSha256": {
+    "tests/browser/fixture-client.mjs": "fe52f62d0e3440b0ba71170c98733b59f2163f1bacd3c7b3ec7fac00c15c150b",
+    "tests/browser/invoice-harness.mjs": "f7505a5c43eb0aa68354e5a7d99a86e6efcbc40a0429a81a0bd2043eda5e4a0b",
+    "tests/browser/test_invoice_flow.py": "0d14c2313186d7505ba2ffb582f4980a55e9e16aee7b7ab4b770d28b0a55ff54",
+    "scripts/verification/create-invoice-pdf-fixtures.py": "afb08c9d88a13da243d6535b5a899144fe54ffa0f55e9ae4817bab15b3fbc688"
+  },
+  "controlledInputSha256": {
+    "01.01a-uncefact.xml": "727b51982a84c9b406599a7384783570910440ed405c9bb6d918b22442636886",
+    "different.pdf": "4fabf1463cc01e0a02a0ef413d001a8c9129fe926396b0b47502bf2892f78db7",
+    "ambiguous.pdf": "3e2c5f277790e38e8d4425696c6fe27cca510b0e8f47fbe35bf42459b7b5f980",
+    "positive.pdf": "f08eaa69db957d8c90ace77482bd3287c80d09ecf80c73b8234acea7bcf78111"
+  },
+  "ci": {
+    "testedCommit": "fcf3074125232cf8cd390a310b8fda374e5101bf",
+    "apiMobile": {
+      "runId": 46049776521,
+      "result": "success"
+    },
+    "invoiceBrowserContainer": {
+      "runId": 46049776473,
+      "jobId": 140677929160,
+      "result": "success",
+      "browserConditionsPassed": 36,
+      "containerXmlAndPdf": "passed through packaged KoSIT/OCR worker"
+    },
+    "artifact": {
+      "id": 15223538574,
+      "name": "invoice-browser-verification",
+      "digest": "sha256:65573246eff283c520eef8b3dbaba0b7a8081e63a447592358ed3cc07f61c320"
+    },
+    "logEvidence": [
+      "2026-11-27T18:31:51.8762372Z 36 local browser conditions passed; test authentication, not hosted acceptance.",
+      "2026-11-27T18:32:39.4816714Z Local container processed XML and PDF through KoSIT/OCR; no release authority."
+    ]
+  },
+  "hosted": "Not executed; no live login, migration, activation or payment",
+  "nativePostgres": "No SQL changes; prior 21 tests remain separate historical evidence",
+  "initialLocalAttempt": "Stopped after independent approval because the test used validation.history instead of the actual validation.results read-model key; corrected test, successful full rerun recorded above."
+}

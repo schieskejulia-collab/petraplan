@@ -3,6 +3,7 @@
 !backend/ingestion/
 !backend/ingestion/invoice.py
 !backend/ingestion/invoice_pdf.py
+!backend/ingestion/kosit_contract.py
 !scripts/
 !scripts/capture-invoice-case.mjs
 !scripts/invoice-worker/

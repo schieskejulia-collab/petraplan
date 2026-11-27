@@ -1,0 +1,151 @@
+{
+  "date": "2026-11-27",
+  "baselineCommit": "129fa9a04cceff800f6f251ccb304785a45459aa",
+  "reportContract": "kosit-scenario-evidence-v2",
+  "scope": "Local tests; test authentication and isolated PGlite, not hosted acceptance",
+  "productSha256": {
+    "backend/ingestion/invoice.py": "419c1a994bcb392681edf39350755df733fd679f19b1316fde876f9003e6c98a",
+    "backend/ingestion/kosit_contract.py": "3c02e2bae0bba01deaa186d0a60b19b5bc304de842703c1380a446b053fbf7db",
+    "backend/ingestion/invoice_pdf.py": "810601934fe9b95bd6bd34e8da1abf5dc2549bd25e0b315909af9c5458c3d306",
+    "api-server/src/services/invoiceCaseRead.ts": "08c901bc5156d219ef05a6459bf1cb34aa3f1c59a03863f2ffd05b878843d19e",
+    "frontend/mobile-app/src/pages/InvoiceCasePanel.tsx": "aa6702ae862ddb29bc53600a672210de46c57798aed7d72c6042c2c6f0fee66f",
+    "scripts/invoice-worker/Dockerfile": "9fadbf74eb96ecd032e6c57539e57d955a882059fdb12f0f0a69cc9d5c78b2a7",
+    "scripts/invoice-worker/Dockerfile.dockerignore": "8717f179ea15879ddd092a7ccec6f68c5302c4cf3492d6839bd9272ed7d7c37f",
+    "tests/invoice-resources.json": "87290e3a2ec191b1c8f42f0fe024718162ff22f0b07ccc5bcb4cd14c79b9a2ec"
+  },
+  "results": {
+    "backend": {
+      "passed": 182,
+      "failed": 0,
+      "skipped": 0
+    },
+    "decisionIntegrity": {
+      "passed": 258,
+      "failed": 0,
+      "skipped": 0
+    },
+    "mobileBridge": {
+      "passed": 217,
+      "failed": 0,
+      "skipped": 0
+    },
+    "invoicePython": {
+      "passed": 17,
+      "failed": 0,
+      "skipped": 0
+    },
+    "typecheck": "passed",
+    "mobileBuild": "passed",
+    "browser": {
+      "scope": "local-browser-handlers-worker-PGlite-test-auth",
+      "checks": [
+        {
+          "name": "upload creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "review still creates no certificate",
+          "passed": true
+        },
+        {
+          "name": "explicit separate release creates one certificate",
+          "passed": true
+        },
+        {
+          "name": "identical repeat reuses snapshot",
+          "passed": true
+        },
+        {
+          "name": "revision revokes previous certificate",
+          "passed": true
+        },
+        {
+          "name": "both source versions remain available",
+          "passed": true
+        },
+        {
+          "name": "general EN16931 reaches review",
+          "passed": true
+        },
+        {
+          "name": "general EN16931 does not auto-release",
+          "passed": true
+        },
+        {
+          "name": "French payable is matched by whole-page OCR",
+          "passed": true
+        },
+        {
+          "name": "PDF still requires independent visual review",
+          "passed": true
+        },
+        {
+          "name": "negative XML retains no certificate",
+          "passed": true
+        },
+        {
+          "name": "negative XML offers no release button",
+          "passed": true
+        },
+        {
+          "name": "diagnostic rendering does not misattribute bridge rejection to KoSIT",
+          "passed": true
+        },
+        {
+          "name": "mobile layout has no horizontal overflow",
+          "passed": true
+        },
+        {
+          "name": "no JavaScript page errors",
+          "passed": true
+        },
+        {
+          "name": "unauthenticated API request is rejected",
+          "passed": true
+        }
+      ]
+    }
+  },
+  "nativePostgres": "No SQL changes; prior 21-race evidence remains separate",
+  "container": {
+    "imageBuild": "passed in GitHub CI",
+    "xmlAndPdfInspection": "passed through the packaged worker using KoSIT and OCR",
+    "readinessBoundSeconds": 15,
+    "runId": 46046803649,
+    "testedCommit": "bff267ab32f2b7e1cde3cbcfb3add0509e38f330",
+    "localDockerAvailable": false
+  },
+  "hosted": "Not executed; no deployment, live migration or payment",
+  "databaseReadProbe": {
+    "date": "2026-11-27",
+    "projectListStatus": {
+      "original": "INACTIVE",
+      "test": "INACTIVE"
+    },
+    "originalMigrationsRead": "INVALID_ARGUMENT; no catalogue returned",
+    "originalCatalogueRead": "INVALID_ARGUMENT; no catalogue returned",
+    "schemaCompared": false,
+    "writesPerformed": false
+  },
+  "ci": {
+    "testedCommit": "bff267ab32f2b7e1cde3cbcfb3add0509e38f330",
+    "apiMobile": {
+      "runId": 46046803642,
+      "result": "success"
+    },
+    "invoiceBrowserContainer": {
+      "runId": 46046803649,
+      "verifiedSteps": [
+        "Build and verify local invoice paths",
+        "Build and exercise worker container",
+        "Save local test evidence"
+      ],
+      "result": "success"
+    },
+    "initialContainerAttempt": {
+      "runId": 46045858372,
+      "imageBuild": "success",
+      "probe": "connection reset on first readiness request; superseded by bounded readiness check"
+    }
+  }
+}

@@ -120,6 +120,9 @@ export interface InvoiceCaseSnapshot {
     engine: string | null;
     scenario: string | null;
     accepted: boolean;
+    validatorDecision?: string | null;
+    reportContractStatus?: string | null;
+    executionFailed?: boolean;
     sourceSha256: string;
     reportSha256: string;
     messages: Array<{ code: string | null; level: string | null; text: string | null }>;

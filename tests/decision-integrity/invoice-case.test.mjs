@@ -225,7 +225,9 @@ test('real invoice validation, review, release and atomic revocation preserve bo
     const originalPdf = await readFile(process.env[variable]);
     const pdfResult = await upload(originalPdf, id(caseKey));
     assert.equal(pdfResult.status, 201, JSON.stringify(pdfResult.body));
-    assert.equal(pdfResult.body.status, 'BLOCKED');
+    // v2 accepts the complete general EN16931 CII report; a matching PDF
+    // proceeds to explicit visual review, never directly to release.
+    assert.equal(pdfResult.body.status, status === 'NEEDS_VISUAL_CONFIRMATION' ? 'READY_FOR_REVIEW' : 'BLOCKED');
     const saved = (await db.query(`select i.extracted_schema, e.original_pdf from bridge_invoice_evidence e
       join ingestion_logs i on i.id=e.snapshot_id where e.snapshot_id=$1`, [pdfResult.body.snapshot_id])).rows[0];
     assert.deepEqual(Buffer.from(saved.original_pdf), originalPdf);

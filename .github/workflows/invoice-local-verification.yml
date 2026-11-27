@@ -1,0 +1,86 @@
+name: Invoice local verification
+
+on:
+  pull_request:
+    paths:
+      - 'backend/ingestion/**'
+      - 'backend/tests/**'
+      - 'api-server/src/services/invoiceCaseRead*'
+      - 'api/bridge/invoice-upload.js'
+      - 'api/cases/**'
+      - 'frontend/mobile-app/src/pages/InvoiceCasePanel.tsx'
+      - 'scripts/invoice-worker/**'
+      - 'scripts/verification/*invoice*'
+      - 'tests/browser/**'
+      - 'tests/decision-integrity/invoice*'
+      - 'tests/invoice-resources.json'
+      - '.github/workflows/invoice-local-verification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-invoice-flow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PETRAPLAN_KOSIT_JAR: ${{ github.workspace }}/.invoice-test-resources/validator.jar
+      PETRAPLAN_KOSIT_SCENARIOS: ${{ github.workspace }}/.invoice-test-resources/config/scenarios.xml
+      PETRAPLAN_INVOICE_FIXTURES: ${{ github.workspace }}/.invoice-test-resources/inputs
+      PETRAPLAN_PDF_POSITIVE: ${{ github.workspace }}/.invoice-test-resources/inputs/positive.pdf
+      PETRAPLAN_PEPPOL_R051_DIR: ${{ github.workspace }}/.invoice-test-resources/peppol
+      PETRAPLAN_BROWSER_OUTPUT: ${{ github.workspace }}/.invoice-test-resources/invoice-browser-results.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install local test dependencies
+        run: |
+          npm ci
+          npm ci --prefix frontend/mobile-app
+          python -m pip install PyMuPDF==1.26.6 playwright==1.62.0 lxml==6.1.1
+          sudo apt-get update -qq
+          sudo apt-get install -y tesseract-ocr tesseract-ocr-eng
+          npm install --prefix "$RUNNER_TEMP/browser-runtime" @sparticuz/chromium@158.0.0 --no-audit --no-fund
+          node --input-type=module - <<'JS' >> "$GITHUB_ENV"
+          const {default:chromium}=await import(process.env.RUNNER_TEMP+'/browser-runtime/node_modules/@sparticuz/chromium/build/index.js');
+          console.log('PETRAPLAN_CHROMIUM_PATH='+await chromium.executablePath());
+          JS
+      - name: Prepare and verify public pinned resources
+        run: |
+          python scripts/verification/prepare-invoice-resources.py .invoice-test-resources
+          python scripts/verification/create-invoice-pdf-fixtures.py "$PETRAPLAN_INVOICE_FIXTURES"
+      - name: Build and verify local invoice paths
+        run: |
+          npm run build
+          npx tsc -p tsconfig.decision-tests.json
+          npm run build --prefix frontend/mobile-app
+          python -m unittest backend.tests.test_invoice backend.tests.test_invoice_pdf backend.tests.test_kosit_contract -v
+          node --test tests/decision-integrity/invoice-case.test.mjs tests/decision-integrity/invoice-worker.test.mjs tests/decision-integrity/invoice-exception.test.mjs
+          node --test tests/decision-integrity/claim-freshness.test.mjs
+          python tests/browser/test_invoice_flow.py
+      - name: Build and exercise worker container
+        run: |
+          docker build -f scripts/invoice-worker/Dockerfile -t petraplan-invoice-worker-test .
+          docker run -d --name invoice-worker-test -p 127.0.0.1:8080:8080 \
+            --mount "type=bind,src=$GITHUB_WORKSPACE/.invoice-test-resources,dst=/opt/kosit,readonly" \
+            -e PETRAPLAN_INVOICE_WORKER_TOKEN=isolated-ci-only \
+            -e PETRAPLAN_PDF_TEST_UPLOADS=1 \
+            petraplan-invoice-worker-test
+          if ! PETRAPLAN_INVOICE_WORKER_URL=http://127.0.0.1:8080 \
+            PETRAPLAN_INVOICE_WORKER_TOKEN=isolated-ci-only \
+            node scripts/verification/check-invoice-worker.mjs; then
+            docker logs invoice-worker-test
+            exit 1
+          fi
+      - name: Save local test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoice-browser-verification
+          path: ${{ env.PETRAPLAN_BROWSER_OUTPUT }}

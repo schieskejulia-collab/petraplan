@@ -1,0 +1,40 @@
+{
+  "sourceCommit": "9e19da0101f16f6065e44b1a45a0390c9a7eaf92",
+  "sourceArchive": "docs/verification/invoice-heldout-03/evidence.tar.gz",
+  "configurationRelease": "itplr-kosit/validator-configuration-xrechnung v2026-08-31",
+  "configurationSha256": "3e8161a39dfaa6aea4d990b279aab848be4f4c6169e820f354a159bda7693fb0",
+  "reports": [
+    {
+      "file": "0114-ubl.xml.kosit.xml.gz",
+      "originalSha256": "bccad92edd5d36581ea4f556b7e57ac7cc047cf8d93429d022080a00d2414d1d"
+    },
+    {
+      "file": "0114-uncefact.xml.kosit.xml.gz",
+      "originalSha256": "f6ab36904a0124d0d7ec3f815fc346374846fc2ef4df216f91909dbe4c564d55"
+    },
+    {
+      "file": "0203-ubl.xml.kosit.xml.gz",
+      "originalSha256": "c1cda202a23886687c092c79e4115e1321b91f13e217b2615c7e731c34a97916"
+    },
+    {
+      "file": "0203-uncefact.xml.kosit.xml.gz",
+      "originalSha256": "270ddc2d41816514c135803387cf67a457c976e4658cad6209773defc6f60b39"
+    },
+    {
+      "file": "0301-ubl.xml.kosit.xml.gz",
+      "originalSha256": "51670669f2cdcd2062a1196eb7bec21b11c0b3d35fcbcdcd07a9baa2c544be4f"
+    },
+    {
+      "file": "0301-uncefact.xml.kosit.xml.gz",
+      "originalSha256": "8784c4c3bf7193536bc37ea383701486018597e90876614146caaed0c6e27ac5"
+    },
+    {
+      "file": "cen-huf-cii.xml.kosit.xml.gz",
+      "originalSha256": "98b428a2953a9631555432f36985294d1803761e3e2187bf8faa6cb7f1c99811"
+    },
+    {
+      "file": "facturx-invoice.pdf.kosit.xml.gz",
+      "originalSha256": "7e3f47e3ec0e2ba2af876a08477f97fb4795a2550188c807471fd68ba4844ac0"
+    }
+  ]
+}

@@ -64,6 +64,6 @@ class InvoiceKositTest(unittest.TestCase):
             self.assertTrue(any(m["code"] == "BR-DE-TMP-32" and m["level"] == "information" for m in messages))
             rejected = inspect_invoice(altered, jar, scenarios)
             self.assertEqual(rejected["decision"]["status"], "BLOCKED")
-            self.assertIn("KOSIT_NOT_ACCEPTED", rejected["decision"]["blockers"])
+            self.assertIn("KOSIT_REJECTED", rejected["decision"]["blockers"])
             self.assertTrue(any(m["code"] == "BR-CO-16" for m in rejected["technicalEvidence"]["messages"]))
             self.assertFalse(rejected["decision"]["releaseAllowed"])

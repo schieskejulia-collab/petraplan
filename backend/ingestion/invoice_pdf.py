@@ -15,8 +15,8 @@ import fitz
 from .invoice import InvoiceInputError, project_invoice, read_limited
 
 INVOICE_ATTACHMENTS = {"factur-x.xml", "zugferd-invoice.xml", "zugferd.xml"}
-LABEL = re.compile(r"\b(?:zahlbetrag|amount due)\b", re.IGNORECASE)
-AMOUNT = re.compile(r"^\s*(\d{1,3}(?:[. ]\d{3})*,\d{2}|\d+[.,]\d{2})\s*(?:€|EUR)?\s*$")
+LABELS = (("zahlbetrag",), ("amount", "due"), ("net", "a", "payer"), ("net", "à", "payer"))
+AMOUNT = re.compile(r"^\s*([+-]?(?:\d{1,3}(?:[. ]\d{3})*,\d{2}|\d+\.\d{2}))\s*(?:€|EUR)?\s*$")
 
 
 def visible_amount(tsv, page):
@@ -25,21 +25,44 @@ def visible_amount(tsv, page):
         for row in csv.DictReader(StringIO(tsv), delimiter="\t", quoting=csv.QUOTE_NONE)
         if row.get("text") and row["level"] == "5"
     ]
-    amounts = [(word, AMOUNT.fullmatch(word[0])) for word in words]
-    rows = []
-    labels = [(text, x, y, width, height) for text, x, y, width, height in words
-              if LABEL.fullmatch(text.rstrip(":")) or text.lower() == "due"]
-    for _, x, y, width, height in labels:
-        matches = [match[1] for (_, left, top, _, h), match in amounts
-                   if match and left >= x + width
-                   and abs((top + h / 2) - (y + height / 2)) <= max(h, height) * 0.45]
-        if not matches:
-            rows.append({"page": page, "amount": None})
-        for value in matches:
-            if "," in value:
-                value = value.replace(".", "").replace(" ", "").replace(",", ".")
-            rows.append({"page": page, "amount": value})
-    return rows
+    # Sparse OCR splits both labels and amounts into separate TSV words/blocks.
+    # Group geometrically; never treat a standalone "due" as a payable label.
+    lines = []
+    for word in sorted(words, key=lambda w: (w[2] + w[4] / 2, w[1])):
+        for line in lines:
+            anchor = line[0]
+            if abs((word[2] + word[4] / 2) - (anchor[2] + anchor[4] / 2)) <= max(word[4], anchor[4]) * 0.45:
+                line.append(word)
+                break
+        else:
+            lines.append([word])
+    evidence = []
+    for line in lines:
+        line.sort(key=lambda w: w[1])
+        tokens = [word[0].casefold().rstrip(":") for word in line]
+        labels = [(i, i + len(label)) for i in range(len(tokens)) for label in LABELS
+                  if tuple(tokens[i:i + len(label)]) == label
+                  and all(line[j + 1][1] - (line[j][1] + line[j][3]) <= max(line[j][4], line[j + 1][4]) * 3
+                          for j in range(i, i + len(label) - 1))]
+        for index, (_, end) in enumerate(labels):
+            stop = labels[index + 1][0] if index + 1 < len(labels) else len(line)
+            values = []
+            while end < stop:
+                match = None
+                consumed = 1
+                for length in range(min(4, stop - end), 0, -1):
+                    candidate = AMOUNT.fullmatch(" ".join(w[0] for w in line[end:end + length]))
+                    if candidate:
+                        match, consumed = candidate, length
+                        break
+                if match:
+                    value = match[1]
+                    if "," in value:
+                        value = value.replace(".", "").replace(" ", "").replace(",", ".")
+                    values.append(value)
+                end += consumed
+            evidence.extend({"page": page, "amount": value} for value in values or [None])
+    return evidence
 
 
 def inspect(pdf):
