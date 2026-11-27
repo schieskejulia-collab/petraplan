@@ -78,3 +78,17 @@ wiederholbar. Beispielkonfiguration: `scripts/invoice-worker/.env.example`.
 Ungeklärte oder nicht unterstützte Eingaben bleiben nachvollziehbare Stopps.
 Aus dieser Teststrecke folgt keine automatische Zahlung oder allgemeine
 Buchungsfreigabe. Der abgeschlossene Northwind-Testfall ist kein Restpunkt.
+
+## Lesebefund vom 27.11.2026
+
+Die Projektliste meldet das ursprüngliche PetraPlan-Projekt
+`yxhllviostywckxoehgf` und das separate `PetraPlanTest`-Projekt als `INACTIVE`.
+Auf dem ursprünglichen Projekt wurden ausschließlich die Migrationsliste und
+eine lesende Tabellen-/RLS-Katalogabfrage versucht. Beide Aufrufe lieferten
+`INVALID_ARGUMENT`, keinen Schema- oder Migrationsbefund. Daraus wird keine
+weitere Ursache abgeleitet. Es wurde kein Projekt gestartet oder verändert.
+
+Der aktuelle gehostete Schemaabgleich bleibt deshalb offen. Vor der
+Gesamtabnahme Projektverfügbarkeit klären und die read-only Inventur erneut
+auf dem ausdrücklich vorgesehenen Testschema ausführen. Die Freischaltung
+von Vercel allein belegt keine verfügbare Datenbank oder fertige Teststrecke.

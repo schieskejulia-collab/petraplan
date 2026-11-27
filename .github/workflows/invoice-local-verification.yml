@@ -72,10 +72,12 @@ jobs:
             -e PETRAPLAN_INVOICE_WORKER_TOKEN=isolated-ci-only \
             -e PETRAPLAN_PDF_TEST_UPLOADS=1 \
             petraplan-invoice-worker-test
-          curl --fail --retry 15 --retry-connrefused --retry-delay 1 http://127.0.0.1:8080/health
-          PETRAPLAN_INVOICE_WORKER_URL=http://127.0.0.1:8080 \
+          if ! PETRAPLAN_INVOICE_WORKER_URL=http://127.0.0.1:8080 \
             PETRAPLAN_INVOICE_WORKER_TOKEN=isolated-ci-only \
-            node scripts/verification/check-invoice-worker.mjs
+            node scripts/verification/check-invoice-worker.mjs; then
+            docker logs invoice-worker-test
+            exit 1
+          fi
       - name: Save local test evidence
         if: always()
         uses: actions/upload-artifact@v4

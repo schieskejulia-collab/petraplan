@@ -107,6 +107,17 @@
     }
   },
   "nativePostgres": "No SQL changes; prior 21-race evidence remains separate",
-  "container": "Build/smoke workflow prepared; not executed locally because Docker is absent",
-  "hosted": "Not executed; no deployment, live migration or payment"
+  "container": "Image built in CI run 46045858372; first health probe failed on connection reset. Recheck includes bounded readiness and XML/PDF processing. Docker is not installed locally.",
+  "hosted": "Not executed; no deployment, live migration or payment",
+  "databaseReadProbe": {
+    "date": "2026-11-27",
+    "projectListStatus": {
+      "original": "INACTIVE",
+      "test": "INACTIVE"
+    },
+    "originalMigrationsRead": "INVALID_ARGUMENT; no catalogue returned",
+    "originalCatalogueRead": "INVALID_ARGUMENT; no catalogue returned",
+    "schemaCompared": false,
+    "writesPerformed": false
+  }
 }
