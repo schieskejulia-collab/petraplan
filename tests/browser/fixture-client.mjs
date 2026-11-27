@@ -36,7 +36,7 @@ export async function fixtureClient(db, actorId, token) {
             let rows=[];
             if(known.has(table)) {
               const select=table==='bridge_invoice_evidence'
-                ? `select e.snapshot_id,e.validation_id,e.created_at,jsonb_build_object('source_hash',i.source_hash,'extracted_schema',i.extracted_schema) ingestion
+                ? `select e.snapshot_id,e.validation_id,e.created_at,e.original_pdf,jsonb_build_object('source_hash',i.source_hash,'extracted_schema',i.extracted_schema) ingestion
                    from bridge_invoice_evidence e join ingestion_logs i on i.id=e.snapshot_id`
                 : `select * from ${table}`;
               rows=(await db.query(select+(where.length?' where '+where.join(' and '):'')
@@ -46,6 +46,9 @@ export async function fixtureClient(db, actorId, token) {
               row.review_criteria=(await db.query('select * from review_criteria where id=$1',[row.criterion_id])).rows[0];
             const count=rows.length;
             if(range)rows=rows.slice(range[0],range[1]+1);
+            // Match PostgREST's bytea representation for the real PDF handler.
+            if(table==='bridge_invoice_evidence')for(const row of rows)
+              if(row.original_pdf instanceof Uint8Array)row.original_pdf='\\x'+Buffer.from(row.original_pdf).toString('hex');
             rows=JSON.parse(JSON.stringify(rows));
             return {data:single?rows[0]??null:rows,count,error:null};
           })().then(resolve,reject);
