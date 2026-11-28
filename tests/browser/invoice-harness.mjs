@@ -8,6 +8,7 @@ import { createInvoiceUploadHandler } from '../../api/bridge/invoice-upload.js';
 import { createInvoiceExceptionHandler } from '../../api/cases/[recordId]/invoice-exception.js';
 import { createInvoicePdfHandler } from '../../api/cases/[recordId]/invoice-pdf.js';
 import { createInvoiceWorker } from '../../scripts/invoice-worker/server.mjs';
+import { createInvoiceDuplicateDecisionHandler } from '../../.decision-test-build/api/cases/[recordId]/invoice-duplicate-decision.js';
 import { createInvoiceDuplicatesHandler } from '../../.decision-test-build/api/cases/[recordId]/invoice-duplicates.js';
 import { createDecisionHandler } from '../../.decision-test-build/api/cases/[recordId]/decision.js';
 import { getCaseTrace,listCases } from '../../dist/services/caseTrace.js';
@@ -24,6 +25,10 @@ const db=new PGlite();
 await installInvoiceCaseFixture(db);
 await db.exec(await read('../../supabase/migrations/20261128040000_invoice_duplicate_read.sql'));
 await db.exec(await read('../../supabase/migrations/20261117210000_invoice_pdf_exceptions.sql'));
+if(process.env.PETRAPLAN_BROWSER_DUPLICATE_ENFORCEMENT==='1'){
+ for(const file of ['20261128050000_invoice_duplicate_decisions.sql','20261128051000_invoice_duplicate_release_guard.sql'])await db.exec(await read('../../supabase/migrations/'+file));
+ process.env.PETRAPLAN_INVOICE_DUPLICATE_ENFORCEMENT='1';process.env.PETRAPLAN_INVOICE_DUPLICATE_SCOPE='single-project-pilot';
+}
 // Two explicitly seeded test identities. This proves ID separation only, not
 // real Supabase login or that accounts belong to distinct people.
 const approverId=id(278),approverToken='local-invoice-independent-approver';
@@ -33,6 +38,7 @@ await db.query(`insert into bridge_actor_roles(user_id,role_name,active,can_revi
   values($1,'exception_reviewer',true,true,true,true,true,'Isolated browser fixture appointment')`,[approverId]);
 await db.query(`update bridge_actor_roles set can_approve_invoice_exception=true,
   invoice_exception_authority_reference='Isolated browser fixture appointment' where user_id=$1`,[ids.actor]);
+if(process.env.PETRAPLAN_BROWSER_DUPLICATE_ENFORCEMENT==='1')await db.query("update bridge_actor_roles set can_adjudicate_invoice_duplicates=true,invoice_duplicate_authority_reference='Isolated independent appointment' where user_id=$1",[approverId]);
 await db.exec('set role service_role');
 const client=await fixtureClient(db,ids.actor,token);
 const identities=new Map([[token,ids.actor],[approverToken,approverId]]);
@@ -48,6 +54,7 @@ const upload=createInvoiceUploadHandler(authenticate);
 const exception=createInvoiceExceptionHandler(authenticate);
 const pdf=createInvoicePdfHandler(authenticate);
 const duplicates=createInvoiceDuplicatesHandler(authenticate,{PETRAPLAN_INVOICE_DUPLICATE_SCOPE:'single-project-pilot'});
+const duplicateDecision=createInvoiceDuplicateDecisionHandler(authenticate);
 const decision=createDecisionHandler({createClient:()=>client,getCaseTrace});
 const worker=createInvoiceWorker({token,jar:process.env.PETRAPLAN_KOSIT_JAR,
   scenarios:process.env.PETRAPLAN_KOSIT_SCENARIOS,allowPdf:true});
@@ -67,7 +74,7 @@ const server=createServer(async(req,res)=>{
       for await(const chunk of req){bytes+=chunk.length;if(bytes>12*1024*1024)throw new Error('Fixture request too large');chunks.push(chunk);}
       req.body=chunks.length?JSON.parse(Buffer.concat(chunks).toString()):{};
       req.query=Object.fromEntries(url.searchParams);
-      const match=url.pathname.match(/^\/api\/cases\/([a-f0-9-]+)(?:\/(decision|invoice-exception|invoice-pdf|invoice-duplicates))?$/);
+      const match=url.pathname.match(/^\/api\/cases\/([a-f0-9-]+)(?:\/(decision|invoice-exception|invoice-pdf|invoice-duplicates|invoice-duplicate-decision))?$/);
       if(url.pathname==='/api/bridge/invoice-upload')return await upload(req,res);
       if(!(await authenticate(req,res)))return;
       if(url.pathname==='/api/cases')return res.json({items:await listCases(client,50,0)});
@@ -75,6 +82,7 @@ const server=createServer(async(req,res)=>{
         req.query.recordId=match[1];
         if(match[2]==='decision')return await decision(req,res);
         if(match[2]==='invoice-exception')return await exception(req,res);
+        if(match[2]==='invoice-duplicate-decision')return await duplicateDecision(req,res);
         if(match[2]==='invoice-duplicates')return await duplicates(req,res);
         if(match[2]==='invoice-pdf')return await pdf(req,res);
         const trace=await getCaseTrace(client,match[1]);

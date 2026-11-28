@@ -29,3 +29,7 @@ Dieselbe Person darf heute hochladen, reviewen und freigeben, wenn ihr alle jewe
 Für PDF-Ausnahmen erzwingt die Datenbank eine zweite ausdrücklich berechtigte Person, die weder hochgeladen noch den Antrag gestellt oder die Fassung zuvor geprüft hat. Danach führt sie Review und Freigabe gesondert aus. Der [Implementierungsnachweis](invoice-pdf-exception-implementation.md) dokumentiert Grenzen und Nachweise.
 
 **Bekannte Grenze für Kunden:** Im normalen Weg ist keine Funktionstrennung erzwungen. Kunden mit entsprechenden internen Kontrollen benötigen eine spätere mandantenspezifische Regelung, bevor dieser Weg dafür eingesetzt wird.
+
+Fortschreibung 28.11.2026: Entscheidungen, Datenbank-Freigabesperre und aktuelle
+Anzeige nach Bestandsänderung werden im [Enforcement-Nachweis](invoice-duplicate-enforcement-design.md)
+fortgeführt. Der gehostete Test bleibt separat; Zusammenführung ist zurückgestellt.

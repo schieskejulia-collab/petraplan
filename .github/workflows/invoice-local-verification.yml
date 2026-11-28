@@ -9,6 +9,8 @@ on:
       - 'api-server/src/services/invoiceDuplicate*'
       - 'supabase/migrations/*invoice_duplicate*'
       - 'frontend/mobile-app/src/pages/InvoiceDuplicatePanel.tsx'
+      - 'frontend/mobile-app/src/pages/InvoiceDuplicateDecision.tsx'
+      - 'api-server/src/services/caseTrace.ts'
       - 'frontend/mobile-app/src/lib/invoice-duplicates-client.ts'
       - 'api/bridge/invoice-upload.js'
       - 'api/cases/**'
@@ -65,9 +67,10 @@ jobs:
           npx tsc -p tsconfig.decision-tests.json
           npm run build --prefix frontend/mobile-app
           python -m unittest backend.tests.test_invoice backend.tests.test_invoice_pdf backend.tests.test_kosit_contract backend.tests.test_invoice_duplicate_signals -v
-          node --test tests/decision-integrity/invoice-case.test.mjs tests/decision-integrity/invoice-worker.test.mjs tests/decision-integrity/invoice-exception.test.mjs tests/decision-integrity/invoice-duplicates.test.mjs
+          node --test tests/decision-integrity/invoice-case.test.mjs tests/decision-integrity/invoice-worker.test.mjs tests/decision-integrity/invoice-exception.test.mjs tests/decision-integrity/invoice-duplicates.test.mjs tests/decision-integrity/invoice-duplicate-enforcement.test.mjs
           node --test tests/decision-integrity/claim-freshness.test.mjs
           python tests/browser/test_invoice_flow.py
+          PETRAPLAN_DUPLICATE_BROWSER_OUTPUT="$GITHUB_WORKSPACE/.invoice-test-resources/invoice-duplicate-enforcement.json" python tests/browser/test_invoice_duplicate_enforcement.py
       - name: Build and exercise worker container
         run: |
           docker build -f scripts/invoice-worker/Dockerfile -t petraplan-invoice-worker-test .
@@ -87,4 +90,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: invoice-browser-verification
-          path: ${{ env.PETRAPLAN_BROWSER_OUTPUT }}
+          path: |
+            ${{ env.PETRAPLAN_BROWSER_OUTPUT }}
+            ${{ github.workspace }}/.invoice-test-resources/invoice-duplicate-enforcement.json

@@ -72,3 +72,10 @@ Vor gehosteter Abnahme zusätzlich das [Runbook](invoice-hosted-test-runbook.md)
 ausführen: echte Anmeldung, tatsächlich angewandte SQL-Definitionen, Rollen und
 Projektumfang sind durch PGlite/Testidentitäten nicht bewiesen. Die Freigabe bleibt
 bis zu einer späteren verbindlichen Integration unabhängig vom Dublettenhinweis.
+
+## Verbindliche Folgeänderung (28.11.2026)
+
+Der oben dokumentierte lesende Erststand ist um Entscheidungen und eine
+Datenbanksperre erweitert: [Sicherheitsvertrag und Implementierung](invoice-duplicate-enforcement-design.md).
+Die Erstbelege bleiben historisch erhalten; die aktuelle Enforcement-Abnahme
+wird separat dokumentiert. Kein PR wurde zusammengeführt.
