@@ -8,6 +8,7 @@ import { createInvoiceUploadHandler } from '../../api/bridge/invoice-upload.js';
 import { createInvoiceExceptionHandler } from '../../api/cases/[recordId]/invoice-exception.js';
 import { createInvoicePdfHandler } from '../../api/cases/[recordId]/invoice-pdf.js';
 import { createInvoiceWorker } from '../../scripts/invoice-worker/server.mjs';
+import { createInvoiceDuplicatesHandler } from '../../.decision-test-build/api/cases/[recordId]/invoice-duplicates.js';
 import { createDecisionHandler } from '../../.decision-test-build/api/cases/[recordId]/decision.js';
 import { getCaseTrace,listCases } from '../../dist/services/caseTrace.js';
 import { installInvoiceCaseFixture } from '../decision-integrity/invoice-case-fixture.mjs';
@@ -21,6 +22,7 @@ process.env.SUPABASE_URL='https://fixture.invalid';process.env.SUPABASE_SECRET_K
 const token='local-invoice-browser-test';
 const db=new PGlite();
 await installInvoiceCaseFixture(db);
+await db.exec(await read('../../supabase/migrations/20261128040000_invoice_duplicate_read.sql'));
 await db.exec(await read('../../supabase/migrations/20261117210000_invoice_pdf_exceptions.sql'));
 // Two explicitly seeded test identities. This proves ID separation only, not
 // real Supabase login or that accounts belong to distinct people.
@@ -45,6 +47,7 @@ async function authenticate(req,res){
 const upload=createInvoiceUploadHandler(authenticate);
 const exception=createInvoiceExceptionHandler(authenticate);
 const pdf=createInvoicePdfHandler(authenticate);
+const duplicates=createInvoiceDuplicatesHandler(authenticate,{PETRAPLAN_INVOICE_DUPLICATE_SCOPE:'single-project-pilot'});
 const decision=createDecisionHandler({createClient:()=>client,getCaseTrace});
 const worker=createInvoiceWorker({token,jar:process.env.PETRAPLAN_KOSIT_JAR,
   scenarios:process.env.PETRAPLAN_KOSIT_SCENARIOS,allowPdf:true});
@@ -64,7 +67,7 @@ const server=createServer(async(req,res)=>{
       for await(const chunk of req){bytes+=chunk.length;if(bytes>12*1024*1024)throw new Error('Fixture request too large');chunks.push(chunk);}
       req.body=chunks.length?JSON.parse(Buffer.concat(chunks).toString()):{};
       req.query=Object.fromEntries(url.searchParams);
-      const match=url.pathname.match(/^\/api\/cases\/([a-f0-9-]+)(?:\/(decision|invoice-exception|invoice-pdf))?$/);
+      const match=url.pathname.match(/^\/api\/cases\/([a-f0-9-]+)(?:\/(decision|invoice-exception|invoice-pdf|invoice-duplicates))?$/);
       if(url.pathname==='/api/bridge/invoice-upload')return await upload(req,res);
       if(!(await authenticate(req,res)))return;
       if(url.pathname==='/api/cases')return res.json({items:await listCases(client,50,0)});
@@ -72,6 +75,7 @@ const server=createServer(async(req,res)=>{
         req.query.recordId=match[1];
         if(match[2]==='decision')return await decision(req,res);
         if(match[2]==='invoice-exception')return await exception(req,res);
+        if(match[2]==='invoice-duplicates')return await duplicates(req,res);
         if(match[2]==='invoice-pdf')return await pdf(req,res);
         const trace=await getCaseTrace(client,match[1]);
         return trace?res.json(trace):res.status(404).json({error:'Case not found'});

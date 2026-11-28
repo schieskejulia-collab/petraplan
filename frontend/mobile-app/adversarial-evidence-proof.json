@@ -1,0 +1,48 @@
+{
+  "proof": "adversarial-evidence-proof-v1",
+  "invariant": "connected != same meaning",
+  "cases": {
+    "documentedRelation": {
+      "kind": "structure",
+      "subject": "order.CustomerID",
+      "relatedTo": "customer.CustomerID",
+      "status": "CONFIRMED",
+      "sourceReference": "Northwind order/customer relationship",
+      "reason": "Dokumentierte Strukturbeziehung vorhanden und konkrete Schlüsselwerte stimmen überein."
+    },
+    "contradictedRelation": {
+      "kind": "structure",
+      "subject": "order.CustomerID",
+      "relatedTo": "customer.CustomerID",
+      "status": "CONTRADICTED",
+      "sourceReference": "Northwind order/customer relationship",
+      "reason": "Die dokumentierte Beziehung ist vorhanden, aber die konkreten Schlüsselwerte widersprechen ihr."
+    },
+    "deceptiveNameAndValueMatch": {
+      "kind": "structure",
+      "subject": "order.EmployeeID",
+      "relatedTo": "customer.EmployeeID",
+      "status": "UNPROVEN",
+      "sourceReference": null,
+      "reason": "Keine dokumentierte Strukturbeziehung belegt. Namens- oder Wertähnlichkeit reicht nicht als Evidenz."
+    },
+    "unprovenStatusMeaning": {
+      "kind": "value",
+      "field": "STATUS",
+      "sourceValue": "",
+      "canonicalValue": null,
+      "status": "UNPROVEN",
+      "sourceReference": null,
+      "reason": "Für diesen konkreten Wert liegt keine bestätigte Bedeutungszuordnung vor."
+    },
+    "confirmedStatusMeaning": {
+      "kind": "value",
+      "field": "STATUS",
+      "sourceValue": "OFFEN",
+      "canonicalValue": "open",
+      "status": "CONFIRMED",
+      "sourceReference": "order-v1 status value map",
+      "reason": "Der konkrete Quellwert besitzt eine explizit bestätigte Bedeutungszuordnung."
+    }
+  }
+}

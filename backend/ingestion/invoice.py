@@ -12,6 +12,7 @@ from tempfile import TemporaryDirectory
 from xml.etree import ElementTree as ET
 
 from .kosit_contract import assess_report_contract
+from .invoice_duplicate_signals import signals as duplicate_signals
 
 NS = {
     "ubl": "urn:oasis:names:specification:ubl:schema:xsd:Invoice-2",
@@ -210,6 +211,8 @@ def project_invoice(data):
         "lines": lines,
         "observations": [{"path": path, "original": value, "mapped": path in mapped_paths}
                          for path, value in observations.items()],
+        "duplicateSignals": duplicate_signals(root, ubl=ubl, ns=NS, paths=paths, header=header,
+                                               periods=document_periods, source_hash=sha256(data).hexdigest()),
     }
 
 

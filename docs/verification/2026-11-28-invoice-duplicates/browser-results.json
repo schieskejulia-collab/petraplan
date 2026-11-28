@@ -1,0 +1,165 @@
+{
+  "scope": "local-browser-handlers-worker-PGlite-test-auth",
+  "checks": [
+    {
+      "name": "upload creates no certificate",
+      "passed": true
+    },
+    {
+      "name": "review still creates no certificate",
+      "passed": true
+    },
+    {
+      "name": "explicit separate release creates one certificate",
+      "passed": true
+    },
+    {
+      "name": "identical repeat reuses snapshot",
+      "passed": true
+    },
+    {
+      "name": "revision revokes previous certificate",
+      "passed": true
+    },
+    {
+      "name": "both source versions remain available",
+      "passed": true
+    },
+    {
+      "name": "general EN16931 reaches review",
+      "passed": true
+    },
+    {
+      "name": "general EN16931 does not auto-release",
+      "passed": true
+    },
+    {
+      "name": "French payable is matched by whole-page OCR",
+      "passed": true
+    },
+    {
+      "name": "PDF still requires independent visual review",
+      "passed": true
+    },
+    {
+      "name": "negative XML retains no certificate",
+      "passed": true
+    },
+    {
+      "name": "negative XML offers no release button",
+      "passed": true
+    },
+    {
+      "name": "different PDF remains blocked",
+      "passed": true
+    },
+    {
+      "name": "original PDF download matches uploaded bytes",
+      "passed": true
+    },
+    {
+      "name": "exception request creates no certificate",
+      "passed": true
+    },
+    {
+      "name": "uploader cannot approve own request",
+      "passed": true
+    },
+    {
+      "name": "independent approval creates separate validation",
+      "passed": true
+    },
+    {
+      "name": "original failed validation remains in history",
+      "passed": true
+    },
+    {
+      "name": "approval alone creates no certificate",
+      "passed": true
+    },
+    {
+      "name": "uploader has no exception review or release controls",
+      "passed": true
+    },
+    {
+      "name": "API rejects uploader review after independent approval",
+      "passed": true
+    },
+    {
+      "name": "independent exception review still creates no certificate",
+      "passed": true
+    },
+    {
+      "name": "exception release is labelled and bound to decision",
+      "passed": true
+    },
+    {
+      "name": "exception mobile layout has no horizontal overflow",
+      "passed": true
+    },
+    {
+      "name": "new PDF revision revokes exception release",
+      "passed": true
+    },
+    {
+      "name": "old exception becomes unusable and both PDFs remain",
+      "passed": true
+    },
+    {
+      "name": "new PDF revision does not inherit exception",
+      "passed": true
+    },
+    {
+      "name": "multiple visible amounts stay uncomparable",
+      "passed": true
+    },
+    {
+      "name": "rejected exception retains failed validation and no certificate",
+      "passed": true
+    },
+    {
+      "name": "rejected XML cannot enter PDF exception process",
+      "passed": true
+    },
+    {
+      "name": "cross-case duplicate endpoint binds current snapshot and finds identical XML",
+      "passed": true
+    },
+    {
+      "name": "duplicate comparison leaves case decisions unchanged",
+      "passed": true
+    },
+    {
+      "name": "duplicate comparison rejects unauthenticated request",
+      "passed": true
+    },
+    {
+      "name": "duplicate panel remains within mobile viewport",
+      "passed": true
+    },
+    {
+      "name": "diagnostic rendering does not misattribute bridge rejection to KoSIT",
+      "passed": true
+    },
+    {
+      "name": "mobile layout has no horizontal overflow",
+      "passed": true
+    },
+    {
+      "name": "no JavaScript page errors",
+      "passed": true
+    },
+    {
+      "name": "unauthenticated API request is rejected",
+      "passed": true
+    },
+    {
+      "name": "unknown test identity is rejected",
+      "passed": true
+    },
+    {
+      "name": "raw token without Bearer scheme is rejected",
+      "passed": true
+    }
+  ]
+}

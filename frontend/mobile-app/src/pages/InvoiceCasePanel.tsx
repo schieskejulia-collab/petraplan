@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { currentAccessToken } from "@/lib/bridge-auth";
 import { getBridgeDecisionAccess, submitBridgeDecision, type BridgeDecisionAccess } from "@/lib/bridge-decision-client";
 import type { CaseTrace, InvoiceCaseSnapshot } from "@/api/connector";
+import InvoiceDuplicatePanel from './InvoiceDuplicatePanel';
 
 function dateLabel(value: unknown) {
   const date = typeof value === "string" ? new Date(value) : null;
@@ -134,6 +135,7 @@ export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
         </p>
       </div>
       {current ? <InvoiceSnapshot snapshot={current} visuallyConfirmed={visuallyConfirmed(current)} /> : <p className="text-sm">Aktueller Rechnungssnapshot nicht verfügbar.</p>}
+      {current && <InvoiceDuplicatePanel key={data.id + current.snapshotId} recordId={data.id} snapshotId={current.snapshotId} />}
       {current && <InvoiceReview key={current.snapshotId + current.validationId + current.exception?.status} recordId={data.id} snapshot={current} onChanged={onChanged} />}
       {data.release.status_history.length > 0 && (
         <details className="rounded-lg border p-3 text-sm">

@@ -256,6 +256,22 @@ def main():
                 "evidenceReference": "No acceptable evidence", "purpose": "Must remain blocked"})
             check("rejected XML cannot enter PDF exception process", bad_exception.status == 409)
 
+            # Cross-case copy suspicion uses current stored evidence and has no write authority.
+            copied = upload("positive.pdf")
+            copied_state = trace(copied)
+            duplicate_panel = page.get_by_role("region", name="Dublettenhinweise")
+            expect(duplicate_panel.get_by_text("Gleiche XML-Originalbytes", exact=True).first).to_be_visible()
+            duplicate_url = config["origin"] + "/api/cases/" + copied + "/invoice-duplicates?snapshotId=" + copied_state["source"]["ingestion"]["id"]
+            duplicate_response = page.request.get(duplicate_url, headers=headers)
+            duplicate_result = duplicate_response.json()
+            check("cross-case duplicate endpoint binds current snapshot and finds identical XML", duplicate_response.status == 200
+                  and any(f["code"] == "IDENTICAL_XML" for f in duplicate_result["findings"])
+                  and duplicate_result["target"]["snapshotId"] == copied_state["source"]["ingestion"]["id"])
+            check("duplicate comparison leaves case decisions unchanged", trace(copied) == copied_state
+                  and duplicate_result["readOnly"] is True and duplicate_result["releaseAssessment"] == "NOT_EVALUATED")
+            check("duplicate comparison rejects unauthenticated request", page.request.get(duplicate_url).status == 401)
+            check("duplicate panel remains within mobile viewport", page.evaluate("document.documentElement.scrollWidth <= innerWidth"))
+
             # Display-only probe: a structurally unusable report can still carry
             # a genuine positive validator assessment. Do not mutate the DB.
             diagnostic = trace(rejected)
