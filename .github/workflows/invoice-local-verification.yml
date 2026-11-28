@@ -68,9 +68,9 @@ jobs:
           npm run build --prefix frontend/mobile-app
           python -m unittest backend.tests.test_invoice backend.tests.test_invoice_pdf backend.tests.test_kosit_contract backend.tests.test_invoice_duplicate_signals -v
           node --test tests/decision-integrity/invoice-case.test.mjs tests/decision-integrity/invoice-worker.test.mjs tests/decision-integrity/invoice-exception.test.mjs tests/decision-integrity/invoice-duplicates.test.mjs tests/decision-integrity/invoice-duplicate-enforcement.test.mjs
+          PETRAPLAN_DUPLICATE_BROWSER_OUTPUT="$GITHUB_WORKSPACE/.invoice-test-resources/invoice-duplicate-enforcement.json" python tests/browser/test_invoice_duplicate_enforcement.py
           node --test tests/decision-integrity/claim-freshness.test.mjs
           python tests/browser/test_invoice_flow.py
-          PETRAPLAN_DUPLICATE_BROWSER_OUTPUT="$GITHUB_WORKSPACE/.invoice-test-resources/invoice-duplicate-enforcement.json" python tests/browser/test_invoice_duplicate_enforcement.py
       - name: Build and exercise worker container
         run: |
           docker build -f scripts/invoice-worker/Dockerfile -t petraplan-invoice-worker-test .
@@ -85,11 +85,15 @@ jobs:
             docker logs invoice-worker-test
             exit 1
           fi
+      - name: Save duplicate enforcement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoice-duplicate-enforcement
+          path: ${{ github.workspace }}/.invoice-test-resources/invoice-duplicate-enforcement.json
       - name: Save local test evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: invoice-browser-verification
-          path: |
-            ${{ env.PETRAPLAN_BROWSER_OUTPUT }}
-            ${{ github.workspace }}/.invoice-test-resources/invoice-duplicate-enforcement.json
+          path: ${{ env.PETRAPLAN_BROWSER_OUTPUT }}
