@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Test invoice contract
-        run: python -m unittest backend.tests.test_invoice.InvoiceProjectionTest backend.tests.test_kosit_contract -v
+        run: python -m unittest backend.tests.test_invoice.InvoiceProjectionTest backend.tests.test_kosit_contract backend.tests.test_invoice_duplicate_signals -v
 
   mobile:
     runs-on: ubuntu-latest

@@ -72,7 +72,12 @@ export async function handleDecision(req:any,res:any,dependencies={createClient,
     ];
     const basisBlockers=releaseBasisBlockers({validation:authoritative,review,snapshotId:trace.source.ingestion?.id ?? null});
     if(review?.complete && !review.evidence_reference_ids?.includes(`claims:${claimsBasis}`)) basisBlockers.push('Die Claim-Basis des Reviews ist veraltet. Neuvalidierung und neues Review sind erforderlich.');
-    const releaseBlockers=[...reviewBlockers,...basisBlockers];
+    const duplicateBlockers:string[]=[];
+    if(trace.invoice && process.env.PETRAPLAN_INVOICE_DUPLICATE_ENFORCEMENT==='1') {
+      const {data:checked,error}=await supabase.rpc('bridge_check_invoice_duplicate_release',{p_record_id:recordId});
+      if(error||checked?.allowed!==true)duplicateBlockers.push('Eine aktuelle, belegte Dublettenentscheidung ist erforderlich.');
+    }
+    const releaseBlockers=[...reviewBlockers,...basisBlockers,...duplicateBlockers];
     const access={
       role:role.role_name, can_approve_invoice_exception:role.can_approve_invoice_exception === true, can_review:role.can_review, can_release:role.can_release, can_revoke:role.can_revoke,
       review_ready:Boolean(exceptionActionAllowed && !releaseAuthorityAmbiguous && !releaseAlreadyTrusted && !reviewAlreadyCompleteForValidation && snapshotProcessed && validationPassing && unresolvedCandidateCount===0 && decisionBasisFresh && semanticBlockers.length===0),

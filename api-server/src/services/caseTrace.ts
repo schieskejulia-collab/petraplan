@@ -56,7 +56,7 @@ export async function listCases(
       const certificates = await rows<any>(
         supabase
           .from('release_certificates')
-          .select('id, release_status, validation_result_id, certified_at', { count: 'exact' })
+          .select('id, release_status, validation_result_id, certified_at, truth_snapshot', { count: 'exact' })
           .eq('record_id', record.id)
           .order('certified_at', { ascending: false }),
       );
@@ -109,6 +109,13 @@ export async function listCases(
         displayedStatus = !check.error && check.data === true ? 'exception' : 'blocked';
       }
 
+      if(record.source_system==='petraplan-invoice' && (process.env.PETRAPLAN_INVOICE_DUPLICATE_ENFORCEMENT==='1' || (certificate as any)?.truth_snapshot?.invoice_duplicate_decision_id)
+          && ['trusted','exception'].includes(String(displayedStatus))) {
+        const decisionId=(certificate as any)?.truth_snapshot?.invoice_duplicate_decision_id;
+        if(!decisionId)displayedStatus='blocked';
+        else {const checked=await supabase.rpc('bridge_check_invoice_duplicate_release',{p_record_id:record.id,p_decision_id:decisionId});
+          if(checked.error||checked.data?.allowed!==true)displayedStatus='blocked';}
+      }
       return {
         ...record,
         conflict_count: anchors.filter((item) => item.conflict === true).length,
@@ -373,7 +380,20 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
   const invoiceBasisMatches = invoiceSnapshots?.some(snapshot => snapshot.current
     && snapshot.validationId === authoritativeValidation?.id && snapshot.proof?.accepted
     && (!authoritativeValidation?.evidence?.invoice_exception_id || snapshot.exception?.usable));
-  const invoiceReleaseUnverified = invoiceSnapshots !== null
+  let duplicateReleaseUnverified = false;
+  if (invoiceSnapshots && (process.env.PETRAPLAN_INVOICE_DUPLICATE_ENFORCEMENT === '1' || (latestCertificate as any)?.truth_snapshot?.invoice_duplicate_decision_id)
+      && ['trusted','exception'].includes(String(effectiveReleaseStatus))) {
+    const selected = latestCertificate as any;
+    const decisionId = selected?.truth_snapshot?.invoice_duplicate_decision_id;
+    if (!decisionId) duplicateReleaseUnverified = true;
+    else {
+      const {data:checked,error} = await supabase.rpc('bridge_check_invoice_duplicate_release', {
+        p_record_id:recordId,p_decision_id:decisionId,
+      });
+      duplicateReleaseUnverified = !!error || checked?.allowed !== true;
+    }
+  }
+  const invoiceReleaseUnverified = duplicateReleaseUnverified || invoiceSnapshots !== null
     && (effectiveReleaseStatus === 'trusted' || effectiveReleaseStatus === 'exception')
     && !invoiceBasisMatches;
 
@@ -438,7 +458,7 @@ export async function getCaseTrace(supabase: SupabaseClient, recordId: string) {
       effective_status: invoiceReleaseUnverified ? 'blocked' : (effectiveReleaseStatus === 'trusted'
         && authoritativeValidation?.evidence?.invoice_exception_id ? 'exception' : effectiveReleaseStatus),
       authority_ambiguous: certificateAmbiguous || selectedHistory.ambiguous || validationUnavailable,
-      gate,
+      gate: duplicateReleaseUnverified ? {...gate,effectiveStatus:'blocked',duplicateBasisCurrent:false} : gate,
     },
   };
 }

@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { currentAccessToken } from "@/lib/bridge-auth";
 import { getBridgeDecisionAccess, submitBridgeDecision, type BridgeDecisionAccess } from "@/lib/bridge-decision-client";
 import type { CaseTrace, InvoiceCaseSnapshot } from "@/api/connector";
+import InvoiceDuplicatePanel from './InvoiceDuplicatePanel';
+import InvoiceDuplicateDecision from './InvoiceDuplicateDecision';
 
 function dateLabel(value: unknown) {
   const date = typeof value === "string" ? new Date(value) : null;
@@ -123,6 +125,7 @@ export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
     && data.review.decisions.some(decision => decision.validation_result_id === snapshot.validationId
       && decision.decision === "approved" && decision.final === true));
   const certificates = new Map(data.release.certificates.map(certificate => [certificate.id, certificate]));
+  const [duplicateRevision,setDuplicateRevision]=useState(0);
   const status = data.release.effective_status
     ?? (data.release.certificates.length ? "blocked" : null);
   return (
@@ -134,7 +137,9 @@ export default function InvoiceCasePanel({ data, statusLabel, onChanged }: {
         </p>
       </div>
       {current ? <InvoiceSnapshot snapshot={current} visuallyConfirmed={visuallyConfirmed(current)} /> : <p className="text-sm">Aktueller Rechnungssnapshot nicht verfügbar.</p>}
-      {current && <InvoiceReview key={current.snapshotId + current.validationId + current.exception?.status} recordId={data.id} snapshot={current} onChanged={onChanged} />}
+      {current && <InvoiceDuplicatePanel key={data.id + current.snapshotId} recordId={data.id} snapshotId={current.snapshotId} />}
+      {current && <InvoiceDuplicateDecision key={data.id + current.snapshotId} recordId={data.id} snapshotId={current.snapshotId} onChanged={async()=>{await onChanged();setDuplicateRevision(v=>v+1);}} />}
+      {current && <InvoiceReview key={current.snapshotId + current.validationId + current.exception?.status + duplicateRevision} recordId={data.id} snapshot={current} onChanged={onChanged} />}
       {data.release.status_history.length > 0 && (
         <details className="rounded-lg border p-3 text-sm">
           <summary className="cursor-pointer font-medium">Freigabehistorie</summary>

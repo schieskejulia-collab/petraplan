@@ -6,6 +6,12 @@ on:
       - 'backend/ingestion/**'
       - 'backend/tests/**'
       - 'api-server/src/services/invoiceCaseRead*'
+      - 'api-server/src/services/invoiceDuplicate*'
+      - 'supabase/migrations/*invoice_duplicate*'
+      - 'frontend/mobile-app/src/pages/InvoiceDuplicatePanel.tsx'
+      - 'frontend/mobile-app/src/pages/InvoiceDuplicateDecision.tsx'
+      - 'api-server/src/services/caseTrace.ts'
+      - 'frontend/mobile-app/src/lib/invoice-duplicates-client.ts'
       - 'api/bridge/invoice-upload.js'
       - 'api/cases/**'
       - 'frontend/mobile-app/src/pages/InvoiceCasePanel.tsx'
@@ -60,8 +66,9 @@ jobs:
           npm run build
           npx tsc -p tsconfig.decision-tests.json
           npm run build --prefix frontend/mobile-app
-          python -m unittest backend.tests.test_invoice backend.tests.test_invoice_pdf backend.tests.test_kosit_contract -v
-          node --test tests/decision-integrity/invoice-case.test.mjs tests/decision-integrity/invoice-worker.test.mjs tests/decision-integrity/invoice-exception.test.mjs
+          python -m unittest backend.tests.test_invoice backend.tests.test_invoice_pdf backend.tests.test_kosit_contract backend.tests.test_invoice_duplicate_signals -v
+          node --test tests/decision-integrity/invoice-case.test.mjs tests/decision-integrity/invoice-worker.test.mjs tests/decision-integrity/invoice-exception.test.mjs tests/decision-integrity/invoice-duplicates.test.mjs tests/decision-integrity/invoice-duplicate-enforcement.test.mjs
+          PETRAPLAN_DUPLICATE_BROWSER_OUTPUT="$GITHUB_WORKSPACE/.invoice-test-resources/invoice-duplicate-enforcement.json" python tests/browser/test_invoice_duplicate_enforcement.py
           node --test tests/decision-integrity/claim-freshness.test.mjs
           python tests/browser/test_invoice_flow.py
           python scripts/verification/check-invoice-weclapp-rounding.py "$PETRAPLAN_INVOICE_FIXTURES/weclapp-rounding.pdf" \
@@ -81,6 +88,12 @@ jobs:
             docker logs invoice-worker-test
             exit 1
           fi
+      - name: Save duplicate enforcement evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoice-duplicate-enforcement
+          path: ${{ github.workspace }}/.invoice-test-resources/invoice-duplicate-enforcement.json
       - name: Save local test evidence
         if: always()
         uses: actions/upload-artifact@v4

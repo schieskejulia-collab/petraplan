@@ -6,6 +6,8 @@
   },
   "include": [
     "api/cases/[recordId]/decision.ts",
+    "api/cases/[recordId]/invoice-duplicates.ts",
+    "api/cases/[recordId]/invoice-duplicate-decision.ts",
     "api/cases/[recordId]/revalidate.ts",
     "api/cases/[recordId]/semantic-rules.ts",
     "tests/decision-integrity/*.ts",

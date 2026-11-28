@@ -92,3 +92,25 @@ Der aktuelle gehostete Schemaabgleich bleibt deshalb offen. Vor der
 Gesamtabnahme Projektverfügbarkeit klären und die read-only Inventur erneut
 auf dem ausdrücklich vorgesehenen Testschema ausführen. Die Freischaltung
 von Vercel allein belegt keine verfügbare Datenbank oder fertige Teststrecke.
+
+## Optionaler fallübergreifender Verdachtsvergleich (28.11.2026)
+
+Vor Verwendung die zusätzliche Migration `20261128040000_invoice_duplicate_read.sql`
+mit der Schema-Inventur abgleichen. Keine Bestandsdaten werden nachgetragen.
+Die beiden neuen Funktionen sind lesend und nur für `service_role` ausführbar;
+die API erfordert eine aktive `can_review`-Rolle.
+
+Der Vergleich ist standardmäßig ausgeschaltet. Nur in einer ausdrücklich als
+Einzelprojekt-Pilot vorgesehenen Umgebung serverseitig
+`PETRAPLAN_INVOICE_DUPLICATE_SCOPE=single-project-pilot` setzen. Diese Option
+stellt keine Mandantentrennung her: jede berechtigte Person vergleicht mit dem
+gesamten Projektbestand. Für einen Betrieb mit getrennten Kundenbeständen ist
+zuerst ein entsprechendes Berechtigungs- und Datenmodell erforderlich.
+
+Mit echtem Login zwei neue Fälle derselben Rechnung anlegen; Hinweis,
+Snapshotbindung und unveränderte Entscheidungen kontrollieren. Eine andere
+Rechnungsnummer bei gleicher erfasster Leistung sowie andere Empfänger und
+Leistungszeiträume als Gegenproben verwenden. Veraltete Snapshot-ID, fehlende
+Rolle, ausgeschaltete Option und fehlende RPC müssen sichtbare Fehler ergeben.
+Ein Verdacht verhindert aktuell keine Freigabe; die spätere verbindliche
+Dublettenentscheidung ist ein separater offener Schritt.

@@ -18,7 +18,7 @@ Der Northwind-/27er-Fall ist im verfügbaren Testdatenumfang abgeschlossen.
 | Containerbau und XML-/PDF-Verarbeitung | In CI bestanden | Derselbe Lauf verarbeitet beide Eingabetypen im gebauten KoSIT-/OCR-Worker. |
 | Gehosteter Lauf | Offen | Projektverfügbarkeit klären, Worker starten, Migrationsstand abgleichen und sieben Kriterien mit echtem Login prüfen. |
 
-Doppelrechnungen werden aktuell nicht zuverlässig erkannt. Fallzuordnung und Revisionsschutz sichern den ausgewählten Fall. Zwei neue Fall-IDs können ähnliche oder identische Rechnungen enthalten. Aus gleicher Lieferantenbezeichnung und gleichem Betrag folgt noch keine sichere Dublette. Dieser Punkt wird nach der laufenden Rechnungsabnahme behandelt.
+Ergänzung 28.11.2026: Ein optionaler, lesender Vergleich zeigt fallübergreifende Verdachtshinweise auch bei anderer Rechnungsnummer. Er bestätigt keine wirtschaftliche Dublette und sperrt keine Freigabe. Unvollständiger Datenbestand, fehlende Merkmale und Vergleichsgrenzen bleiben sichtbar. Aktivierung ist nur für den ausdrücklich freigeschalteten Einzelprojekt-Piloten vorgesehen; Mandantentrennung ist nicht implementiert. Details und Restumfang stehen im [Vergleichsvertrag](invoice-duplicate-review.md).
 
 ## Aktuelle Rechte
 
@@ -29,3 +29,7 @@ Dieselbe Person darf heute hochladen, reviewen und freigeben, wenn ihr alle jewe
 Für PDF-Ausnahmen erzwingt die Datenbank eine zweite ausdrücklich berechtigte Person, die weder hochgeladen noch den Antrag gestellt oder die Fassung zuvor geprüft hat. Danach führt sie Review und Freigabe gesondert aus. Der [Implementierungsnachweis](invoice-pdf-exception-implementation.md) dokumentiert Grenzen und Nachweise.
 
 **Bekannte Grenze für Kunden:** Im normalen Weg ist keine Funktionstrennung erzwungen. Kunden mit entsprechenden internen Kontrollen benötigen eine spätere mandantenspezifische Regelung, bevor dieser Weg dafür eingesetzt wird.
+
+Fortschreibung 28.11.2026: Entscheidungen, Datenbank-Freigabesperre und aktuelle
+Anzeige nach Bestandsänderung werden im [Enforcement-Nachweis](invoice-duplicate-enforcement-design.md)
+fortgeführt. Der gehostete Test bleibt separat; Zusammenführung ist zurückgestellt.

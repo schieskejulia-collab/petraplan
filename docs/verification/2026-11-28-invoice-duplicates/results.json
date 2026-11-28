@@ -1,0 +1,64 @@
+{
+  "date": "2026-11-28",
+  "baseCommit": "bf3f9f2c4121cc717b4d13606ff5a63077c24b91",
+  "scope": "local single-project read-only suspicion finder; no hosted acceptance",
+  "tests": {
+    "backend": {
+      "tests": 197,
+      "pass": 197,
+      "fail": 0,
+      "skipped": 0
+    },
+    "decisionIntegrity": {
+      "tests": 269,
+      "pass": 269,
+      "fail": 0,
+      "skipped": 0
+    },
+    "mobile": {
+      "tests": 217,
+      "pass": 217,
+      "fail": 0,
+      "skipped": 0
+    },
+    "python": {
+      "tests": 25,
+      "passed": true
+    },
+    "browser": {
+      "conditions": 40,
+      "passed": true,
+      "authentication": "local test identities",
+      "database": "PGlite fixture"
+    }
+  },
+  "limits": [
+    "No duplicate decision or automatic release block",
+    "No tenant isolation: explicit project pilot opt-in",
+    "200 other current cases; 50 displayed findings; visible truncation",
+    "No hosted migration, deploy, payment or genuine-login test",
+    "Existing release gates unchanged; no new race guarantee"
+  ],
+  "sourceFilesSha256": {
+    ".github/workflows/ci.yml": "3c2b45bc4f5faafce868de8c8fb2c95512daddcf3634dcf8cb5fd7c774a6421a",
+    ".github/workflows/invoice-local-verification.yml": "f04a7b04c91ba0e730ffb8ca9568df62cb503dfdfea874f744bc7242633ec8c3",
+    "api-server/src/services/invoiceDuplicates.test.ts": "fa501b133eaff9e54b1c33a9031a8078a823c595434b19198c38435f7c1f5887",
+    "api-server/src/services/invoiceDuplicates.ts": "02f65253e3307127588f1026ca977eac16beb9cbd51fe49b21463ece24c277f2",
+    "api/cases/[recordId]/invoice-duplicates.ts": "5dea3593049302c31ff4111fc7f0e6a02f9717216f4c3adbbbccea1e1c408348",
+    "backend/ingestion/invoice.py": "ffa19d38e99b5ab896acaac80775e4ba88763b835f6fba84287a34e80d837193",
+    "backend/ingestion/invoice_duplicate_signals.py": "fbe393d10cd8231b642b315c130075b1c6712dc73919a077d05df1c7cc4eae62",
+    "backend/tests/test_invoice_duplicate_signals.py": "b80369e163f6ceb23d5d07cb9ac1649091bd070a52121915823203653a8e7bf1",
+    "frontend/mobile-app/adversarial-evidence-proof.json": "44339f152d0408941a198fcba83c9efd592c8ad5eaab4b4f0b7bc225ab33d4c0",
+    "frontend/mobile-app/src/lib/invoice-duplicates-client.ts": "6cbe9ee0ee0b534d3eab08c13784d541f09e7e8dd3ff18159339cd61470f776e",
+    "frontend/mobile-app/src/pages/InvoiceCasePanel.tsx": "9699a0cf53fd546704b15b00f8fe7b42330e3cbd0d8e069f0ce310f4cadd550b",
+    "frontend/mobile-app/src/pages/InvoiceDuplicatePanel.tsx": "321d25a33df2ded329f48346d539f4fbc4d89064538a25306b6e1fec4442aa21",
+    "scripts/invoice-worker/Dockerfile": "c715765fd52e4951d065bd8c8cb7124304bd76903f100a3105da96e133d638bd",
+    "scripts/invoice-worker/Dockerfile.dockerignore": "45a8721350b9fca9a5d544fbef281c2eb7ddf8162dc8c4232cd9ea48733acf98",
+    "scripts/verification/invoice-test-schema-preflight.sql": "1c1655e620257f2ddd2949a6e10eb812c9aaf69fb6882e6f7bdfb83df5631531",
+    "supabase/migrations/20261128040000_invoice_duplicate_read.sql": "a975eff3f20f996b2e04b5a13a29f433b2fac96ba8045fb94be1df44b31187ff",
+    "tests/browser/invoice-harness.mjs": "529fe482b31dec0d4a399ef2c68281f5601d5d8678f925179ab308cf1231fb0f",
+    "tests/browser/test_invoice_flow.py": "73ee825d4d408517e8317e0d56482290b673d2d7587460667c22bd4725a00ced",
+    "tests/decision-integrity/invoice-duplicates.test.mjs": "959552386725c4e79adff4eaae077223797e730bd2e7b6d85abf9b33189f45f7",
+    "tsconfig.decision-tests.json": "d78dfcbd84df957e3ef353df25eb1b74a3bcb6ce895282cae77014b595ec3e63"
+  }
+}

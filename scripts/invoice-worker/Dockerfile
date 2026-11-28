@@ -12,7 +12,7 @@ ENV PATH="/opt/invoice-python/bin:${PATH}" \
     PORT=8080 \
     PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
-COPY backend/ingestion/invoice.py backend/ingestion/invoice_pdf.py backend/ingestion/kosit_contract.py backend/ingestion/
+COPY backend/ingestion/invoice.py backend/ingestion/invoice_pdf.py backend/ingestion/kosit_contract.py backend/ingestion/invoice_duplicate_signals.py backend/ingestion/
 COPY scripts/capture-invoice-case.mjs scripts/
 COPY scripts/invoice-worker/protocol.mjs scripts/invoice-worker/server.mjs scripts/invoice-worker/
 

@@ -1,0 +1,45 @@
+{
+  "scope": "local-test-auth-real-KoSIT-handlers-PGlite",
+  "checks": [
+    {
+      "name": "KoSIT accepts controlled complete-party fixture",
+      "passed": true
+    },
+    {
+      "name": "source review cannot bypass missing duplicate clearance",
+      "passed": true
+    },
+    {
+      "name": "duplicate clearance itself issues no certificate",
+      "passed": true
+    },
+    {
+      "name": "separate release binds duplicate decision",
+      "passed": true
+    },
+    {
+      "name": "new case invalidates prior displayed release",
+      "passed": true
+    },
+    {
+      "name": "copy remains without certificate",
+      "passed": true
+    },
+    {
+      "name": "independent primary release creates new certificate and retains revoked history",
+      "passed": true
+    },
+    {
+      "name": "changed blocked-copy decision invalidates primary release",
+      "passed": true
+    },
+    {
+      "name": "mobile decision panel fits viewport",
+      "passed": true
+    },
+    {
+      "name": "no JavaScript errors",
+      "passed": true
+    }
+  ]
+}
