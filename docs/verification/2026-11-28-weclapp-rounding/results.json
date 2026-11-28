@@ -1,0 +1,290 @@
+{
+  "scope": "one-pinned-historical-weclapp-example-no-general-tolerance",
+  "source": {
+    "repository": "ZUGFeRD/mustangproject",
+    "commit": "f9678ecef593a970b76cf0622b64825a45f17b8d",
+    "path": "library/src/test/resources/MustangBeispiel20221026.pdf",
+    "pdfSha256": "98a694e3eaca6c7e37a85cba73a640977c121c01549e09182836b433d8d53a18",
+    "xmlSha256": "05adb685ec43b1e4c57f97b8b4b73df72cf54e1d7ed77487818e28c97361b986"
+  },
+  "pdf": {
+    "page": 1,
+    "fields": {
+      "positionsNet": "804.35",
+      "shippingNet": "4.99",
+      "positionsVat": "152.83",
+      "shippingVat": "0.95",
+      "grand": "963.12"
+    },
+    "amountWordAnchors": [
+      {
+        "text": "804,35",
+        "box": [
+          521.8800048828125,
+          404.2910461425781,
+          546.3359985351562,
+          412.2910461425781
+        ]
+      },
+      {
+        "text": "4,99",
+        "box": [
+          530.780029296875,
+          414.2910461425781,
+          546.3400268554688,
+          422.2910461425781
+        ]
+      },
+      {
+        "text": "804,35",
+        "box": [
+          353.968017578125,
+          424.2910461425781,
+          378.42401123046875,
+          432.2910461425781
+        ]
+      },
+      {
+        "text": "152,83",
+        "box": [
+          521.8800048828125,
+          424.2910461425781,
+          546.3359985351562,
+          432.2910461425781
+        ]
+      },
+      {
+        "text": "4,99",
+        "box": [
+          369.97601318359375,
+          434.2910461425781,
+          385.5360107421875,
+          442.2910461425781
+        ]
+      },
+      {
+        "text": "0,95",
+        "box": [
+          530.780029296875,
+          434.2910461425781,
+          546.3400268554688,
+          442.2910461425781
+        ]
+      },
+      {
+        "text": "963,12",
+        "box": [
+          521.8800048828125,
+          444.2910461425781,
+          546.3359985351562,
+          452.2910461425781
+        ]
+      }
+    ],
+    "separatePayableLabelFound": false
+  },
+  "xml": {
+    "fields": {
+      "LineTotalAmount": {
+        "value": "804.35",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:LineTotalAmount"
+      },
+      "ChargeTotalAmount": {
+        "value": "4.99",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:ChargeTotalAmount"
+      },
+      "AllowanceTotalAmount": {
+        "value": "0.00",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:AllowanceTotalAmount"
+      },
+      "TaxBasisTotalAmount": {
+        "value": "809.34",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:TaxBasisTotalAmount"
+      },
+      "TaxTotalAmount": {
+        "value": "153.77",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:TaxTotalAmount"
+      },
+      "GrandTotalAmount": {
+        "value": "963.11",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:GrandTotalAmount"
+      },
+      "TotalPrepaidAmount": {
+        "value": "0.00",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:TotalPrepaidAmount"
+      },
+      "DuePayableAmount": {
+        "value": "963.11",
+        "path": "rsm:SupplyChainTradeTransaction/ram:ApplicableHeaderTradeSettlement/ram:SpecifiedTradeSettlementHeaderMonetarySummation/ram:DuePayableAmount"
+      }
+    },
+    "vatBasis": "809.34",
+    "vatRate": "0.19",
+    "vatCalculated": "153.77",
+    "roundingAmountPresent": false,
+    "paymentTerms": "Innerhalb von 30 Tagen 2% Skonto, 60 Tage ohne Abzug",
+    "namespaces": {
+      "rsm": "urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100",
+      "ram": "urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100"
+    }
+  },
+  "arithmetic": {
+    "rounding": "Decimal ROUND_HALF_UP to 0.01 reproduces the displayed amounts",
+    "pdfSplitVat": "153.78",
+    "xmlGroupedVat": "153.77",
+    "difference": "0.01",
+    "skontoAppliedToExplainDifference": false
+  },
+  "product": {
+    "contract": "en16931-invoice-v1",
+    "syntax": "CII",
+    "sourceSha256": "05adb685ec43b1e4c57f97b8b4b73df72cf54e1d7ed77487818e28c97361b986",
+    "technicalEvidence": {
+      "invoiceSha256": "05adb685ec43b1e4c57f97b8b4b73df72cf54e1d7ed77487818e28c97361b986",
+      "reportSha256": "2bd561a154ce876296ef85e4a56549101585594b717fa40e464f40fbc07a2130",
+      "engine": "KoSIT Validator 1.6.3",
+      "scenario": "EN16931 (CII)",
+      "validatorDecision": "accept",
+      "accepted": true,
+      "reportContract": {
+        "version": "kosit-scenario-evidence-v2",
+        "status": "MATCHED",
+        "requiredSteps": [
+          "val-xml",
+          "val-xsd",
+          "val-sch.1"
+        ],
+        "scenario": "EN16931 (CII)",
+        "scenarioSha256": "916b1c4aa215a091ffdeacd78837d0535d725318cba26a23fe7274fc3bb4677d"
+      },
+      "steps": [
+        {
+          "id": "val-xsd",
+          "valid": "true"
+        },
+        {
+          "id": "val-sch.1",
+          "valid": "true"
+        },
+        {
+          "id": "val-xml",
+          "valid": "true"
+        }
+      ],
+      "messages": [],
+      "validatorJarSha256": "799e64befca97d4080e03608c80b85dd5a5ecc5f4ae4f35d1116ec2855b9a7c9",
+      "scenariosSha256": "3e8161a39dfaa6aea4d990b279aab848be4f4c6169e820f354a159bda7693fb0",
+      "ruleResourcesSha256": "bf9e4282cde28c3e9d9063893509936dd076d99d500c9f348bb7c2086141aaa1"
+    },
+    "decision": {
+      "status": "BLOCKED",
+      "releaseAllowed": false,
+      "blockers": [
+        "PDF_VISUAL_AMOUNT_CONFLICT"
+      ]
+    },
+    "pdfComparison": {
+      "pdfSha256": "98a694e3eaca6c7e37a85cba73a640977c121c01549e09182836b433d8d53a18",
+      "method": "whole-page-rendered-ocr",
+      "pages": 1,
+      "status": "NOT_COMPARABLE",
+      "xmlPayable": "963.11",
+      "candidates": []
+    },
+    "fields": {
+      "BT-109": {
+        "status": "observed",
+        "values": [
+          {
+            "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}SpecifiedTradeSettlementHeaderMonetarySummation[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}TaxBasisTotalAmount[1]",
+            "original": "809.34",
+            "currency": {
+              "value": "EUR",
+              "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}InvoiceCurrencyCode[1]",
+              "basis": "document"
+            }
+          }
+        ]
+      },
+      "BT-110": {
+        "status": "observed",
+        "values": [
+          {
+            "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}SpecifiedTradeSettlementHeaderMonetarySummation[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}TaxTotalAmount[1]",
+            "original": "153.77",
+            "currency": {
+              "value": "EUR",
+              "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}SpecifiedTradeSettlementHeaderMonetarySummation[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}TaxTotalAmount[1]/@currencyID",
+              "basis": "attribute"
+            }
+          }
+        ]
+      },
+      "BT-112": {
+        "status": "observed",
+        "values": [
+          {
+            "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}SpecifiedTradeSettlementHeaderMonetarySummation[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}GrandTotalAmount[1]",
+            "original": "963.11",
+            "currency": {
+              "value": "EUR",
+              "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}InvoiceCurrencyCode[1]",
+              "basis": "document"
+            }
+          }
+        ]
+      },
+      "BT-115": {
+        "status": "observed",
+        "values": [
+          {
+            "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}SpecifiedTradeSettlementHeaderMonetarySummation[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}DuePayableAmount[1]",
+            "original": "963.11",
+            "currency": {
+              "value": "EUR",
+              "path": "/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}CrossIndustryInvoice[1]/Q{urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100}SupplyChainTradeTransaction[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}ApplicableHeaderTradeSettlement[1]/Q{urn:un:unece:uncefact:data:standard:ReusableAggregateBusinessInformationEntity:100}InvoiceCurrencyCode[1]",
+              "basis": "document"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "conclusion": "Displayed discrepancy reproduced by different VAT rounding groupings; original software internals and business/legal approval are not proven",
+  "released": false,
+  "date": "2026-11-28",
+  "testedProductBase": "bf3f9f2c4121cc717b4d13606ff5a63077c24b91",
+  "negativeControl": {
+    "changedPdfBytes": "rejected before processing by original SHA-256 identity guard"
+  },
+  "resourceVerification": {
+    "configurationFiles": 97,
+    "publicInputs": 14,
+    "result": "passed"
+  },
+  "probeSha256": "eb5578c3bd05deb3b3d88b68ffae5127215e54fcdc2ed1e35562f94c32c406d3",
+  "ci": {
+    "testedCommit": "51d60088fc8b7d17e4453111cbbed77a73466720",
+    "apiMobile": {
+      "runId": 46096908142,
+      "result": "success"
+    },
+    "invoiceBrowserContainer": {
+      "runId": 46096908123,
+      "jobId": 140830247889,
+      "result": "success",
+      "browserConditionsPassed": 36,
+      "weclappProbe": "passed; rounding reproduced and BLOCKED retained",
+      "workerContainerXmlAndPdf": "passed"
+    },
+    "artifact": {
+      "id": 15244136076,
+      "name": "invoice-browser-verification",
+      "digest": "sha256:9987880fb6fc1632cc493d9abd52524763da1d675e3ad244840733916d342752"
+    },
+    "logEvidence": [
+      "2026-11-28T02:15:59.8355405Z Pinned weclapp discrepancy reproduced: split VAT 153.78 vs grouped VAT 153.77; product remains BLOCKED, no rounding waiver.",
+      "2026-11-28T02:16:50.5118564Z Local container processed XML and PDF through KoSIT/OCR; no release authority."
+    ]
+  }
+}

@@ -33,4 +33,10 @@ Jede neue Fassung oder jeder relevante Belegwiderruf verlangt eine erneute Prüf
 
 In der bisherigen Probe steht der sichtbaren PDF-Endsumme 963,12 ein XML-Bruttobetrag von 963,11 gegenüber. Eine eigene Zahlbetrag-Zeile wurde nicht gefunden; zusätzlich ist Skonto dargestellt. Der Grund des Unterschieds ist offen. Vor einer Entscheidung müssen Bruttobetrag, Zahlbetrag, Skonto und Rundungsangaben mit ihren jeweiligen Fundstellen abgeglichen werden. Die Ursache ist bisher nicht als OCR-Fehler oder zulässige Rundung bestätigt.
 
+Fortschreibung 28.11.2026: Die damalige offene Rechnung ist nun am gepinnten
+Muster rechnerisch untersucht; [Nachweis](verification/2026-11-28-weclapp-rounding/README.md).
+Die unterschiedlichen Steuer-Rundungsgruppen reproduzieren den Cent. Die
+historische Beschreibung oben bleibt erhalten; daraus folgt keine zulässige
+Cent-Toleranz oder fachliche Freigabe.
+
 Die rechtliche Einordnung und die betrieblich zulässige Folgehandlung sind bei der konkreten Einführung mit der verantwortlichen Fachstelle festzulegen. Dieser Entwurf dokumentiert Zuständigkeit und Belegprüfung.

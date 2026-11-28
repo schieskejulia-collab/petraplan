@@ -12,7 +12,7 @@ Der Northwind-/27er-Fall ist im verfügbaren Testdatenumfang abgeschlossen.
 |---|---|---|
 | Rechnungsrevisionen über getrennte PostgreSQL-Verbindungen | **Lokal/CI abgenommen** | Drei Rennen mit synthetischen Worker-Artefakten im [PostgreSQL-17-Lauf](https://github.com/schieskejulia-collab/petraplan/actions/runs/44170253810) erfolgreich. |
 | Ausnahme bei abweichender oder unlesbarer PDF | Lokal und im portablen CI-Browserlauf geprüft | Unabhängige Entscheidung mit expliziter Vollmacht; gehostete Abnahme offen. Siehe [Implementierung](invoice-pdf-exception-implementation.md). |
-| weclapp 963,12 im PDF gegenüber 963,11 im XML | Ursache offen | Feldarten und Fundstellen für Brutto, Zahlbetrag, Skonto und Rundung abgleichen. |
+| weclapp 963,12 im PDF gegenüber 963,11 im XML | Rechenunterschied am gepinnten Muster nachvollzogen | Getrennt gerundete Steuern im PDF ergeben 153,78; die gemeinsame XML-Steuerbasis ergibt 153,77. Kein eigener PDF-Zahlbetrag belegt; der Produktweg bleibt gesperrt. [Nachweis vom 28.11.](verification/2026-11-28-weclapp-rounding/README.md). Keine pauschale Cent-Toleranz. |
 | Doppelrechnungen | Offener Folgepunkt | Dublettenverdacht auch bei anderer Nummer prüfen, anhand von Lieferant, Datum, Betrag, Leistungsbezug und weiteren Belegen. |
 | Browserprüfung in CI | Normaler Rechnungsweg und PDF-Ausnahme bestanden | [Lauf 46049776473](https://github.com/schieskejulia-collab/petraplan/actions/runs/46049776473): 36 Bedingungen mit zwei Testidentitäten und PGlite; [Nachweis](verification/2026-11-27-invoice-exception-browser/README.md). Kein gehosteter Login-Nachweis. |
 | Containerbau und XML-/PDF-Verarbeitung | In CI bestanden | Derselbe Lauf verarbeitet beide Eingabetypen im gebauten KoSIT-/OCR-Worker. |

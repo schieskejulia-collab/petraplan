@@ -50,4 +50,9 @@ Der normale Rechnungsweg erlaubt weiterhin Upload, Review und Freigabe durch die
 
 Die Identitäten müssen unterschiedlichen Menschen zugeordnet sein; gegen mehrere Konten derselben Person bietet der technische Benutzer-ID-Vergleich allein keinen Nachweis. Dokumentierte Vollmachten und Identitätsverwaltung gehören zur Einführung.
 
-Der weclapp-Unterschied 963,12/963,11 bleibt fachlich ungeklärt. Es gibt keine pauschale Cent-Toleranz und keine automatisch angenommene Erklärung durch Rundung oder XML-Vorrang. Doppelrechnungen und gehosteter Lauf bleiben separat offen.
+Fortschreibung 28.11.2026: Der weclapp-Unterschied 963,12/963,11 ist am
+[gepinnten Muster rechnerisch nachvollzogen](verification/2026-11-28-weclapp-rounding/README.md):
+getrennte Rundung der im PDF ausgewiesenen Steuergruppen gegenüber gemeinsamer
+XML-Steuerbasis. Das belegt keine allgemeine Toleranz oder betriebliche
+Ausnahmevollmacht. Die PDF bleibt ohne eindeutig belegten Zahlbetrag gesperrt.
+Doppelrechnungen und gehosteter Lauf bleiben separat offen.

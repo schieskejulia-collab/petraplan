@@ -468,6 +468,11 @@
       "url": "https://raw.githubusercontent.com/itplr-kosit/xrechnung-testsuite/1ce1dafffd035e5ce59a7ab0d3bf44ac14af16c9/src/test/business-cases/standard/01.01a-INVOICE_uncefact.xml",
       "sha256": "727b51982a84c9b406599a7384783570910440ed405c9bb6d918b22442636886",
       "gitBlob": "4ddca14baf40a3e5adcdc7589616a13890fd4820"
+    },
+    {
+      "filename": "weclapp-rounding.pdf",
+      "url": "https://raw.githubusercontent.com/ZUGFeRD/mustangproject/f9678ecef593a970b76cf0622b64825a45f17b8d/library/src/test/resources/MustangBeispiel20221026.pdf",
+      "sha256": "98a694e3eaca6c7e37a85cba73a640977c121c01549e09182836b433d8d53a18"
     }
   ],
   "peppol": [

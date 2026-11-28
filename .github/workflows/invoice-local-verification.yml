@@ -64,6 +64,9 @@ jobs:
           node --test tests/decision-integrity/invoice-case.test.mjs tests/decision-integrity/invoice-worker.test.mjs tests/decision-integrity/invoice-exception.test.mjs
           node --test tests/decision-integrity/claim-freshness.test.mjs
           python tests/browser/test_invoice_flow.py
+          python scripts/verification/check-invoice-weclapp-rounding.py "$PETRAPLAN_INVOICE_FIXTURES/weclapp-rounding.pdf" \
+            --kosit-jar "$PETRAPLAN_KOSIT_JAR" --scenarios "$PETRAPLAN_KOSIT_SCENARIOS" \
+            --output "$GITHUB_WORKSPACE/.invoice-test-resources/weclapp-rounding-results.json"
       - name: Build and exercise worker container
         run: |
           docker build -f scripts/invoice-worker/Dockerfile -t petraplan-invoice-worker-test .
@@ -83,4 +86,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: invoice-browser-verification
-          path: ${{ env.PETRAPLAN_BROWSER_OUTPUT }}
+          path: |
+            ${{ env.PETRAPLAN_BROWSER_OUTPUT }}
+            ${{ github.workspace }}/.invoice-test-resources/weclapp-rounding-results.json
