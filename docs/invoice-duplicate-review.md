@@ -38,7 +38,9 @@ Nummern bleiben undurchsichtige Zeichenfolgen ("0001" ist nicht "1").
 
 Die SQL-Funktionen lesen nur die jeweils aktuelle `records.ingestion_log_id` und
 Originale/KoSIT-Bericht samt zugehöriger ursprünglicher Validierung. Berechnete
-Hashes müssen mit den gespeicherten Belegverweisen übereinstimmen. Historische
+Hashes müssen mit den gespeicherten Belegverweisen übereinstimmen. Auch die
+relevante gespeicherte Projektion muss ihren unveränderlichen `basis_hash` treffen;
+gleich gebliebene Originalhashes genügen bei geänderten Vergleichsmerkmalen nicht. Historische
 Revisionen werden nicht als zusätzliche Fälle gezählt. `STABLE` gibt eine
 Beobachtung innerhalb des aufrufenden Statements, keinen Schutz bis zur späteren
 Freigabe. Nach Änderungen am Bestand muss aktualisiert werden.

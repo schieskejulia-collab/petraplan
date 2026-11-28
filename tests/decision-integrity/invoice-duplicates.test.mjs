@@ -77,6 +77,14 @@ test('duplicate read SQL, API and client preserve source binding, permissions an
   assert.equal((await compare(first.snapshot_id,ids.actor,'single-project-pilot',1)).truncated,true);
   const result=assessInvoiceDuplicates(await compare());assert.equal(result.coverage.unusableBasis,1);assert.equal(result.status,'INCOMPLETE');
  });
+ await t.test('changed comparison observations cannot reuse the immutable stored basis hash',async()=>{
+  const original=(await db.query('select extracted_schema from ingestion_logs where id=$1',[first.snapshot_id])).rows[0].extracted_schema;
+  await db.query("update ingestion_logs set extracted_schema=jsonb_set(extracted_schema,'{duplicateSignals}', $2::jsonb) where id=$1",[first.snapshot_id,{contract:'invoice-duplicate-signals-v1',sourceSha256:hash(artifact().invoice),number:'FORGED'}]);
+  const raw=await compare();assert.equal(raw.target.xmlSha256,hash(artifact().invoice));assert.equal(raw.target.proofBound,false);
+  assert.throws(()=>assessInvoiceDuplicates(raw),/unbound/);
+  await db.query('update ingestion_logs set extracted_schema=$2 where id=$1',[first.snapshot_id,original]);
+  assert.equal((await compare()).target.proofBound,true);
+ });
  await t.test('changed projection source hash is detected rather than trusted',async()=>{
   await db.query("update ingestion_logs set extracted_schema=jsonb_set(extracted_schema,'{sourceSha256}',to_jsonb($2::text)) where id=$1",[first.snapshot_id,'f'.repeat(64)]);
   const raw=await compare();assert.equal(raw.target.proofBound,false);assert.throws(()=>assessInvoiceDuplicates(raw),/unbound/);

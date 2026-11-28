@@ -10,6 +10,8 @@ returns jsonb language sql stable security invoker set search_path='' as $$
      and i.source_hash=encode(sha256(e.invoice_xml),'hex')
      and i.extracted_schema->>'contract'='en16931-invoice-v1'
      and i.extracted_schema->>'sourceSha256'=i.source_hash
+     and e.basis_hash=encode(sha256(convert_to(jsonb_set(i.extracted_schema,'{technicalEvidence}',
+       (i.extracted_schema->'technicalEvidence')-'reportSha256')::text,'UTF8')),'hex')
      and i.extracted_schema#>>'{technicalEvidence,invoiceSha256}'=i.source_hash
      and i.extracted_schema#>>'{technicalEvidence,reportSha256}'=encode(sha256(e.kosit_report),'hex')
      and v.evidence->>'source_snapshot_id'=e.snapshot_id::text

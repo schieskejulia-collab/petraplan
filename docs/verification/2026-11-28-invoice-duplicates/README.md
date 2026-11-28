@@ -3,7 +3,7 @@
 Stand 28.11.2026; Ausgangscommit `bf3f9f2c4121cc717b4d13606ff5a63077c24b91`.
 Produktumfang und verbleibende Grenzen: [Vergleichsvertrag](../../invoice-duplicate-review.md).
 
-Lokal bestanden: **197 Backendtests, 268 Entscheidungs-/Integritätstests, 217
+Lokal bestanden: **197 Backendtests, 269 Entscheidungs-/Integritätstests, 217
 Mobiletests, 25 Pythonprüfungen und 40 Browserbedingungen**, ohne übersprungene
 Tests in diesen erfassten Läufen. Backend-/Frontendbuild und Typechecks bestanden.
 
@@ -18,7 +18,8 @@ Tests in diesen erfassten Läufen. Backend-/Frontendbuild und Typechecks bestand
 - Tatsächliche SQL-Funktionen in isolierter PGlite-Testgrundlage: aktuelle
   Snapshotbindung, Zugriffsschutz für beide RPCs, Rollen-/Scope-/Limitfehler,
   Revision mit erhaltenem Verlauf, abgeschnittener Bestand, fehlende Belege und
-  manipulierte Hashbindung. Ein Vorher-/Nachhervergleich **aller öffentlichen
+  manipulierte Hashbindung. Auch veränderte Vergleichsmerkmale bei unverändertem
+  Originalhash verlieren die Bindung an den unveränderlichen `basis_hash`. Ein Vorher-/Nachhervergleich **aller öffentlichen
   Tabellen** bestätigt, dass der lesende Aufruf keine Daten geschrieben hat.
 - Tatsächlicher API-Handler: serverseitiger Schalter, authentifizierter Akteur
   statt Request-Angabe, Rechte, Methoden und sichtbare Fehler. Der Frontend-Parser
