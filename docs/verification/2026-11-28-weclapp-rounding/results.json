@@ -264,6 +264,27 @@
   },
   "probeSha256": "eb5578c3bd05deb3b3d88b68ffae5127215e54fcdc2ed1e35562f94c32c406d3",
   "ci": {
-    "status": "pending at initial publication"
+    "testedCommit": "51d60088fc8b7d17e4453111cbbed77a73466720",
+    "apiMobile": {
+      "runId": 46096908142,
+      "result": "success"
+    },
+    "invoiceBrowserContainer": {
+      "runId": 46096908123,
+      "jobId": 140830247889,
+      "result": "success",
+      "browserConditionsPassed": 36,
+      "weclappProbe": "passed; rounding reproduced and BLOCKED retained",
+      "workerContainerXmlAndPdf": "passed"
+    },
+    "artifact": {
+      "id": 15244136076,
+      "name": "invoice-browser-verification",
+      "digest": "sha256:9987880fb6fc1632cc493d9abd52524763da1d675e3ad244840733916d342752"
+    },
+    "logEvidence": [
+      "2026-11-28T02:15:59.8355405Z Pinned weclapp discrepancy reproduced: split VAT 153.78 vs grouped VAT 153.77; product remains BLOCKED, no rounding waiver.",
+      "2026-11-28T02:16:50.5118564Z Local container processed XML and PDF through KoSIT/OCR; no release authority."
+    ]
   }
 }

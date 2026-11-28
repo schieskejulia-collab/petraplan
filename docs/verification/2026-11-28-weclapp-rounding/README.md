@@ -99,7 +99,17 @@ python scripts/verification/check-invoice-weclapp-rounding.py /path/to/weclapp-r
 Lokal bestanden: Original-Gegenprobe mit KoSIT/OCR, geänderte Bytes abgewiesen;
 97 Konfigurationsdateien und alle 14 öffentlichen Eingaben per Hash bestätigt.
 Die bestehende Rechnungs-CI führt dieselbe Probe aus und sichert die Ergebnisdatei.
-Der CI-Lauf wird nach Abschluss separat dokumentiert.
+Erfolgreiche CI am Prüfcommit `51d60088fc8b7d17e4453111cbbed77a73466720`:
+
+- [API und Mobile, Lauf 46096908142](https://github.com/schieskejulia-collab/petraplan/actions/runs/46096908142): bestanden.
+- [Rechnung, Browser, weclapp und Container, Lauf 46096908123](https://github.com/schieskejulia-collab/petraplan/actions/runs/46096908123): bestanden; Job `140830247889`.
+- Joblog 02:15:59 UTC: Cent-Differenz reproduziert, Produkt bleibt BLOCKED.
+- Joblog 02:16:50 UTC: XML und PDF durch KoSIT/OCR im gebauten Worker verarbeitet.
+- Ergebnisartefakt `invoice-browser-verification`, ID `15244136076`, enthält
+  Browser- und weclapp-Ergebnisdatei; Digest
+  `sha256:9987880fb6fc1632cc493d9abd52524763da1d675e3ad244840733916d342752`.
+
+Die anschließende Fortschreibung ergänzt ausschließlich diese Laufnachweise.
 
 **Untersuchung zum Cent-Unterschied: im Umfang dieses Musters abgeschlossen.**
 **Freigabe des widersprüchlichen Dokuments: daraus nicht abgeleitet.** Ein
